@@ -134,9 +134,31 @@ const augr = new Augur({
 
 Three constructor args. No code changes elsewhere. The router automatically adapts to Pinecone's keyword-incapable status (it stops picking keyword and lets the reranker carry precision).
 
+### Picking a better default embedder (no API key needed)
+
+The default `HashEmbedder` is a feature-hashed bag-of-tokens — useful as
+a deterministic placeholder, but its vectors are not semantically
+meaningful. For a meaningful no-API-key baseline, use `TfIdfEmbedder`
+which computes feature-hashed TF-IDF vectors with Porter stemming and
+stopword removal:
+
+```ts
+import { Augur, TfIdfEmbedder, MetadataChunker, SentenceChunker } from "@augur/core";
+
+const augr = new Augur({
+  embedder: new TfIdfEmbedder(),
+  chunker: new MetadataChunker({ base: new SentenceChunker() }),
+});
+```
+
+`MetadataChunker` wraps any base chunker and prepends `[doc-id | topic | title]`
+to each chunk before embedding — the "Doc2Query lite" pattern. On the
+built-in 504-query eval, the combo lifts NDCG@10 from 0.786 (HashEmbedder)
+to 0.848.
+
 ### Picking a reranker
 
-The `Reranker` interface has four ready implementations:
+The `Reranker` interface has five ready implementations:
 
 ```ts
 import {
@@ -144,6 +166,7 @@ import {
   CohereReranker,            // hosted cross-encoder, multilingual v3
   JinaReranker,              // hosted cross-encoder, multilingual v2
   HttpCrossEncoderReranker,  // BYO endpoint — self-hosted BGE / mxbai / etc
+  CascadedReranker,          // chain rerankers: cheap-broad → expensive-narrow
 } from "@augur/core";
 
 // Generic fetch-based hookup for any cross-encoder you serve internally:
@@ -152,10 +175,18 @@ const myReranker = new HttpCrossEncoderReranker({
   // Default protocol: POST { query, documents, topK } → { scores: number[] }.
   // Override `requestBody` and `parseResponse` to match a different shape.
 });
+
+// Cascaded rerank — heuristic narrows 100 → 50, cross-encoder narrows 50 → 10:
+const cascade = new CascadedReranker([
+  [new HeuristicReranker(), 50],
+  [new HttpCrossEncoderReranker({ endpoint: "..." }), 10],
+]);
 ```
 
 `HeuristicReranker` is fine for a smoke test; cross-encoder rerankers are
 typically the single biggest accuracy lever once embeddings are decent.
+Cascaded reranking gives you both: cheap narrowing on a wide first pass,
+expensive scoring only on the survivors.
 
 ---
 
