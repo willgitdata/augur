@@ -96,7 +96,12 @@ export class Augur {
       // Let stateful embedders (TfIdfEmbedder etc) ingest the corpus before
       // embedding, so query-time IDFs reflect indexed content.
       this.embedder.fit?.(texts);
-      const vecs = await this.embedder.embed(texts);
+      // Prefer embedDocuments() — embedders that distinguish doc vs query
+      // task types (Gemini, Cohere v3) score noticeably higher when the
+      // role is explicit.
+      const vecs = await (this.embedder.embedDocuments
+        ? this.embedder.embedDocuments(texts)
+        : this.embedder.embed(texts));
       vecs.forEach((v, i) => {
         allChunks[i]!.embedding = v;
       });
@@ -155,6 +160,7 @@ export class Augur {
 
     if (decision.strategy === "vector") {
       const embedding = await tracer.span("embed:query", async () => {
+        if (this.embedder.embedQuery) return this.embedder.embedQuery(req.query);
         const [v] = await this.embedder.embed([req.query]);
         return v!;
       });
@@ -167,6 +173,7 @@ export class Augur {
       );
     } else if (decision.strategy === "hybrid") {
       const embedding = await tracer.span("embed:query", async () => {
+        if (this.embedder.embedQuery) return this.embedder.embedQuery(req.query);
         const [v] = await this.embedder.embed([req.query]);
         return v!;
       });
@@ -182,6 +189,7 @@ export class Augur {
     } else if (decision.strategy === "rerank") {
       // "rerank" as a top-level strategy means "do vector then rerank, period".
       const embedding = await tracer.span("embed:query", async () => {
+        if (this.embedder.embedQuery) return this.embedder.embedQuery(req.query);
         const [v] = await this.embedder.embed([req.query]);
         return v!;
       });

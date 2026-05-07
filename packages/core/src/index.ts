@@ -52,11 +52,13 @@ export {
   HashEmbedder,
   TfIdfEmbedder,
   OpenAIEmbedder,
+  GeminiEmbedder,
   tokenize,
   tokenizeAdvanced,
   stem,
   STOPWORDS,
 } from "./embeddings/embedder.js";
+export { LocalEmbedder } from "./embeddings/local-embedder.js";
 
 // Routing
 export { type Router, HeuristicRouter, computeSignals } from "./routing/index.js";
@@ -70,6 +72,7 @@ export {
   HttpCrossEncoderReranker,
   CascadedReranker,
 } from "./reranking/reranker.js";
+export { LocalReranker } from "./reranking/local-reranker.js";
 
 // Question taxonomy from signals (re-exported for routers consuming the type).
 export type { QuestionType } from "./types.js";
