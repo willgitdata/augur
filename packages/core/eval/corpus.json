@@ -25,6 +25,41 @@
     "metadata": { "topic": "postgres" }
   },
   {
+    "id": "pg-indexes",
+    "content": "PostgreSQL index types each fit a workload. B-tree is the default and handles equality + ordered range queries. GiST handles geometric and full-text. GIN is best for JSONB containment, array overlap, and trigram (pg_trgm) full-text. BRIN compresses index size for huge naturally-ordered tables (timestamp logs). Use partial indexes (WHERE clause) for skewed boolean filters.",
+    "metadata": { "topic": "postgres" }
+  },
+  {
+    "id": "pg-jsonb",
+    "content": "JSONB in Postgres stores parsed JSON in a binary format. Operators include -> (key access, returns jsonb), ->> (key access, returns text), @> (containment), and #> (path access). Index frequently filtered keys with a GIN index using jsonb_path_ops for containment-only or the default operator class for full querying. Avoid storing data you query as a fixed schema in JSONB — relational columns index better.",
+    "metadata": { "topic": "postgres" }
+  },
+  {
+    "id": "pg-partitioning",
+    "content": "Declarative partitioning in PostgreSQL splits a table into partitions by RANGE, LIST, or HASH. Range partitioning suits time-series tables (one partition per month). The planner prunes partitions at query time when the partition key is a constant, avoiding scans of irrelevant partitions. Add a default partition to catch out-of-range inserts. Detach old partitions instead of DELETE for fast archival.",
+    "metadata": { "topic": "postgres" }
+  },
+  {
+    "id": "pg-locks",
+    "content": "PostgreSQL row-level locks come in shared and exclusive flavors. SELECT ... FOR UPDATE acquires a row exclusive lock; FOR SHARE acquires a share lock. Use FOR UPDATE SKIP LOCKED to implement work queues without blocking. Advisory locks (pg_advisory_lock) are application-managed and do not block on row data — useful for cross-transaction coordination. Watch pg_locks and pg_stat_activity to diagnose contention.",
+    "metadata": { "topic": "postgres" }
+  },
+  {
+    "id": "pg-wal",
+    "content": "The Postgres WAL (write-ahead log) records every change before it touches data files, enabling crash recovery and replication. Configure wal_level=replica or logical depending on replica needs. Archive WAL segments via archive_command for point-in-time recovery; combine with pg_basebackup for full restore. Monitor pg_stat_archiver to ensure archiving is keeping up.",
+    "metadata": { "topic": "postgres" }
+  },
+  {
+    "id": "pg-roles",
+    "content": "Roles in PostgreSQL are unified accounts that can act as users, groups, or both. Use GRANT and REVOKE to manage privileges. Default privileges (ALTER DEFAULT PRIVILEGES) apply to objects created in the future, sparing you from rerunning grants after migrations. Avoid granting privileges to PUBLIC; create per-role groups instead. Set role_name in connection strings or via SET ROLE for per-session identity changes.",
+    "metadata": { "topic": "postgres" }
+  },
+  {
+    "id": "pg-extensions",
+    "content": "Common Postgres extensions: pg_stat_statements (query metrics aggregated by normalized text), pg_trgm (trigram similarity for fuzzy matching), pgcrypto (hash/encrypt functions), uuid-ossp (UUID generators), postgres_fdw (foreign data wrappers for cross-DB queries), and pg_partman (managed partition rotation).",
+    "metadata": { "topic": "postgres" }
+  },
+  {
     "id": "k8s-probes",
     "content": "Kubernetes liveness probes determine whether a container should be restarted. Readiness probes determine whether a pod can receive traffic. Startup probes run only during initial startup and disable the other two until they pass. Configure initialDelaySeconds, periodSeconds, and failureThreshold appropriately so slow startup paths do not get killed prematurely. A common antipattern is using the same HTTP endpoint for both liveness and readiness — separate them so a transient dependency outage does not trigger restarts.",
     "metadata": { "topic": "kubernetes" }
@@ -50,6 +85,41 @@
     "metadata": { "topic": "kubernetes" }
   },
   {
+    "id": "k8s-configmap",
+    "content": "ConfigMaps in Kubernetes hold non-secret configuration. Mount them as files (volumeMounts) when the app reads from disk, or project them as env vars via envFrom for twelve-factor apps. ConfigMap updates do not automatically restart pods; use a checksum annotation pattern (sha256 of the ConfigMap data) on the Deployment template to roll the pods on change.",
+    "metadata": { "topic": "kubernetes" }
+  },
+  {
+    "id": "k8s-secrets",
+    "content": "Kubernetes Secrets are base64-encoded by default — not encrypted. Enable encryption at rest in etcd (EncryptionConfiguration) for real protection. For production, prefer external secret managers (AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager) wired in via the External Secrets Operator. Rotate secrets by updating the source and triggering a rolling restart of consumers.",
+    "metadata": { "topic": "kubernetes" }
+  },
+  {
+    "id": "k8s-statefulsets",
+    "content": "StatefulSets manage stateful apps in Kubernetes. Each pod gets a stable network identity (pod-0, pod-1) and its own PersistentVolumeClaim via volumeClaimTemplates. Pods are created and deleted in order. Use a Headless Service (clusterIP: None) to give clients direct DNS access to each replica. Common use cases: Postgres, ElasticSearch, Kafka.",
+    "metadata": { "topic": "kubernetes" }
+  },
+  {
+    "id": "k8s-ingress",
+    "content": "Kubernetes Ingress routes HTTP(S) traffic to Services using rules and an Ingress controller (nginx, AWS ALB, GCP Cloud Load Balancing, Traefik). The newer Gateway API replaces Ingress with richer routing (HTTPRoute, GRPCRoute) and clearer separation between platform admin (Gateway) and app team (Route).",
+    "metadata": { "topic": "kubernetes" }
+  },
+  {
+    "id": "k8s-networkpolicy",
+    "content": "Kubernetes NetworkPolicy applies allow-list rules at L3/L4 between pods. Default-deny in a namespace by applying an empty Ingress or Egress policy and then layering allow rules. NetworkPolicy requires a CNI that supports it (Calico, Cilium, Antrea); with vanilla Flannel it has no effect. Cilium supports L7 policies on top via its CRDs.",
+    "metadata": { "topic": "kubernetes" }
+  },
+  {
+    "id": "k8s-hpa",
+    "content": "The Horizontal Pod Autoscaler scales replicas based on metrics. Default metrics are CPU and memory; custom metrics (request rate, queue depth) need the metrics.k8s.io API + an adapter. Set sensible behavior windows (scaleDown.stabilizationWindowSeconds=300) to avoid thrashing. KEDA is the de-facto choice for event-driven autoscaling against Kafka, SQS, etc.",
+    "metadata": { "topic": "kubernetes" }
+  },
+  {
+    "id": "k8s-helm",
+    "content": "Helm packages Kubernetes manifests as charts. Charts have templates, values.yaml for defaults, and Chart.yaml for metadata. helm install creates a release; helm upgrade applies new values or chart versions. Use --atomic to roll back automatically on failure. For environments with many overrides, prefer a values-<env>.yaml file per environment over long --set chains.",
+    "metadata": { "topic": "kubernetes" }
+  },
+  {
     "id": "redis-cache",
     "content": "Redis is an in-memory key-value store often used as a cache in front of a database. It supports strings, hashes, lists, sets, and sorted sets, with optional persistence via RDB snapshots or AOF logs. For cache use cases, configure maxmemory and an eviction policy such as allkeys-lru. For session stores, prefer noeviction and a larger maxmemory so sessions are not silently dropped.",
     "metadata": { "topic": "redis" }
@@ -62,6 +132,21 @@
   {
     "id": "redis-cluster",
     "content": "Redis Cluster shards keys across 16384 hash slots distributed over masters. Each master can have one or more replicas for failover. Multi-key operations require all keys to map to the same slot — use hash tags {tag} to pin them. Persistence is per-node: configure RDB snapshots or AOF on each master independently.",
+    "metadata": { "topic": "redis" }
+  },
+  {
+    "id": "redis-lua",
+    "content": "Redis EVAL runs Lua scripts atomically — no other command can interleave. Use SCRIPT LOAD + EVALSHA to avoid sending the script body on every call. Lua scripts are the cleanest way to implement compare-and-set semantics across multiple keys (e.g. atomic counters with caps, distributed rate limiters). Keep scripts short — they block the server while running.",
+    "metadata": { "topic": "redis" }
+  },
+  {
+    "id": "redis-sentinel",
+    "content": "Redis Sentinel monitors a master/replica setup and performs failover when the master is down. Run an odd number of Sentinels (3 or 5) for quorum. Sentinel updates clients of the new master via the SENTINEL get-master-addr-by-name command. For sharded high availability use Redis Cluster instead — Sentinel only supports a single master shard.",
+    "metadata": { "topic": "redis" }
+  },
+  {
+    "id": "redis-bitmaps",
+    "content": "Redis bitmap operations let you store and query bits packed into strings. SETBIT key offset 0|1 sets a bit, GETBIT reads it, and BITCOUNT counts set bits in a range. Bitmaps are efficient for daily-active-user tracking (one bit per user per day) and feature flags. Use BITOP AND/OR/XOR for set operations across days.",
     "metadata": { "topic": "redis" }
   },
   {
@@ -80,6 +165,41 @@
     "metadata": { "topic": "networking" }
   },
   {
+    "id": "grpc-protobuf",
+    "content": "gRPC uses HTTP/2 as transport and protobuf for the wire format. Define services in .proto files; codegen produces typed clients and servers in many languages. Streaming comes in four flavors: unary, server-streaming, client-streaming, and bidirectional. Use deadlines (per-RPC timeouts) on the client; the server reads them via the context and can short-circuit work.",
+    "metadata": { "topic": "networking" }
+  },
+  {
+    "id": "websockets",
+    "content": "WebSockets begin as an HTTP request with Upgrade: websocket. After the handshake, the connection switches to a framed bidirectional protocol. Send Ping/Pong frames periodically to keep intermediaries from idling out the connection. Bear in mind that browsers limit per-host WebSocket count; multiplex if you need many concurrent channels.",
+    "metadata": { "topic": "networking" }
+  },
+  {
+    "id": "mtls",
+    "content": "Mutual TLS (mTLS) authenticates both server and client via certificates. The server requests a client certificate during the handshake; the client presents one signed by a trusted CA. Use mTLS for service-to-service auth in zero-trust meshes (Istio, Linkerd, SPIFFE/SPIRE). Rotate client certs frequently — short-lived certs are the security model, not revocation.",
+    "metadata": { "topic": "networking" }
+  },
+  {
+    "id": "bgp-routing",
+    "content": "BGP is the routing protocol of the public internet. eBGP peers between autonomous systems; iBGP within. Routes carry path attributes (AS_PATH, LOCAL_PREF, MED) that influence selection. Route hijacking happens when an AS announces prefixes it does not own; RPKI signs the legitimate origin AS for a prefix to prevent this.",
+    "metadata": { "topic": "networking" }
+  },
+  {
+    "id": "nat-traversal",
+    "content": "NAT traversal techniques let two peers behind NATs talk directly. STUN tells a host its public address. TURN relays traffic when direct connectivity fails. ICE combines candidates from STUN and TURN and picks the best path. WebRTC uses ICE under the hood; expect a TURN fallback for symmetric NATs and corporate networks.",
+    "metadata": { "topic": "networking" }
+  },
+  {
+    "id": "quic-http3",
+    "content": "QUIC is a UDP-based transport that combines TLS 1.3 with stream multiplexing. HTTP/3 runs HTTP semantics over QUIC. Connection establishment is 0-RTT or 1-RTT vs HTTP/2's 2-3 RTTs. Streams are independent — head-of-line blocking that plagued HTTP/2 over TCP is gone. Connection migration survives client IP changes (mobile networks).",
+    "metadata": { "topic": "networking" }
+  },
+  {
+    "id": "cors-policy",
+    "content": "CORS is the browser-enforced policy that gates cross-origin XHR / fetch. The server responds with Access-Control-Allow-Origin and friends. Preflight (OPTIONS) requests fire when the method is non-simple or custom headers are sent. Credentials (cookies, auth headers) require Allow-Credentials: true and a specific origin (no wildcard).",
+    "metadata": { "topic": "networking" }
+  },
+  {
     "id": "err-conn-refused",
     "content": "Error code ERR_CONNECTION_REFUSED 4101 indicates a TCP-level rejection. Check firewall rules, the service binding (0.0.0.0 vs 127.0.0.1), and whether the upstream process is actually listening on the expected port. On macOS, use lsof -iTCP -sTCP:LISTEN to enumerate listeners.",
     "metadata": { "topic": "errors" }
@@ -95,8 +215,68 @@
     "metadata": { "topic": "errors" }
   },
   {
+    "id": "err-eaddrinuse",
+    "content": "EADDRINUSE means the port you tried to bind is already in use. On Linux, find the offender with ss -lntp | grep :PORT or lsof -iTCP:PORT. SO_REUSEPORT (Linux) lets multiple sockets bind the same port for load distribution; SO_REUSEADDR allows binding while a previous socket is in TIME_WAIT but does not allow two simultaneous listeners.",
+    "metadata": { "topic": "errors" }
+  },
+  {
+    "id": "err-segfault",
+    "content": "A segmentation fault (SIGSEGV) means a process accessed memory it does not own. Reproduce under gdb or load the core dump (ulimit -c unlimited) and bt to see the call stack. Common causes: dereferencing a NULL pointer, use-after-free, stack overflow in deep recursion, mismatched calling conventions (FFI). Run under valgrind or AddressSanitizer to catch latent bugs.",
+    "metadata": { "topic": "errors" }
+  },
+  {
+    "id": "err-deadlock",
+    "content": "Deadlocks occur when transactions hold locks each other waits on. Postgres detects deadlocks and aborts the youngest transaction with SQLSTATE 40P01. Fix: order lock acquisition consistently across all paths (e.g., always lock account A before B). Application-level retry on deadlock is reasonable for OLTP. Watch pg_locks joined with pg_stat_activity to see who blocks whom.",
+    "metadata": { "topic": "errors" }
+  },
+  {
+    "id": "cve-log4shell",
+    "content": "CVE-2021-44228 (Log4Shell) is a remote code execution vulnerability in Apache Log4j 2.0–2.14.1 via the JNDI lookup feature in formatted log messages. A crafted string like ${jndi:ldap://attacker/x} triggers a JNDI lookup that loads a remote Java class. Mitigation: upgrade to 2.17.1+, set log4j2.formatMsgNoLookups=true, or remove the JndiLookup class from the JAR.",
+    "metadata": { "topic": "errors" }
+  },
+  {
+    "id": "rfc-9110",
+    "content": "RFC 9110 defines HTTP semantics — methods, status codes, headers, content negotiation — independent of any specific version. It supersedes RFC 7230-7235. The companion RFC 9112 handles HTTP/1.1 wire format. Read 9110 for the canonical definition of POST vs PUT vs PATCH, idempotency, and safe-method rules.",
+    "metadata": { "topic": "errors" }
+  },
+  {
+    "id": "rfc-7519-jwt",
+    "content": "RFC 7519 defines JSON Web Tokens (JWT). A JWT is three Base64url-encoded segments separated by dots: header, payload, signature. The signature covers the first two segments and is verified with the issuer's key. Common claims include iss, sub, aud, exp, iat, nbf, jti. Always validate exp and signature; never trust an unverified JWT.",
+    "metadata": { "topic": "security" }
+  },
+  {
+    "id": "x509-verify",
+    "content": "x509: certificate verify failed indicates that the TLS handshake could not validate the peer's certificate chain. Common causes: expired certificate, hostname mismatch, missing intermediate cert (chain incomplete), or the root CA not in the local trust store. Inspect the chain with openssl s_client -connect host:443 -showcerts. For private CAs, ensure the CA cert is mounted and trusted in the container.",
+    "metadata": { "topic": "errors" }
+  },
+  {
     "id": "rust-ownership",
     "content": "Rust's borrow checker enforces memory safety without a garbage collector. Each value has a single owner; when the owner goes out of scope the value is dropped. Borrowing references a value without transferring ownership — but you can have either one mutable reference or any number of shared references at once, never both. Lifetimes annotate how long borrowed references must remain valid. Most fights with the borrow checker resolve by restructuring data, not by adding lifetimes.",
+    "metadata": { "topic": "languages" }
+  },
+  {
+    "id": "rust-async",
+    "content": "Rust async functions return Futures, which do nothing until polled by an executor. Tokio is the de-facto async runtime, providing a multi-threaded scheduler, timers, and IO. Use tokio::spawn for tasks, tokio::select! for multiplexing, and avoid blocking calls in async functions — use tokio::task::spawn_blocking for CPU-bound or sync IO.",
+    "metadata": { "topic": "languages" }
+  },
+  {
+    "id": "rust-traits",
+    "content": "Traits in Rust are like interfaces with default methods. impl Trait for Type implements a trait. Trait bounds (T: Display + Clone) constrain generics. Use where clauses for complex bounds. Trait objects (dyn Trait) enable runtime polymorphism via dynamic dispatch; generics monomorphize at compile time. Orphan rule: you can only impl trait T for type U if you own one of them.",
+    "metadata": { "topic": "languages" }
+  },
+  {
+    "id": "rust-error-handling",
+    "content": "Rust uses Result<T, E> for recoverable errors and panic! for unrecoverable bugs. The ? operator propagates errors up the call stack. anyhow::Error is the standard for application errors when you do not need to match exhaustively; thiserror is the standard for library errors that callers may pattern match. Avoid unwrap() in production code paths.",
+    "metadata": { "topic": "languages" }
+  },
+  {
+    "id": "rust-cargo",
+    "content": "Cargo is Rust's package manager and build tool. Workspaces share a Cargo.lock and target/ across many crates. Features are conditional compilation flags users opt into. cargo build --release enables optimizations; cargo test runs the test suite, including doc tests. cargo clippy is a linter; cargo fmt formats. Prefer thin crates with tight features for fast compile times.",
+    "metadata": { "topic": "languages" }
+  },
+  {
+    "id": "rust-unsafe",
+    "content": "unsafe in Rust unlocks raw pointer dereferences, FFI, mutable statics, unions, and unsafe trait impls. The compiler still checks borrows inside unsafe blocks; unsafe is not a borrow-checker bypass. Use unsafe sparingly and document invariants the caller must uphold. Auditable safety boundaries are the goal.",
     "metadata": { "topic": "languages" }
   },
   {
@@ -105,9 +285,89 @@
     "metadata": { "topic": "languages" }
   },
   {
+    "id": "python-asyncio",
+    "content": "asyncio is Python's event-loop-based async framework. Coroutines are async def functions; await suspends until the future resolves. asyncio.gather runs many coroutines concurrently; asyncio.wait_for adds a timeout. Use asyncio.Lock for critical sections, asyncio.Queue for producer/consumer patterns. Mixing sync and async code typically requires loop.run_in_executor.",
+    "metadata": { "topic": "languages" }
+  },
+  {
+    "id": "python-typing",
+    "content": "Python type hints (PEP 484+) describe types without runtime enforcement. mypy and pyright check them statically. PEP 585 lets you write list[int] instead of List[int]. PEP 604 enables X | Y union syntax. Generics use TypeVar and Generic. Protocol (PEP 544) gives structural typing — duck typing the type checker can verify.",
+    "metadata": { "topic": "languages" }
+  },
+  {
+    "id": "python-packaging",
+    "content": "Modern Python packaging uses pyproject.toml and PEP 517/518 build backends (hatchling, setuptools, poetry-core, flit). pip install ., uv pip install ., or poetry install build and install. Avoid setup.py-only packages; use src/ layout to prevent import-shadowing during tests. Pin dependencies for applications; constrain ranges for libraries.",
+    "metadata": { "topic": "languages" }
+  },
+  {
+    "id": "python-pandas",
+    "content": "pandas DataFrames are tabular structures with row + column labels. Use .loc for label-based indexing, .iloc for positional. groupby().agg() does split-apply-combine. Vectorized operations (df['x'] * 2) beat row-wise apply. For large data prefer Polars or DuckDB; pandas keeps everything in Python objects which becomes a bottleneck.",
+    "metadata": { "topic": "languages" }
+  },
+  {
+    "id": "python-virtualenv",
+    "content": "Python virtual environments isolate package installs per project. Built-in: python -m venv .venv && source .venv/bin/activate. poetry, pdm, and rye manage venvs + dependencies together. uv (from astral) is much faster than pip for installs. Always activate before pip install — no global package installs in modern workflows.",
+    "metadata": { "topic": "languages" }
+  },
+  {
     "id": "code-snippet",
     "content": "useState is a React hook that returns a stateful value and a setter: const [count, setCount] = useState(0). Calling setCount(next) schedules a re-render with the new value. Updates batch within event handlers; React 18 batches across promises and timeouts too. For state that depends on previous state, pass a function: setCount(n => n + 1).",
     "metadata": { "topic": "code" }
+  },
+  {
+    "id": "ts-generics",
+    "content": "TypeScript generics let functions and types parameterize over types. function first<T>(xs: T[]): T | undefined uses T as a placeholder. Constraints: <T extends { id: string }>. infer in conditional types extracts a type — type ReturnType<F> = F extends (...args: any) => infer R ? R : never. Variance: arrays are covariant in TS, but function arguments are bivariant by default (a known unsoundness).",
+    "metadata": { "topic": "code" }
+  },
+  {
+    "id": "react-effects",
+    "content": "useEffect runs side effects after commit. The dependency array tells React when to re-run: [] for once on mount, [deps] for on-deps-change. Cleanup via the returned function fires before re-run and on unmount. Common bugs: missing deps causing stale closures, and accidental infinite re-renders when an object/array literal is in the deps.",
+    "metadata": { "topic": "code" }
+  },
+  {
+    "id": "react-server-components",
+    "content": "React Server Components run on the server and return serialized React trees to the client. They can fetch data and import server-only code without shipping it to the browser. The 'use client' directive marks files that must run on the client (state, effects). Server Actions ('use server') let client code invoke server functions over an RPC channel.",
+    "metadata": { "topic": "code" }
+  },
+  {
+    "id": "node-streams",
+    "content": "Node.js Streams are async iterables over chunks. Readable streams emit data; Writable streams accept it. Duplex streams do both; Transform streams modify on the fly. .pipe() connects them and handles backpressure. The newer pipeline() helper from node:stream/promises wraps everything with proper error handling; prefer it over chained .pipe().",
+    "metadata": { "topic": "code" }
+  },
+  {
+    "id": "promise-pitfalls",
+    "content": "Common JavaScript Promise pitfalls: forgetting to await inside an async function (the function returns a Promise that resolves before the inner work finishes), unhandled rejections (always attach a .catch or use top-level await with try/catch), and parallel-vs-serial confusion (Promise.all parallel, for-await-of serial). Promise.allSettled when you want every result regardless of failure.",
+    "metadata": { "topic": "code" }
+  },
+  {
+    "id": "esmodules",
+    "content": "ECMAScript modules use import/export and are statically analyzable. Node.js treats files as ESM if package.json has \"type\": \"module\" or the extension is .mjs. import paths must be fully qualified (extensions required). Top-level await works in ESM. Avoid mixing ESM and CommonJS in the same package; transpilation via tsc or bundlers handles the gap if you must.",
+    "metadata": { "topic": "code" }
+  },
+  {
+    "id": "vite-bundling",
+    "content": "Vite uses esbuild for dev (instant cold start) and Rollup for production builds. Configure rollupOptions.output.manualChunks for code splitting beyond the defaults. import.meta.glob is a Vite-specific helper for runtime-discoverable module sets. Build target should match your browserslist; legacy build via @vitejs/plugin-legacy if you need <ES2020 support.",
+    "metadata": { "topic": "code" }
+  },
+  {
+    "id": "go-goroutines",
+    "content": "Goroutines are Go's lightweight concurrency primitive — start with the go keyword. Channels (chan T) communicate between them; sends and receives are blocking by default. select multiplexes channel operations like a switch. Buffered channels decouple producer from consumer up to the buffer size. Always close a channel from the sender side; receivers detect close via ok = <-ch.",
+    "metadata": { "topic": "languages" }
+  },
+  {
+    "id": "go-context",
+    "content": "context.Context propagates cancellation, deadlines, and request-scoped values across API boundaries. Pass it as the first argument. context.WithTimeout wraps a parent with a deadline; context.WithCancel returns a manual cancel func. Selecting on ctx.Done() inside a goroutine is the idiomatic exit. Avoid storing values in context except for request-scoped IDs.",
+    "metadata": { "topic": "languages" }
+  },
+  {
+    "id": "go-modules",
+    "content": "Go modules are versioned dependency units defined in go.mod. go get adds or upgrades a module; go mod tidy prunes unused. The replace directive substitutes a local path or fork — useful during development, harmful when committed for releases. Vendor with go mod vendor for reproducible builds without a network at build time.",
+    "metadata": { "topic": "languages" }
+  },
+  {
+    "id": "go-error-handling",
+    "content": "Go uses explicit error returns. Wrap errors with fmt.Errorf(\"context: %w\", err) so callers can errors.Is and errors.As to unwrap. Sentinel errors (var ErrNotFound = errors.New(...)) pair with errors.Is checks. The newer errors.Join combines multiple errors. Avoid panic for expected failures; use it for impossible-state bugs.",
+    "metadata": { "topic": "languages" }
   },
   {
     "id": "ml-fsdp",
@@ -117,6 +377,46 @@
   {
     "id": "ml-tokenizers",
     "content": "BPE (Byte Pair Encoding) tokenization starts with bytes and iteratively merges the most frequent adjacent pair into a new token. The result is a vocabulary that covers any input string while keeping common words as single tokens. GPT-2/3/4 use byte-level BPE; LLaMA uses SentencePiece BPE. Modern LLMs typically have 30k–100k vocab sizes.",
+    "metadata": { "topic": "ml" }
+  },
+  {
+    "id": "ml-transformer",
+    "content": "The Transformer architecture replaces recurrence with self-attention. Each token attends to every other token; multi-head attention learns several attention patterns in parallel. Layer norm + residual connections wrap each sublayer. Decoder-only (GPT family) is causal — each token attends only to earlier ones. Encoder-decoder (T5, original Transformer) is for sequence-to-sequence.",
+    "metadata": { "topic": "ml" }
+  },
+  {
+    "id": "ml-rag",
+    "content": "Retrieval-Augmented Generation grounds an LLM in retrieved documents. The pipeline: chunk documents, embed chunks, store in a vector DB, at query time retrieve top-K relevant chunks and prepend them as context to the LLM prompt. Quality depends on chunking strategy, embedding model fit, and reranker accuracy. Hybrid retrieval (BM25 + vector + RRF) typically beats either alone.",
+    "metadata": { "topic": "ml" }
+  },
+  {
+    "id": "ml-fine-tuning",
+    "content": "LLM fine-tuning adapts a base model to a domain or task. Full fine-tuning updates all parameters and is expensive. Parameter-efficient methods (LoRA, QLoRA) train low-rank adapters that are fractions of a percent of the original parameter count, dramatically reducing memory and storage. Adapters can be hot-swapped per request. Catastrophic forgetting is a real risk; mix general data with domain data.",
+    "metadata": { "topic": "ml" }
+  },
+  {
+    "id": "ml-prompt-engineering",
+    "content": "Prompt engineering techniques: few-shot examples (in-context learning), chain-of-thought (\"let's think step by step\"), self-consistency (sample multiple CoTs and majority-vote), and tool use (give the model APIs to call). Structured output via JSON schema or function calling beats parsing natural language. Test prompts against an eval set; intuitions about what works are unreliable.",
+    "metadata": { "topic": "ml" }
+  },
+  {
+    "id": "ml-quantization",
+    "content": "Quantization reduces model precision from fp16 to int8, int4, or below. Post-training quantization (GPTQ, AWQ) calibrates with a small dataset to minimize quality loss. INT4 weights with FP16 activations is the sweet spot for many LLM inference setups. Quantization-aware training is more accurate but requires retraining. Watch for outlier features in attention; some methods handle them poorly.",
+    "metadata": { "topic": "ml" }
+  },
+  {
+    "id": "ml-evaluation",
+    "content": "Common LLM evaluation metrics: exact match and F1 for QA, BLEU and ROUGE for translation/summarization, NDCG and MRR for retrieval, perplexity for language modeling. LLM-as-judge is increasingly used for open-ended generation but introduces its own biases (length, position, self-preference). Always include a human-evaluated subset to keep automated judges honest.",
+    "metadata": { "topic": "ml" }
+  },
+  {
+    "id": "ml-distillation",
+    "content": "Knowledge distillation trains a small student model to match a large teacher's outputs. Use the teacher's soft probabilities (high temperature) as targets — they encode similarity structure that hard labels lose. Distillation works best when the student has enough capacity to absorb the teacher's behavior; too small and it collapses to a baseline.",
+    "metadata": { "topic": "ml" }
+  },
+  {
+    "id": "ml-rlhf",
+    "content": "RLHF (Reinforcement Learning from Human Feedback) aligns LLMs with human preferences. Pipeline: SFT (supervised fine-tune on demonstrations), train a reward model from pairwise preference data, then PPO against the reward model with KL regularization to stay close to the SFT model. DPO (Direct Preference Optimization) skips the reward model and is now the default for many open-source models.",
     "metadata": { "topic": "ml" }
   },
   {
@@ -130,14 +430,329 @@
     "metadata": { "topic": "compliance" }
   },
   {
-    "id": "prose-fog",
-    "content": "The fog rolled in over the harbor before sunrise, muffling the cries of gulls and softening the silhouettes of the moored boats. By the time the first ferry pushed off, the lighthouse beam was barely a smudge against the gray, and the pier creaked under footsteps that arrived without warning.",
-    "metadata": { "topic": "prose" }
+    "id": "compliance-gdpr",
+    "content": "GDPR governs personal data of EU residents. Lawful bases include consent, contract, legal obligation, vital interest, public task, and legitimate interest. Data Subject Access Requests (DSARs) require providing all personal data within one month. Right to erasure (right to be forgotten) requires deletion unless an overriding legal basis applies. Cross-border transfers require Standard Contractual Clauses or adequacy decisions.",
+    "metadata": { "topic": "compliance" }
   },
   {
-    "id": "prose-poem",
-    "content": "Whose woods these are I think I know. His house is in the village though; he will not see me stopping here to watch his woods fill up with snow. The little horse must think it queer to stop without a farmhouse near, between the woods and frozen lake the darkest evening of the year.",
-    "metadata": { "topic": "prose" }
+    "id": "compliance-hipaa",
+    "content": "HIPAA in the US protects Protected Health Information (PHI). Covered entities and business associates must sign BAAs (Business Associate Agreements) before sharing PHI. The Security Rule mandates administrative, physical, and technical safeguards. Breach notification within 60 days. PHI includes names, addresses, dates, and many other identifiers when combined with health info.",
+    "metadata": { "topic": "compliance" }
+  },
+  {
+    "id": "compliance-pci",
+    "content": "PCI DSS applies to merchants and processors handling cardholder data. Reduce scope by tokenizing PANs at the edge — your servers never see raw card numbers. Compensating controls work for environments where the literal requirement does not fit. Annual ROC (Report on Compliance) for Level 1 merchants; SAQs for smaller. Quarterly external scans by an ASV.",
+    "metadata": { "topic": "compliance" }
+  },
+  {
+    "id": "compliance-iso27001",
+    "content": "ISO 27001 specifies an Information Security Management System (ISMS). Annex A lists 93 controls organized into themes (organizational, people, physical, technological). Certification requires a Statement of Applicability, risk treatment plan, and a third-party audit. Certificates are valid for three years with annual surveillance audits.",
+    "metadata": { "topic": "compliance" }
+  },
+  {
+    "id": "runbook-payment-outage",
+    "content": "Acme Payment Service Outage Runbook. On page: confirm scope via the payments dashboard at obs.acme.internal/payments. If error rate >5%, escalate to PaymentsOnCall in #incidents. Drain the affected region by toggling the regional flag in LaunchDarkly: 'payments.region.disabled'. Restore: clear flag, monitor 5xx rate for 10 minutes, and post status update at status.acme.com.",
+    "metadata": { "topic": "internal", "kind": "runbook" }
+  },
+  {
+    "id": "runbook-database-failover",
+    "content": "Acme Database Failover Runbook. Triggered when primary Postgres replica lag >30s or the primary is unreachable. Verify with patroni list. Initiate failover via patronictl failover --master <primary> --candidate <replica>. Update DNS via the dbops/patroni-dns Ansible playbook. Verify writes succeed against the new primary by tailing the application logs and the patroni leader endpoint.",
+    "metadata": { "topic": "internal", "kind": "runbook" }
+  },
+  {
+    "id": "runbook-deploy-rollback",
+    "content": "Acme Deployment Rollback Runbook. Use rolling rollback for stateless services: kubectl rollout undo deploy/<svc> -n <ns>. For stateful services, follow the per-service rollback section in the service's README. Always check for migration compatibility — backwards-incompatible migrations require a forward-fix, not a rollback.",
+    "metadata": { "topic": "internal", "kind": "runbook" }
+  },
+  {
+    "id": "on-call-handoff",
+    "content": "Acme On-Call Handoff Procedure. The outgoing primary writes a handoff note in the #oncall-handoff Slack channel covering: open incidents, paged but unresolved alerts, scheduled maintenance, and known-flaky alerts. The incoming primary acknowledges the note and confirms PagerDuty schedule. Handoffs occur Mondays at 10am Pacific.",
+    "metadata": { "topic": "internal", "kind": "policy" }
+  },
+  {
+    "id": "on-call-escalation",
+    "content": "Acme On-Call Escalation Policy. Primary has 15 minutes to acknowledge a Sev1 page; after that, PagerDuty escalates to the secondary. Sev1 always pages the primary AND secondary simultaneously after 5 minutes of no ack. Manager escalation for Sev0 if no engineer ack within 30 minutes. For company-wide outages, the engineering director is paged automatically.",
+    "metadata": { "topic": "internal", "kind": "policy" }
+  },
+  {
+    "id": "incident-postmortem-template",
+    "content": "Acme Incident Postmortem Template. Sections: Summary (one paragraph, customer impact), Timeline (events in chronological order, all in UTC), Root Cause (technical explanation with evidence), Action Items (each with owner + due date + ticket link), Lessons Learned. Postmortems are blameless — focus on systems and process, not individuals.",
+    "metadata": { "topic": "internal", "kind": "template" }
+  },
+  {
+    "id": "adr-template",
+    "content": "Acme Architecture Decision Record (ADR) Template. Each ADR is a Markdown file in docs/adr/NNNN-title.md with the date, status (Proposed | Accepted | Superseded by NNNN), Context (forces in play), Decision (what we chose), and Consequences (good and bad). Major decisions require team review; minor decisions can ship with a single approver. Once Accepted, ADRs are immutable; supersede with a new ADR.",
+    "metadata": { "topic": "internal", "kind": "template" }
+  },
+  {
+    "id": "design-doc-template",
+    "content": "Acme Design Doc Template. Sections: Goals, Non-goals, Background, Proposal, Alternatives Considered, Risks, Rollout Plan, Open Questions. Design docs are required for changes that affect more than one service or that introduce new dependencies. Circulate at least 48 hours before review and tag stakeholders explicitly.",
+    "metadata": { "topic": "internal", "kind": "template" }
+  },
+  {
+    "id": "code-review-guidelines",
+    "content": "Acme Code Review Guidelines. Reviewers respond within one business day. Focus on correctness, readability, security, and test coverage — not style (Prettier handles style). Approving review can include nits, but author can ignore nits. Two approvals required for changes touching billing or auth code. Avoid 'LGTM with nits' for changes >500 lines; request a follow-up readthrough instead.",
+    "metadata": { "topic": "internal", "kind": "policy" }
+  },
+  {
+    "id": "vacation-policy",
+    "content": "Acme Vacation Policy. Salaried employees have unlimited vacation with a minimum of 15 days expected per calendar year. Submit requests in BambooHR at least 2 weeks in advance for >3 day blocks. Coverage required for on-call rotations — coordinate trades in #oncall-trades. Vacation days do not roll over and are not paid out at termination.",
+    "metadata": { "topic": "internal", "kind": "policy" }
+  },
+  {
+    "id": "expense-report",
+    "content": "Acme Expense Report Process. Submit receipts in Expensify within 30 days of purchase. Itemize meals (date, attendees, business purpose). Travel >$500 requires manager pre-approval. Per diem is $75 domestic, $100 international. Reimbursement processed within 7 business days of approval. Suspicious expenses are flagged to Finance for review.",
+    "metadata": { "topic": "internal", "kind": "policy" }
+  },
+  {
+    "id": "secret-rotation",
+    "content": "Acme Secret Rotation Quarterly Procedure. All production credentials (API keys, database passwords, OAuth client secrets, signing keys) must be rotated every 90 days. Use the rotate-secrets.yml Ansible playbook, which generates new values, updates Vault, and triggers a rolling restart of consumers. Track rotations in the security dashboard at sec.acme.internal/rotations.",
+    "metadata": { "topic": "internal", "kind": "procedure" }
+  },
+  {
+    "id": "access-review",
+    "content": "Acme Quarterly Access Review. Each engineering manager reviews their reports' access to production systems within the first week of the quarter. Revoke access for any tools the engineer no longer uses. The security team reviews break-glass account usage. Audit log: any access change is recorded in the IAM audit table with timestamp, principal, and approver.",
+    "metadata": { "topic": "internal", "kind": "procedure" }
+  },
+  {
+    "id": "vpn-access",
+    "content": "Acme VPN Access Policy. All access to internal services (gitlab.acme.internal, obs.acme.internal, sec.acme.internal) requires Tailscale + hardware MFA. New employees receive Tailscale invitations on day 1 from IT. Suspended access on offboarding within 4 hours of HR ticket. Public WiFi access mandates VPN; the desktop client enforces this on managed laptops.",
+    "metadata": { "topic": "internal", "kind": "policy" }
+  },
+  {
+    "id": "production-deploy-checklist",
+    "content": "Acme Production Deploy Checklist. Before merging to main: tests pass in CI, code review approved, no high-severity Snyk findings, feature flag default is OFF for risky changes. Before promotion to prod: staging soak >2 hours, error rate stable, on-call ack. After deploy: monitor error rate and latency for 30 minutes; rollback if regression confirmed.",
+    "metadata": { "topic": "internal", "kind": "procedure" }
+  },
+  {
+    "id": "new-hire-onboarding",
+    "content": "Acme New Hire Onboarding. Day 1: laptop pickup, account provisioning (Okta, GitHub, Slack, PagerDuty), buddy assignment. Week 1: read engineering handbook, complete security training in Workday, get 2 PRs merged. Month 1: ship a small but real feature, attend an on-call shadow. Manager 30/60/90 check-ins required; 30-day check-in includes a confidential survey.",
+    "metadata": { "topic": "internal", "kind": "procedure" }
+  },
+  {
+    "id": "engineering-hiring-rubric",
+    "content": "Acme Engineering Hiring Rubric. Each interview scores four dimensions on a 1-4 scale: technical depth, problem-solving, communication, and craftsmanship. Hire bar is 3+ on at least three dimensions. Interviewers submit feedback in Greenhouse within 24 hours. Hiring committee reviews packets weekly; consensus required for offer.",
+    "metadata": { "topic": "internal", "kind": "policy" }
+  },
+  {
+    "id": "slack-channels",
+    "content": "Acme Slack Channel Naming Conventions. #team-<name> for team channels. #project-<codename> for project channels. #incident-<YYYY-MM-DD-summary> for incident rooms (auto-archived 30 days post-resolution). #help-<topic> for help channels. #social-<topic> for non-work. Avoid renaming channels — links break and search degrades. Archive instead.",
+    "metadata": { "topic": "internal", "kind": "policy" }
+  },
+  {
+    "id": "security-incident-response",
+    "content": "Acme Security Incident Response Procedure. Suspected security incident → page security-oncall in PagerDuty. Do not discuss in public Slack channels — use the incident-private channel. Preserve evidence: snapshot affected systems, capture relevant logs to immutable storage. CISO and legal looped in within 1 hour of declaration. External communication coordinated by the comms team only.",
+    "metadata": { "topic": "internal", "kind": "procedure" }
+  },
+  {
+    "id": "aws-iam",
+    "content": "AWS IAM identities are users, groups, and roles. Roles are assumed via STS — preferred over long-lived user keys. Policies are JSON documents granting Allow/Deny on Action/Resource. Resource-based policies (S3 bucket policy, KMS key policy) attach to the resource. Use IAM Access Analyzer to find unintended public access. Rotate access keys; better, do not create them at all.",
+    "metadata": { "topic": "cloud" }
+  },
+  {
+    "id": "aws-s3",
+    "content": "AWS S3 stores objects in buckets. Versioning protects against accidental delete. Lifecycle policies transition or expire objects (Standard → IA → Glacier). Presigned URLs grant time-limited access via the S3 SigV4 signature. S3 Object Lambda transforms objects on read. Bucket Block Public Access defaults are sane — do not turn them off without a reason.",
+    "metadata": { "topic": "cloud" }
+  },
+  {
+    "id": "aws-vpc",
+    "content": "AWS VPC subnets are AZ-scoped IP ranges. Public subnets have a route to an internet gateway; private subnets route via a NAT gateway for egress. Security groups are stateful at the ENI level; NACLs are stateless at the subnet boundary. VPC endpoints (gateway for S3/DynamoDB, interface for everything else) keep traffic on the AWS backbone.",
+    "metadata": { "topic": "cloud" }
+  },
+  {
+    "id": "aws-lambda",
+    "content": "AWS Lambda runs functions in response to events. Cold starts depend on runtime, package size, and VPC attachment. Layers package shared dependencies. Provisioned Concurrency keeps warmed instances if cold start latency matters. Lambda execution role grants AWS API permissions. Memory configuration controls CPU allocation linearly — more memory = more CPU.",
+    "metadata": { "topic": "cloud" }
+  },
+  {
+    "id": "gcp-iam",
+    "content": "GCP IAM grants principals roles on resources. Roles are bundles of permissions. IAM Conditions add expressions that gate when a binding applies (request time, IP, resource attributes). Workload Identity Federation lets external identities (AWS, GitHub Actions, OIDC) impersonate GCP service accounts without long-lived keys.",
+    "metadata": { "topic": "cloud" }
+  },
+  {
+    "id": "azure-rbac",
+    "content": "Azure RBAC has scopes (management group, subscription, resource group, resource), principals (user, group, service principal, managed identity), and role definitions (built-in or custom). Use managed identities for Azure resources to avoid storing credentials. Privileged Identity Management (PIM) provides just-in-time elevation with approval workflows.",
+    "metadata": { "topic": "cloud" }
+  },
+  {
+    "id": "gcp-pubsub",
+    "content": "GCP Pub/Sub is a managed message queue. Publishers send to a topic; subscriptions deliver to subscribers. Pull subscriptions let consumers control rate; push subscriptions deliver via HTTPS POST. Dead-letter topics receive messages that exceed maxDeliveryAttempts. Ordering keys preserve order within a key (off by default; opt in per topic).",
+    "metadata": { "topic": "cloud" }
+  },
+  {
+    "id": "aws-rds",
+    "content": "AWS RDS manages relational databases (Postgres, MySQL, MariaDB, Oracle, SQL Server). Multi-AZ provides synchronous standby for HA — failover is automatic on primary failure (~60-120s). Read replicas scale read traffic but are async, so reading immediately after a write may return stale rows. Parameter groups control engine config; reboot required for static parameters.",
+    "metadata": { "topic": "cloud" }
+  },
+  {
+    "id": "terraform-state",
+    "content": "Terraform state tracks the mapping from config to real resources. Use a remote backend (S3 + DynamoDB lock table, Terraform Cloud, GCS) so state is shared and concurrent applies are blocked. Never commit terraform.tfstate to git — it contains secrets and hash sensitive data. terraform import adds existing resources to state without recreating them.",
+    "metadata": { "topic": "devops" }
+  },
+  {
+    "id": "terraform-modules",
+    "content": "Terraform modules are reusable configurations with inputs (variables) and outputs. Pin versions in source = '...?ref=v1.2.3' for reproducibility. Avoid coupling modules to specific environments; pass everything as a variable. Test modules with terratest or tflint policies. Beware of breaking output changes — they propagate to consumers.",
+    "metadata": { "topic": "devops" }
+  },
+  {
+    "id": "github-actions",
+    "content": "GitHub Actions workflows live in .github/workflows/. Triggers include push, pull_request, schedule (cron), and workflow_dispatch. Matrix strategy runs combinations in parallel. Cache via actions/cache with a stable key for dependencies. Secrets are scoped per repo or environment; environment protection rules (required reviewers) gate production deploys.",
+    "metadata": { "topic": "devops" }
+  },
+  {
+    "id": "ansible-playbook",
+    "content": "Ansible playbooks orchestrate tasks against an inventory of hosts. Tasks are idempotent — re-running should be a no-op if nothing changed. Handlers run only when notified by a task that made a change. Roles bundle tasks, vars, handlers, files, and templates into reusable units. Use --check for dry runs and --diff to see what would change.",
+    "metadata": { "topic": "devops" }
+  },
+  {
+    "id": "docker-multistage",
+    "content": "Docker multi-stage builds use multiple FROM instructions to separate build and runtime images. The final image only contains artifacts you COPY --from=<stage>, dropping build tools and source. This dramatically reduces image size and attack surface. Tag intermediate stages with AS <name> for clarity. Combine with distroless or scratch base images for minimal runtimes.",
+    "metadata": { "topic": "devops" }
+  },
+  {
+    "id": "gitops-argocd",
+    "content": "ArgoCD continuously reconciles Kubernetes manifests in git with the live cluster state. Applications are CRDs pointing at a git path and target cluster/namespace. Sync waves order resource creation. Hooks (PreSync, PostSync, SyncFail) run jobs at specific points. Use ApplicationSets to template many similar Apps from a single generator.",
+    "metadata": { "topic": "devops" }
+  },
+  {
+    "id": "css-flex-grid",
+    "content": "CSS Flexbox handles one-dimensional layouts (rows or columns). Grid handles two dimensions and complex 2D layouts. Use Flexbox for navbars, toolbars, vertical stacks. Use Grid for page layouts, dashboard panes, photo grids. Both can nest; choose by problem shape, not preference. CSS subgrid (now widely supported) lets nested grids participate in the parent's tracks.",
+    "metadata": { "topic": "frontend" }
+  },
+  {
+    "id": "a11y-aria",
+    "content": "Accessibility (a11y) starts with semantic HTML — use button, nav, main, label, headings in order. ARIA fills gaps semantic HTML can't: aria-label for unlabeled icon buttons, aria-expanded for toggles, aria-live for dynamic announcements. Manage focus on route changes (move focus to the new heading) and inside modals (focus trap, return focus on close).",
+    "metadata": { "topic": "frontend" }
+  },
+  {
+    "id": "web-perf-cwv",
+    "content": "Core Web Vitals are LCP (Largest Contentful Paint, target <2.5s), CLS (Cumulative Layout Shift, target <0.1), and INP (Interaction to Next Paint, target <200ms). Lighthouse and Chrome User Experience Report measure them. Common fixes: preload hero images, reserve space for ads/embeds (CLS), avoid long tasks on the main thread (INP).",
+    "metadata": { "topic": "frontend" }
+  },
+  {
+    "id": "frontend-i18n",
+    "content": "Frontend internationalization (i18n) handles translations, plural rules, dates, numbers, and right-to-left languages. ICU MessageFormat handles plurals and gender. Lazy-load translation bundles per locale. CSS logical properties (margin-inline-start) work for both LTR and RTL without overrides. Detect locale from Accept-Language; let users override.",
+    "metadata": { "topic": "frontend" }
+  },
+  {
+    "id": "fastify-plugins",
+    "content": "Fastify plugins encapsulate routes, decorators, and hooks. Each plugin gets its own scope; child scopes inherit from parents. Register order matters — encapsulation prevents leakage but means a plugin must register dependencies before consumers. Use fastify-plugin to break encapsulation when you intentionally want to share decorators across the parent scope.",
+    "metadata": { "topic": "backend" }
+  },
+  {
+    "id": "django-orm",
+    "content": "Django ORM models live in models.py. QuerySets are lazy — the SQL fires on iteration, slicing without step, or len(). select_related joins ForeignKeys in one query; prefetch_related runs a second query for reverse and m2m. Migrations are auto-generated by makemigrations and applied by migrate; never edit applied migrations — write new ones.",
+    "metadata": { "topic": "backend" }
+  },
+  {
+    "id": "rails-active-record",
+    "content": "ActiveRecord is Rails's ORM. Callbacks (before_save, after_commit) run on lifecycle events — keep them lean to avoid hidden coupling. Scopes are reusable query fragments: scope :active, -> { where(active: true) }. Use includes for eager loading to avoid N+1 queries. Use update_all for bulk writes that bypass callbacks intentionally.",
+    "metadata": { "topic": "backend" }
+  },
+  {
+    "id": "spring-boot",
+    "content": "Spring Boot autoconfigures beans based on classpath. @SpringBootApplication combines @Configuration, @EnableAutoConfiguration, and @ComponentScan. application.yml or application.properties configures the app; profiles (application-prod.yml) override per environment. Actuator endpoints (/actuator/health, /actuator/metrics) expose ops data.",
+    "metadata": { "topic": "backend" }
+  },
+  {
+    "id": "code-react-hook",
+    "content": "import { useState, useEffect } from 'react'; function Counter() { const [count, setCount] = useState(0); useEffect(() => { document.title = `Count: ${count}`; }, [count]); return <button onClick={() => setCount(c => c + 1)}>+1</button>; } The functional updater setCount(c => c+1) avoids stale-closure bugs.",
+    "metadata": { "topic": "code" }
+  },
+  {
+    "id": "code-rust-trait",
+    "content": "trait Shape { fn area(&self) -> f64; } struct Circle { r: f64 } impl Shape for Circle { fn area(&self) -> f64 { std::f64::consts::PI * self.r * self.r } } fn print_area(s: &dyn Shape) { println!(\"area = {}\", s.area()); } Trait objects (&dyn Shape) enable runtime polymorphism.",
+    "metadata": { "topic": "code" }
+  },
+  {
+    "id": "code-python-asyncio",
+    "content": "import asyncio; async def fetch(url): await asyncio.sleep(0.1); return url; async def main(): urls = [f'/api/{i}' for i in range(10)]; results = await asyncio.gather(*(fetch(u) for u in urls)); print(results); asyncio.run(main()) — runs ten concurrent fetches and prints all results.",
+    "metadata": { "topic": "code" }
+  },
+  {
+    "id": "code-typescript-generic",
+    "content": "function uniqueBy<T, K>(items: T[], key: (item: T) => K): T[] { const seen = new Set<K>(); const out: T[] = []; for (const item of items) { const k = key(item); if (!seen.has(k)) { seen.add(k); out.push(item); } } return out; } Use as: uniqueBy(users, u => u.email).",
+    "metadata": { "topic": "code" }
+  },
+  {
+    "id": "code-go-goroutine",
+    "content": "ch := make(chan int, 3); for i := 0; i < 3; i++ { go func(n int) { ch <- n * n }(i) }; for i := 0; i < 3; i++ { fmt.Println(<-ch) } — three goroutines compute squares concurrently and send results into a buffered channel; the main goroutine drains.",
+    "metadata": { "topic": "code" }
+  },
+  {
+    "id": "code-bash-pipeline",
+    "content": "find . -type f -name '*.log' -mtime -7 -print0 | xargs -0 grep -l 'ERROR' | sort -u | head -20 — find log files modified in the last 7 days, list those containing ERROR, dedupe, and show the first 20. Use -print0 / -0 to handle filenames with spaces safely.",
+    "metadata": { "topic": "code" }
+  },
+  {
+    "id": "code-sql-cte",
+    "content": "WITH RECURSIVE org_tree AS (SELECT id, manager_id, 1 AS depth FROM employees WHERE manager_id IS NULL UNION ALL SELECT e.id, e.manager_id, t.depth + 1 FROM employees e JOIN org_tree t ON e.manager_id = t.id) SELECT * FROM org_tree ORDER BY depth — recursive CTE walks an org chart top-down.",
+    "metadata": { "topic": "code" }
+  },
+  {
+    "id": "code-dockerfile",
+    "content": "FROM node:20-alpine AS build; WORKDIR /app; COPY package*.json ./; RUN npm ci; COPY . .; RUN npm run build; FROM node:20-alpine AS runtime; WORKDIR /app; COPY --from=build /app/dist ./dist; COPY --from=build /app/node_modules ./node_modules; EXPOSE 3000; CMD [\"node\",\"dist/server.js\"]",
+    "metadata": { "topic": "code" }
+  },
+  {
+    "id": "mongodb-aggregation",
+    "content": "MongoDB aggregation pipelines transform documents through stages. Common stages: $match (filter, ideally with an indexed field early), $group (aggregate), $project (reshape), $lookup (left join), $unwind (flatten arrays). Use explain('executionStats') to verify pipeline efficiency and confirm $match / $sort use indexes.",
+    "metadata": { "topic": "databases" }
+  },
+  {
+    "id": "elasticsearch-mappings",
+    "content": "Elasticsearch mappings declare field types. text fields are analyzed (tokenized for full-text); keyword fields are stored as-is for filtering and aggregations. A common pattern is a multi-field: { type: 'text', fields: { raw: { type: 'keyword' } } } so you can search and aggregate on the same value. Reindex required for breaking mapping changes.",
+    "metadata": { "topic": "databases" }
+  },
+  {
+    "id": "clickhouse-mergetree",
+    "content": "ClickHouse's MergeTree engine is a column store optimized for analytical queries. PARTITION BY and ORDER BY clauses control storage layout — usually partition by month and order by timestamp + a high-cardinality key. Materialized views (CREATE MATERIALIZED VIEW) maintain pre-aggregated tables that speed up dashboards.",
+    "metadata": { "topic": "databases" }
+  },
+  {
+    "id": "dynamodb-keys",
+    "content": "DynamoDB tables have a partition key and an optional sort key (composite primary key). Queries within a partition use the sort key for range/begins_with/between. Global Secondary Indexes (GSI) project a different partition/sort key. Hot partitions cause throttling — design for even key distribution. Single-table design colocates entities by access pattern.",
+    "metadata": { "topic": "databases" }
+  },
+  {
+    "id": "cassandra-consistency",
+    "content": "Apache Cassandra has tunable consistency. R + W > N gives strong consistency where N is the replication factor, R is read consistency level, W is write. Common choices: QUORUM for both R and W (R=W=majority), or LOCAL_QUORUM for multi-DC setups to avoid cross-DC latency on every read.",
+    "metadata": { "topic": "databases" }
+  },
+  {
+    "id": "sqlite-wal",
+    "content": "SQLite WAL mode (journal_mode=WAL) lets readers proceed without blocking writers. The WAL file accumulates changes and is checkpointed back to the main database file. Multiple concurrent readers + one writer is the model. WAL is the right default for most desktop and embedded uses; rollback journal is the legacy default.",
+    "metadata": { "topic": "databases" }
+  },
+  {
+    "id": "auth-oauth2",
+    "content": "OAuth 2.0 has multiple flows. Authorization Code (with PKCE) is for browser apps and SPAs. Client Credentials is for server-to-server. Implicit flow is deprecated. Refresh tokens trade for new access tokens — rotate them. Validate the audience claim in tokens; rejecting tokens minted for a different service is critical to preventing token replay.",
+    "metadata": { "topic": "security" }
+  },
+  {
+    "id": "auth-jwt-vs-session",
+    "content": "Session cookies are server-side state; JWTs are client-side state. Sessions are easy to revoke (delete from the store) and small over the wire. JWTs scale horizontally without a session store but are hard to revoke before expiry — keep TTLs short (5-15 min) and pair with refresh tokens. Default to sessions unless you have a real reason to go stateless.",
+    "metadata": { "topic": "security" }
+  },
+  {
+    "id": "secrets-management",
+    "content": "Production secrets live in a secrets manager — HashiCorp Vault, AWS Secrets Manager, GCP Secret Manager, or Doppler. Never commit them to git or paste them in Slack. Rotate quarterly. Use envelope encryption — the secret is encrypted by a KMS key, the KMS key is governed by IAM. Auditable, revocable, and integrates with most CI/CD systems.",
+    "metadata": { "topic": "security" }
+  },
+  {
+    "id": "owasp-top-10",
+    "content": "OWASP Top 10 (2021): Broken Access Control, Cryptographic Failures, Injection, Insecure Design, Security Misconfiguration, Vulnerable Components, Identification and Authentication Failures, Software and Data Integrity Failures, Security Logging and Monitoring Failures, Server-Side Request Forgery. Treat as a checklist for security review, not a complete model.",
+    "metadata": { "topic": "security" }
+  },
+  {
+    "id": "mfa-totp",
+    "content": "TOTP (RFC 6238) generates time-based one-time passwords from a shared secret and the current 30-second window. Tolerate ±1 step for clock drift. Provision via QR codes containing otpauth:// URIs. Hardware-backed factors (WebAuthn / passkeys) are stronger than TOTP — phishing-resistant by design. Enforce MFA on admin and production access at minimum.",
+    "metadata": { "topic": "security" }
+  },
+  {
+    "id": "supply-chain",
+    "content": "Software supply chain security starts with knowing what you ship. Generate SBOMs (Software Bill of Materials) with Syft or CycloneDX in CI. Sign artifacts with Sigstore (cosign) so consumers can verify provenance. Pin transitive dependencies (lockfiles) and audit them with osv-scanner or similar. SLSA defines maturity levels for build provenance.",
+    "metadata": { "topic": "security" }
   },
   {
     "id": "spanish-postgres",
@@ -150,13 +765,148 @@
     "metadata": { "topic": "postgres", "lang": "ja" }
   },
   {
-    "id": "rfc-7519-jwt",
-    "content": "RFC 7519 defines JSON Web Tokens (JWT). A JWT is three Base64url-encoded segments separated by dots: header, payload, signature. The signature covers the first two segments and is verified with the issuer's key. Common claims include iss, sub, aud, exp, iat, nbf, jti. Always validate exp and signature; never trust an unverified JWT.",
-    "metadata": { "topic": "security" }
+    "id": "french-redis",
+    "content": "Redis est un magasin clé-valeur en mémoire souvent utilisé comme cache devant une base de données. Configurez maxmemory et une politique d'éviction (allkeys-lru) pour les caches. Pour les sessions, préférez noeviction et augmentez maxmemory afin que les sessions ne soient pas perdues silencieusement. Activez la persistance AOF si la durabilité importe.",
+    "metadata": { "topic": "redis", "lang": "fr" }
   },
   {
-    "id": "x509-verify",
-    "content": "x509: certificate verify failed indicates that the TLS handshake could not validate the peer's certificate chain. Common causes: expired certificate, hostname mismatch, missing intermediate cert (chain incomplete), or the root CA not in the local trust store. Inspect the chain with openssl s_client -connect host:443 -showcerts. For private CAs, ensure the CA cert is mounted and trusted in the container.",
-    "metadata": { "topic": "errors" }
+    "id": "german-kubernetes",
+    "content": "Liveness-Probes in Kubernetes bestimmen, ob ein Container neu gestartet werden soll. Readiness-Probes bestimmen, ob ein Pod Traffic empfangen darf. Konfigurieren Sie initialDelaySeconds, periodSeconds und failureThreshold so, dass langsame Startphasen nicht zu vorzeitigen Neustarts führen. Trennen Sie liveness- und readiness-Endpunkte für robuste Cluster.",
+    "metadata": { "topic": "kubernetes", "lang": "de" }
+  },
+  {
+    "id": "chinese-mongodb",
+    "content": "MongoDB 索引可以显著加快查询速度。复合索引的字段顺序应遵循 ESR 规则:先等值过滤,再排序字段,最后范围过滤。使用 explain('executionStats') 验证查询使用了预期的索引。在大型集合上创建索引时使用 background:true 以避免阻塞写入。",
+    "metadata": { "topic": "databases", "lang": "zh" }
+  },
+  {
+    "id": "korean-react",
+    "content": "React Hook은 함수형 컴포넌트에서 상태와 부수 효과를 관리합니다. useState는 상태 값과 setter를 반환합니다. useEffect는 마운트, 업데이트, 언마운트 시 콜백을 실행합니다. 의존성 배열이 비어 있으면 마운트 시 한 번만, 명시되어 있으면 해당 값이 변경될 때마다 실행됩니다.",
+    "metadata": { "topic": "code", "lang": "ko" }
+  },
+  {
+    "id": "portuguese-aws",
+    "content": "AWS S3 armazena objetos em buckets. Versionamento protege contra exclusão acidental. Políticas de ciclo de vida transitam objetos entre classes de armazenamento (Standard, IA, Glacier) ou expiram após um prazo. URLs pré-assinadas concedem acesso temporário via assinatura SigV4. Mantenha o Block Public Access habilitado por padrão.",
+    "metadata": { "topic": "cloud", "lang": "pt" }
+  },
+  {
+    "id": "russian-postgres",
+    "content": "Настройка PostgreSQL для производственной нагрузки начинается с shared_buffers (обычно 25% оперативной памяти), work_mem (для сортировок и хешей), и maintenance_work_mem (для VACUUM и индексов). Увеличьте max_connections с осторожностью — каждое соединение потребляет память. Для пулинга используйте PgBouncer.",
+    "metadata": { "topic": "postgres", "lang": "ru" }
+  },
+  {
+    "id": "arabic-tls",
+    "content": "بروتوكول TLS 1.3 يكمل المصافحة في رحلة ذهاب وإياب واحدة. يرسل العميل رسالة ClientHello مع مجموعات التشفير المدعومة ومفتاح المشاركة. يرد الخادم برسالة ServerHello وشهادته وتوقيع التحقق ورسالة Finished. تم اعتماد TLS 1.3 في RFC 8446 في أغسطس 2018.",
+    "metadata": { "topic": "networking", "lang": "ar" }
+  },
+  {
+    "id": "hindi-python",
+    "content": "Python में अपवाद हैंडलिंग try, except, else, और finally ब्लॉक के साथ की जाती है। try ब्लॉक में संभावित त्रुटि कोड रखें। विशिष्ट अपवाद वर्गों को पकड़ें — bare except: से बचें। else तब चलता है जब कोई अपवाद नहीं होता। finally हमेशा चलता है, संसाधनों को साफ़ करने के लिए।",
+    "metadata": { "topic": "languages", "lang": "hi" }
+  },
+  {
+    "id": "italian-rust",
+    "content": "Il sistema di ownership di Rust impone la sicurezza della memoria senza un garbage collector. Ogni valore ha un singolo proprietario; quando il proprietario esce dal suo scope, il valore viene rilasciato. Il borrow checker permette o un riferimento mutabile o molti riferimenti condivisi, mai entrambi contemporaneamente.",
+    "metadata": { "topic": "languages", "lang": "it" }
+  },
+  {
+    "id": "vietnamese-go",
+    "content": "Goroutine là đơn vị đồng thời nhẹ trong Go — bắt đầu bằng từ khóa go. Channels (chan T) giao tiếp giữa các goroutine; gửi và nhận chặn theo mặc định. Câu lệnh select đa hợp các thao tác channel giống như switch. Channels có buffer tách biệt producer và consumer đến kích thước buffer.",
+    "metadata": { "topic": "languages", "lang": "vi" }
+  },
+  {
+    "id": "prose-fog",
+    "content": "The fog rolled in over the harbor before sunrise, muffling the cries of gulls and softening the silhouettes of the moored boats. By the time the first ferry pushed off, the lighthouse beam was barely a smudge against the gray, and the pier creaked under footsteps that arrived without warning.",
+    "metadata": { "topic": "prose" }
+  },
+  {
+    "id": "prose-poem",
+    "content": "Whose woods these are I think I know. His house is in the village though; he will not see me stopping here to watch his woods fill up with snow. The little horse must think it queer to stop without a farmhouse near, between the woods and frozen lake the darkest evening of the year.",
+    "metadata": { "topic": "prose" }
+  },
+  {
+    "id": "prose-haiku",
+    "content": "An old silent pond — / a frog jumps into the pond, / splash! Silence again. // The morning glory blooms / for one day — only one day, / the same as me. // Light of the moon — / moves west, flowers' shadows / creep eastward.",
+    "metadata": { "topic": "prose" }
+  },
+  {
+    "id": "algo-dijkstra",
+    "content": "Dijkstra's algorithm finds shortest paths from a source vertex in a non-negative-weight graph. With a binary heap priority queue, time is O((V+E) log V). For dense graphs prefer the array implementation at O(V^2). For graphs with negative weights, use Bellman-Ford instead. A* augments Dijkstra with a heuristic for goal-directed search.",
+    "metadata": { "topic": "algorithms" }
+  },
+  {
+    "id": "algo-rrf",
+    "content": "Reciprocal Rank Fusion (RRF) combines rankings from multiple retrievers. For each document d, score(d) = sum over rankers r of 1 / (k + rank_r(d)) where k is a constant (usually 60). RRF is parameter-light, robust across query types, and reliably outperforms single-retriever approaches. The standard hybrid retrieval baseline is BM25 + dense embeddings combined via RRF.",
+    "metadata": { "topic": "algorithms" }
+  },
+  {
+    "id": "algo-rolling-hash",
+    "content": "Rabin-Karp uses a rolling hash to find substring matches in O(n+m) average time. The hash slides one character at a time: hash(s[i+1..j]) = hash(s[i..j-1]) - s[i] * b^(m-1) + s[j] in modular arithmetic. Collisions require character-by-character verification. Useful for plagiarism detection and finding duplicate substrings.",
+    "metadata": { "topic": "algorithms" }
+  },
+  {
+    "id": "algo-bloom-filter",
+    "content": "A Bloom filter is a probabilistic set membership data structure. Inserts and queries hash an element into k positions of a bit array. Queries return 'definitely not in set' or 'maybe in set' — no false negatives, but false positives at rate (1 - e^(-kn/m))^k. Counting Bloom filters support delete; cuckoo filters offer better space efficiency.",
+    "metadata": { "topic": "algorithms" }
+  },
+  {
+    "id": "crypto-merkle",
+    "content": "A Merkle tree hashes pairs of children up to a single root hash. Verifying that a leaf is part of the tree requires only log(n) hashes (the sibling at each level). Used in Git (commit trees), Bitcoin and Ethereum (transaction roots), Certificate Transparency, and various distributed systems. The root hash commits to the entire dataset.",
+    "metadata": { "topic": "crypto" }
+  },
+  {
+    "id": "crypto-ec",
+    "content": "Elliptic curve cryptography (ECC) gives equivalent security to RSA at much smaller key sizes. NIST P-256 and Curve25519 are the workhorses. ECDSA signs; ECDH does key exchange. P-256 is broadly compatible (JWT ES256, FIDO); Curve25519 is faster and avoids some implementation pitfalls but is less universally supported. secp256k1 is Bitcoin's curve.",
+    "metadata": { "topic": "crypto" }
+  },
+  {
+    "id": "blockchain-consensus",
+    "content": "Blockchain consensus protocols choose the next block. Proof of Work (Bitcoin) is energy-intensive but Sybil-resistant. Proof of Stake (Ethereum, post-merge) chooses validators by staked capital. BFT-style protocols (Tendermint, HotStuff) reach finality in one round of voting at the cost of requiring a known validator set. Tradeoffs: throughput, finality time, and decentralization.",
+    "metadata": { "topic": "crypto" }
+  },
+  {
+    "id": "otel-traces",
+    "content": "OpenTelemetry traces represent a request's journey across services. A trace is a tree of spans — each span has a name, start/end times, attributes, and parent. Propagate trace context via the W3C traceparent header. Sample wisely — head-based sampling decides at the start of the trace; tail-based decides after seeing the whole trace and can preserve errors and slow requests preferentially.",
+    "metadata": { "topic": "observability" }
+  },
+  {
+    "id": "prometheus-pull",
+    "content": "Prometheus scrapes metrics from HTTP /metrics endpoints on a configurable interval. Targets can be discovered statically or via service discovery (Kubernetes, Consul, EC2). Counters increase; gauges go up and down; histograms bucket observations. Alertmanager handles alert routing, deduplication, and silencing. For ephemeral jobs, push to Pushgateway and let Prometheus scrape that.",
+    "metadata": { "topic": "observability" }
+  },
+  {
+    "id": "grafana-dashboards",
+    "content": "Grafana dashboards visualize time-series and log data. Variables (template) parameterize panels — dashboard-wide selectors filter every panel. Transformations reshape query results client-side: join, filter, calculate field. Use stat panels for KPIs, time series for trends, table for inspection. Avoid >20 panels per dashboard; split by use case instead.",
+    "metadata": { "topic": "observability" }
+  },
+  {
+    "id": "log-best-practices",
+    "content": "Logging best practices: use structured logs (JSON) with consistent fields (level, ts, service, request_id, span_id). Pick fewer levels well — DEBUG, INFO, WARN, ERROR. Log inputs at the boundary, not inside loops. Never log secrets, full credit cards, or full PII. Sample high-volume logs; capture errors fully. Tie logs to traces with span_id.",
+    "metadata": { "topic": "observability" }
+  },
+  {
+    "id": "structured-logging",
+    "content": "Structured logging emits machine-readable records (typically JSON) with named fields. Modern logging libraries (zap, slog, pino, structlog) make this idiomatic. Standard fields: timestamp, level, message, service, version, request_id, trace_id. Avoid printf-style formatting; preserve field types so queries can filter and aggregate by them.",
+    "metadata": { "topic": "observability" }
+  },
+  {
+    "id": "kafka-partitions",
+    "content": "Kafka partitions a topic across brokers. Each partition is an ordered log; ordering is per-partition, not global. Producers route messages to partitions by key (hash) so messages with the same key land on the same partition. Consumers in a group split partitions among themselves. Adding partitions is one-way — consumer state and ordering get complicated; over-provision early.",
+    "metadata": { "topic": "messaging" }
+  },
+  {
+    "id": "rabbitmq-exchanges",
+    "content": "RabbitMQ routes messages from publishers to queues via exchanges. Direct exchanges route by exact routing key. Topic exchanges route by routing-key pattern (a.b.*). Fanout broadcasts to all bound queues. Headers exchanges match on header attributes. Bindings declare which queues subscribe to which patterns. Use queue arguments (TTL, max-length) to bound resource usage.",
+    "metadata": { "topic": "messaging" }
+  },
+  {
+    "id": "nats-jetstream",
+    "content": "NATS JetStream adds durable streams on top of core NATS. Streams are append-only logs with retention policies (limits, interest, work-queue). Consumers can be push or pull, durable or ephemeral. Acks tell the server a message was processed; nak tells it to redeliver. JetStream gives at-least-once with idempotency via msg-id headers.",
+    "metadata": { "topic": "messaging" }
+  },
+  {
+    "id": "aws-sqs-fifo",
+    "content": "AWS SQS FIFO queues guarantee in-order delivery and exactly-once processing within a 5-minute deduplication window. Messages share a MessageGroupId — ordering is per-group, not queue-wide. MessageDeduplicationId is content-hash by default; set it explicitly when content is non-deterministic. Throughput is limited (300 msgs/sec per group, 3000 with batching).",
+    "metadata": { "topic": "messaging" }
   }
 ]
