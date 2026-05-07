@@ -1,0 +1,62 @@
+[
+  { "query": "who created PgBouncer?", "relevant": ["pg-pooling"], "category": "factoid" },
+  { "query": "when was TLS 1.3 standardized?", "relevant": ["tls-handshake"], "category": "factoid" },
+  { "query": "where does Redis store data on disk?", "relevant": ["redis-cache", "redis-cluster"], "category": "factoid" },
+  { "query": "which kubernetes object handles RBAC permissions?", "relevant": ["k8s-rbac"], "category": "factoid" },
+  { "query": "what version of Python introduced no-GIL?", "relevant": ["python-gil"], "category": "factoid" },
+
+  { "query": "how do I configure connection pooling for many short-lived clients?", "relevant": ["pg-pooling"], "category": "procedural" },
+  { "query": "why does my pod keep getting restarted by kubernetes?", "relevant": ["k8s-probes"], "category": "procedural" },
+  { "query": "how do I fix vacuum bloat on a large table without locking writes?", "relevant": ["pg-vacuum"], "category": "procedural" },
+  { "query": "how do I set up logical replication between two postgres databases?", "relevant": ["pg-replication"], "category": "procedural" },
+  { "query": "why does the OOM killer terminate my container?", "relevant": ["err-oom", "k8s-resources"], "category": "procedural" },
+
+  { "query": "what is logical replication in postgres", "relevant": ["pg-replication"], "category": "definitional" },
+  { "query": "what is the rust borrow checker exactly", "relevant": ["rust-ownership"], "category": "definitional" },
+  { "query": "what is the python GIL and why does it matter", "relevant": ["python-gil"], "category": "definitional" },
+  { "query": "what is ZeRO-3 sharding in distributed training", "relevant": ["ml-fsdp"], "category": "definitional" },
+  { "query": "what is BPE tokenization", "relevant": ["ml-tokenizers"], "category": "definitional" },
+
+  { "query": "useState", "relevant": ["code-snippet"], "category": "code" },
+  { "query": "pg_repack", "relevant": ["pg-vacuum"], "category": "code" },
+  { "query": "kubectl rollout undo", "relevant": ["k8s-deployments"], "category": "code" },
+  { "query": "rbac.authorization.k8s.io", "relevant": ["k8s-rbac"], "category": "code" },
+  { "query": "pool_mode=transaction", "relevant": ["pg-pooling"], "category": "code" },
+
+  { "query": "ERR_CONNECTION_REFUSED 4101", "relevant": ["err-conn-refused"], "category": "error_code" },
+  { "query": "OOM killer SIGKILL", "relevant": ["err-oom"], "category": "error_code" },
+  { "query": "CVE-2024-3094", "relevant": ["err-cve-xz"], "category": "error_code" },
+  { "query": "RFC 7519", "relevant": ["rfc-7519-jwt"], "category": "error_code" },
+  { "query": "x509: certificate verify failed", "relevant": ["x509-verify"], "category": "error_code" },
+
+  { "query": "\"liveness probes\"", "relevant": ["k8s-probes"], "category": "quoted" },
+  { "query": "\"borrow checker\"", "relevant": ["rust-ownership"], "category": "quoted" },
+  { "query": "\"connection refused\"", "relevant": ["err-conn-refused"], "category": "quoted" },
+  { "query": "\"audit log\"", "relevant": ["compliance-pii"], "category": "quoted" },
+  { "query": "\"OOM killer\"", "relevant": ["err-oom", "k8s-resources"], "category": "quoted" },
+
+  { "query": "redis", "relevant": ["redis-cache", "redis-pubsub", "redis-cluster"], "category": "short_kw" },
+  { "query": "pgbouncer", "relevant": ["pg-pooling", "spanish-postgres"], "category": "short_kw" },
+  { "query": "kubernetes", "relevant": ["k8s-probes", "k8s-resources", "k8s-deployments", "k8s-services", "k8s-rbac"], "category": "short_kw" },
+  { "query": "tls", "relevant": ["tls-handshake", "x509-verify"], "category": "short_kw" },
+  { "query": "GIL", "relevant": ["python-gil"], "category": "short_kw" },
+
+  { "query": "PgBouncer config production OLTP", "relevant": ["pg-pooling"], "category": "named_entity" },
+  { "query": "Redis Streams XADD consumer groups", "relevant": ["redis-pubsub"], "category": "named_entity" },
+  { "query": "Kubernetes Deployment rolling update strategy", "relevant": ["k8s-deployments"], "category": "named_entity" },
+  { "query": "TLS handshake ClientHello cipher suites", "relevant": ["tls-handshake"], "category": "named_entity" },
+  { "query": "FSDP sharded data parallel training", "relevant": ["ml-fsdp"], "category": "named_entity" },
+
+  { "query": "vacuum without locking writes", "relevant": ["pg-vacuum"], "category": "negation" },
+  { "query": "pod not restarting", "relevant": ["k8s-probes"], "category": "negation" },
+  { "query": "redis pubsub vs streams", "relevant": ["redis-pubsub"], "category": "negation" },
+
+  { "query": "cómo configurar pool de conexiones en postgres", "relevant": ["spanish-postgres", "pg-pooling"], "category": "non_english" },
+  { "query": "重複行 削除 PostgreSQL", "relevant": ["japanese-dedup"], "category": "non_english" },
+
+  { "query": "best vector database for production", "relevant": ["pg-pgvector"], "category": "ambiguous" },
+  { "query": "production postgres tuning checklist", "relevant": ["pg-pooling", "pg-vacuum", "pg-explain"], "category": "ambiguous" },
+  { "query": "kubernetes pod failure modes", "relevant": ["k8s-probes", "k8s-resources"], "category": "ambiguous" },
+  { "query": "tls vs ssl differences", "relevant": ["tls-handshake"], "category": "ambiguous" },
+  { "query": "vacuum bloat troubleshooting", "relevant": ["pg-vacuum"], "category": "ambiguous" }
+]

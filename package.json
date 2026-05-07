@@ -17,6 +17,7 @@
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
+    "eval": "pnpm --filter @augur/core eval",
     "clean": "pnpm -r exec rm -rf dist .next node_modules/.cache",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\""
   },

@@ -107,8 +107,27 @@ Writing a new adapter is implementing five methods. See [`examples/custom-adapte
 | Documents                         | Chunking (3 strategies)                          |
 | (optional) An embedder + API key  | A default `HashEmbedder` that runs offline       |
 | (optional) A vector DB            | A default `InMemoryAdapter`                      |
-| (optional) A reranker             | A default `HeuristicReranker` + `CohereReranker` |
+| (optional) A reranker             | `HeuristicReranker`, `CohereReranker`, `JinaReranker`, `HttpCrossEncoderReranker` |
 | Nothing                           | Routing, hybrid fusion, traces, dashboard, HTTP API |
+
+## Evaluation
+
+Augur ships a small built-in eval harness (32-doc corpus, 50 labeled queries
+across 10 archetypes — factoid, procedural, definitional, code, error_code,
+quoted, short_kw, named_entity, negation, non_english, ambiguous). It
+computes NDCG@10, MRR, and Recall@10 — overall, per category, and per
+router-chosen strategy.
+
+```bash
+pnpm eval                                       # run with defaults
+pnpm eval -- --verbose                          # per-query lines
+pnpm eval -- --save baseline.json               # snapshot metrics
+pnpm eval -- --compare baseline.json            # diff vs snapshot
+```
+
+The harness is a pure function of the `Augur` instance, so swap the
+embedder, adapter, router, or reranker between runs to measure the impact
+of any change.
 
 ## Status
 

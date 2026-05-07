@@ -79,3 +79,100 @@ test("forceStrategy is honored", () => {
   );
   assert.equal(d.strategy, "keyword");
 });
+
+// ---------- new signal-driven branches ----------
+
+test("router routes non-English queries to vector", () => {
+  const r = new HeuristicRouter();
+  const d = r.decide({ query: "重複行 削除 PostgreSQL" }, fullCaps);
+  assert.equal(d.strategy, "vector");
+  assert.ok(d.reasons.some((x) => x.includes("non-English")));
+});
+
+test("router treats code-like syntax as keyword on short queries", () => {
+  const r = new HeuristicRouter();
+  const d = r.decide({ query: "useState pattern react" }, fullCaps);
+  assert.equal(d.strategy, "keyword");
+  assert.ok(d.reasons.some((x) => x.includes("code-like")));
+});
+
+test("router treats date/version tokens as keyword on short queries", () => {
+  const r = new HeuristicRouter();
+  const d = r.decide({ query: "RFC 7519 JWT" }, fullCaps);
+  assert.equal(d.strategy, "keyword");
+});
+
+test("router treats CVE token as keyword", () => {
+  const r = new HeuristicRouter();
+  const d = r.decide({ query: "CVE-2024-3094" }, fullCaps);
+  assert.equal(d.strategy, "keyword");
+});
+
+test("router routes mid-query named entity to keyword (not a question)", () => {
+  const r = new HeuristicRouter();
+  // Query has no specific/code/date tokens, just a mid-query proper noun.
+  const d = r.decide({ query: "setup Stripe payments production" }, fullCaps);
+  assert.equal(d.strategy, "keyword");
+  assert.ok(d.reasons.some((x) => x.includes("named entity")));
+});
+
+test("router routes definitional questions to vector", () => {
+  const r = new HeuristicRouter();
+  // No specific/code tokens so the short-keyword branch doesn't fire first.
+  const d = r.decide({ query: "what is the rust borrow checker" }, fullCaps);
+  assert.equal(d.strategy, "vector");
+  assert.ok(d.reasons.some((x) => x.includes("definitional")));
+});
+
+test("router routes factoid questions to hybrid", () => {
+  const r = new HeuristicRouter();
+  const d = r.decide({ query: "where does redis store data on disk" }, fullCaps);
+  assert.equal(d.strategy, "hybrid");
+  assert.ok(d.reasons.some((x) => x.includes("factoid")));
+});
+
+test("router routes procedural questions to vector with reason 'procedural'", () => {
+  const r = new HeuristicRouter();
+  const d = r.decide(
+    { query: "how do I tune autovacuum on a large table" },
+    fullCaps
+  );
+  assert.equal(d.strategy, "vector");
+  assert.ok(d.reasons.some((x) => x.includes("procedural")));
+});
+
+test("router preserves untyped question fallback (Can/Should/Is)", () => {
+  const r = new HeuristicRouter();
+  const d = r.decide(
+    { query: "Can I deploy without taking the system down" },
+    fullCaps
+  );
+  // "without" triggers negation → reranking forced; strategy still "vector".
+  assert.equal(d.strategy, "vector");
+});
+
+test("router forces rerank when negation token present, even on keyword", () => {
+  const r = new HeuristicRouter();
+  // Quoted phrase routes to keyword; "without" triggers rerank override.
+  const d = r.decide(
+    { query: '"connection refused" without firewall', latencyBudgetMs: 100 },
+    fullCaps
+  );
+  assert.equal(d.strategy, "keyword");
+  assert.equal(d.reranked, true);
+  assert.ok(d.reasons.some((x) => x.includes("negation")));
+});
+
+test("router forces rerank under tight budget when negation present", () => {
+  const r = new HeuristicRouter();
+  // Mid-length query that would normally route hybrid; tight budget would
+  // skip rerank, but negation forces it on.
+  const d = r.decide(
+    {
+      query: "deploy production rollout without downtime",
+      latencyBudgetMs: 100,
+    },
+    fullCaps
+  );
+  assert.equal(d.reranked, true);
+});

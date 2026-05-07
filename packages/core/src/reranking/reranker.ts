@@ -119,6 +119,132 @@ export class CohereReranker implements Reranker {
   }
 }
 
+/**
+ * JinaReranker — uses Jina AI's rerank API.
+ *
+ * Jina's rerank-v2-base-multilingual handles non-English well, which is the
+ * single biggest weakness of the default heuristic + hash-embedder pipeline.
+ * Set JINA_API_KEY in the environment or pass `apiKey` directly.
+ */
+export class JinaReranker implements Reranker {
+  readonly name: string;
+  private apiKey: string;
+  private model: string;
+  private endpoint: string;
+
+  constructor(opts: { apiKey?: string; model?: string; endpoint?: string } = {}) {
+    this.apiKey = opts.apiKey ?? process.env.JINA_API_KEY ?? "";
+    this.model = opts.model ?? "jina-reranker-v2-base-multilingual";
+    this.endpoint = opts.endpoint ?? "https://api.jina.ai/v1/rerank";
+    this.name = `jina:${this.model}`;
+    if (!this.apiKey) {
+      throw new Error("JinaReranker: apiKey not provided and JINA_API_KEY is not set");
+    }
+  }
+
+  async rerank(query: string, results: SearchResult[], topK: number): Promise<SearchResult[]> {
+    if (results.length === 0) return [];
+    const res = await fetch(this.endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: this.model,
+        query,
+        documents: results.map((r) => r.chunk.content),
+        top_n: topK,
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`Jina rerank failed (${res.status}): ${await res.text()}`);
+    }
+    const json = (await res.json()) as {
+      results: Array<{ index: number; relevance_score: number }>;
+    };
+    return json.results.map((r) => {
+      const original = results[r.index]!;
+      return {
+        ...original,
+        score: r.relevance_score,
+        rawScores: { ...original.rawScores, original: original.score },
+      };
+    });
+  }
+}
+
+/**
+ * HttpCrossEncoderReranker — generic adapter for any cross-encoder hosted
+ * behind an HTTP endpoint. Bring-your-own request and response shape.
+ *
+ * Useful for self-hosted BGE / mxbai / mixedbread rerankers, internal
+ * scoring services, or anything that doesn't match the Cohere/Jina shape.
+ *
+ * Default protocol (when `requestBody` and `parseResponse` aren't supplied):
+ *   POST { query: string, documents: string[], topK: number }
+ *   ←   { scores: number[] }   // one score per document, same order
+ *
+ * The reranker re-orders the input results by the returned scores, takes the
+ * top `topK`, and stamps the new score onto each result.
+ */
+export class HttpCrossEncoderReranker implements Reranker {
+  readonly name: string;
+  private endpoint: string;
+  private headers: Record<string, string>;
+  private requestBody: (query: string, docs: string[], topK: number) => unknown;
+  private parseResponse: (raw: unknown, docCount: number) => number[];
+
+  constructor(opts: {
+    endpoint: string;
+    name?: string;
+    headers?: Record<string, string>;
+    requestBody?: (query: string, docs: string[], topK: number) => unknown;
+    parseResponse?: (raw: unknown, docCount: number) => number[];
+  }) {
+    this.endpoint = opts.endpoint;
+    this.name = opts.name ?? `http-cross-encoder:${new URL(opts.endpoint).hostname}`;
+    this.headers = { "Content-Type": "application/json", ...(opts.headers ?? {}) };
+    this.requestBody =
+      opts.requestBody ?? ((query, docs, topK) => ({ query, documents: docs, topK }));
+    this.parseResponse =
+      opts.parseResponse ??
+      ((raw) => {
+        const r = raw as { scores?: number[] };
+        if (!Array.isArray(r.scores)) {
+          throw new Error("HttpCrossEncoderReranker: response missing 'scores' array");
+        }
+        return r.scores;
+      });
+  }
+
+  async rerank(query: string, results: SearchResult[], topK: number): Promise<SearchResult[]> {
+    if (results.length === 0) return [];
+    const docs = results.map((r) => r.chunk.content);
+    const res = await fetch(this.endpoint, {
+      method: "POST",
+      headers: this.headers,
+      body: JSON.stringify(this.requestBody(query, docs, topK)),
+    });
+    if (!res.ok) {
+      throw new Error(`${this.name} failed (${res.status}): ${await res.text()}`);
+    }
+    const scores = this.parseResponse(await res.json(), docs.length);
+    if (scores.length !== docs.length) {
+      throw new Error(
+        `${this.name}: expected ${docs.length} scores, got ${scores.length}`
+      );
+    }
+    const rescored = results.map((r, i) => ({
+      ...r,
+      score: scores[i] ?? 0,
+      rawScores: { ...r.rawScores, original: r.score },
+    }));
+    rescored.sort((a, b) => b.score - a.score);
+    return rescored.slice(0, topK);
+  }
+}
+
 /** Squash arbitrary scores into [0,1] using a stable sigmoid. */
 function normalize(score: number): number {
   return 1 / (1 + Math.exp(-score));
