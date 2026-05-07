@@ -122,7 +122,7 @@ class MyRouter implements Router {
   }
 }
 
-const qb = new Augur({ router: new MyRouter() });
+const augr = new Augur({ router: new MyRouter() });
 ```
 
 Two principles:
