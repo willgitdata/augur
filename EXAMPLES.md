@@ -138,9 +138,10 @@ Three constructor args. No code changes elsewhere. The router automatically adap
 
 The default `HashEmbedder` is a feature-hashed bag-of-tokens — useful as
 a deterministic placeholder, but its vectors are not semantically
-meaningful. For a meaningful no-API-key baseline, use `TfIdfEmbedder`
-which computes feature-hashed TF-IDF vectors with Porter stemming and
-stopword removal:
+meaningful. Three offline upgrade paths:
+
+**TF-IDF (no extra deps).** Feature-hashed TF-IDF with Porter stemming and
+stopword removal — the classical IR baseline:
 
 ```ts
 import { Augur, TfIdfEmbedder, MetadataChunker, SentenceChunker } from "@augur/core";
@@ -151,10 +152,77 @@ const augr = new Augur({
 });
 ```
 
-`MetadataChunker` wraps any base chunker and prepends `[doc-id | topic | title]`
-to each chunk before embedding — the "Doc2Query lite" pattern. On the
-built-in 504-query eval, the combo lifts NDCG@10 from 0.786 (HashEmbedder)
-to 0.848.
+**Local sentence-transformer (recommended for production-grade local).**
+`LocalEmbedder` runs a real sentence-transformer model entirely on-device
+via `@huggingface/transformers` (ONNX Runtime). Default model is
+`Xenova/all-MiniLM-L6-v2` (~22MB, 384d). First run downloads the model
+to `~/.cache/huggingface/hub`; subsequent runs are instant.
+
+```ts
+import {
+  Augur,
+  LocalEmbedder,
+  LocalReranker,
+  MetadataChunker,
+  SentenceChunker,
+} from "@augur/core";
+
+const augr = new Augur({
+  embedder: new LocalEmbedder(),                                  // 22MB, 384d
+  reranker: new LocalReranker(),                                  // 22MB cross-encoder
+  chunker: new MetadataChunker({ base: new SentenceChunker() }),
+});
+```
+
+You'll need to install the optional peer dep:
+
+```bash
+pnpm add @huggingface/transformers
+```
+
+For higher accuracy at a slightly larger size, swap the model and supply
+the model's required prefixes:
+
+```ts
+// BGE-small: top of MTEB at this size; query prefix required.
+new LocalEmbedder({
+  model: "Xenova/bge-small-en-v1.5",
+  queryPrefix: "Represent this sentence for searching relevant passages: ",
+});
+
+// E5-small: balanced; both prefixes required.
+new LocalEmbedder({
+  model: "Xenova/e5-small-v2",
+  queryPrefix: "query: ",
+  docPrefix: "passage: ",
+});
+
+// nomic-embed-text-v1.5: 768d, 137MB; instruction-tuned.
+new LocalEmbedder({
+  model: "nomic-ai/nomic-embed-text-v1.5",
+  dimension: 768,
+  queryPrefix: "search_query: ",
+  docPrefix: "search_document: ",
+});
+```
+
+`MetadataChunker` wraps any base chunker and prepends
+`[doc-id | topic | title]` to each chunk before embedding — the
+"Doc2Query lite" pattern.
+
+**Measured impact on the bundled 504-query eval (no API keys):**
+
+```
+HashEmbedder (default)                                    NDCG@10 = 0.786
+TfIdfEmbedder                                             NDCG@10 = 0.825 (+0.039)
+TfIdfEmbedder + MetadataChunker                           NDCG@10 = 0.848 (+0.062)
+LocalEmbedder (all-MiniLM-L6-v2)                          NDCG@10 = 0.845 (+0.059)
+LocalEmbedder + LocalReranker (cross-encoder cascade)     NDCG@10 = 0.877 (+0.091)
+LocalEmbedder + LocalReranker + MetadataChunker           NDCG@10 = 0.899 (+0.113)
+```
+
+Vector-strategy NDCG goes from 0.638 (HashEmbedder) to **0.922** with the
+full local stack — the kind of jump you typically need a hosted API for.
 
 ### Picking a reranker
 
