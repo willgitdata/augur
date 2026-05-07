@@ -87,8 +87,11 @@ export default function PlaygroundPage() {
               Latency budget (ms)
               <input
                 type="number"
+                min={0}
                 value={budget}
-                onChange={(e) => setBudget(e.target.value === "" ? "" : Number(e.target.value))}
+                onChange={(e) =>
+                  setBudget(e.target.value === "" ? "" : Math.max(0, Number(e.target.value)))
+                }
                 className="mt-1 w-full bg-ink-800 border border-ink-700 rounded px-2 py-1.5"
               />
             </label>

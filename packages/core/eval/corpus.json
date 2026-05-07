@@ -1,0 +1,162 @@
+[
+  {
+    "id": "pg-pooling",
+    "content": "PgBouncer is a connection pooler for PostgreSQL. It runs as a lightweight proxy in front of Postgres and reuses backend connections across many clients, avoiding the per-connection memory overhead. Use transaction pooling (pool_mode=transaction) for OLTP workloads with short-lived clients. Use session pooling when clients hold session state such as temporary tables or prepared statements. Pool size should be roughly (cores * 2) + effective_spindle_count, not the number of application threads.",
+    "metadata": { "topic": "postgres" }
+  },
+  {
+    "id": "pg-vacuum",
+    "content": "VACUUM in PostgreSQL reclaims storage occupied by dead tuples. Autovacuum runs in the background and is tuned via autovacuum_vacuum_scale_factor and autovacuum_vacuum_threshold. For very large tables, lower the scale factor for that specific table to vacuum more frequently and avoid bloat-driven I/O storms. VACUUM FULL rewrites the whole table and takes an ACCESS EXCLUSIVE lock — prefer pg_repack in production to avoid locking writes.",
+    "metadata": { "topic": "postgres" }
+  },
+  {
+    "id": "pg-replication",
+    "content": "PostgreSQL supports two replication modes. Streaming replication ships WAL segments to physical replicas — same major version, identical schema. Logical replication uses publications and subscriptions to replicate row changes between databases that may differ in version or schema. Use logical replication for cross-version upgrades and selective table replication.",
+    "metadata": { "topic": "postgres" }
+  },
+  {
+    "id": "pg-explain",
+    "content": "EXPLAIN ANALYZE in Postgres shows the actual execution plan and runtime for a query. Watch for Seq Scans on large tables, mismatched row estimates (planner stats stale), and nested loops with high outer-loop counts. Use BUFFERS to see cache vs disk reads. ANALYZE the table after large data changes so the planner has fresh statistics.",
+    "metadata": { "topic": "postgres" }
+  },
+  {
+    "id": "pg-pgvector",
+    "content": "pgvector adds a VECTOR column type and ANN indexes (ivfflat, hnsw) to PostgreSQL. CREATE EXTENSION vector. Define the column with VECTOR(1536) for OpenAI embeddings, VECTOR(768) for many BGE models. Use vector_cosine_ops for cosine distance, vector_l2_ops for Euclidean. ivfflat needs a populated table before index creation; hnsw can index on the fly.",
+    "metadata": { "topic": "postgres" }
+  },
+  {
+    "id": "k8s-probes",
+    "content": "Kubernetes liveness probes determine whether a container should be restarted. Readiness probes determine whether a pod can receive traffic. Startup probes run only during initial startup and disable the other two until they pass. Configure initialDelaySeconds, periodSeconds, and failureThreshold appropriately so slow startup paths do not get killed prematurely. A common antipattern is using the same HTTP endpoint for both liveness and readiness — separate them so a transient dependency outage does not trigger restarts.",
+    "metadata": { "topic": "kubernetes" }
+  },
+  {
+    "id": "k8s-resources",
+    "content": "Kubernetes resource requests and limits control scheduling and throttling. Requests are what the scheduler reserves on a node; limits are hard ceilings enforced by the kernel cgroup. For CPU, exceeding the limit causes throttling. For memory, exceeding the limit causes the OOM killer to terminate the container. Best practice for CPU in latency-sensitive workloads: set requests but no limits, so bursting is allowed when the node has capacity.",
+    "metadata": { "topic": "kubernetes" }
+  },
+  {
+    "id": "k8s-deployments",
+    "content": "Kubernetes Deployments manage rolling updates of pods. Strategy RollingUpdate (default) replaces pods incrementally with maxSurge and maxUnavailable knobs. Strategy Recreate kills all pods first, then starts new ones — only safe for workloads that cannot run two versions concurrently. Roll back with kubectl rollout undo deployment/<name>. Pause and resume with kubectl rollout pause and kubectl rollout resume.",
+    "metadata": { "topic": "kubernetes" }
+  },
+  {
+    "id": "k8s-services",
+    "content": "Kubernetes Services expose pods. ClusterIP is the default — internal-only virtual IP. NodePort opens a static port on every node. LoadBalancer provisions a cloud load balancer and is the production default for external traffic. Headless Services (clusterIP: None) skip the proxy and return pod IPs via DNS, useful for stateful apps and StatefulSets.",
+    "metadata": { "topic": "kubernetes" }
+  },
+  {
+    "id": "k8s-rbac",
+    "content": "Kubernetes RBAC controls who can do what. Role grants permissions within a namespace; ClusterRole is cluster-scoped. RoleBinding and ClusterRoleBinding attach roles to users, groups, or ServiceAccounts. The API group is rbac.authorization.k8s.io. Audit which permissions a principal has with kubectl auth can-i --list.",
+    "metadata": { "topic": "kubernetes" }
+  },
+  {
+    "id": "redis-cache",
+    "content": "Redis is an in-memory key-value store often used as a cache in front of a database. It supports strings, hashes, lists, sets, and sorted sets, with optional persistence via RDB snapshots or AOF logs. For cache use cases, configure maxmemory and an eviction policy such as allkeys-lru. For session stores, prefer noeviction and a larger maxmemory so sessions are not silently dropped.",
+    "metadata": { "topic": "redis" }
+  },
+  {
+    "id": "redis-pubsub",
+    "content": "Redis pub/sub provides at-most-once delivery: if a subscriber is offline or slow, messages are dropped. For durable messaging use Streams (XADD/XREAD/XACK), which keep messages on disk and support consumer groups with explicit acks. Streams are the right primitive for work queues; pub/sub is fine for ephemeral fanout such as cache-invalidation broadcasts.",
+    "metadata": { "topic": "redis" }
+  },
+  {
+    "id": "redis-cluster",
+    "content": "Redis Cluster shards keys across 16384 hash slots distributed over masters. Each master can have one or more replicas for failover. Multi-key operations require all keys to map to the same slot — use hash tags {tag} to pin them. Persistence is per-node: configure RDB snapshots or AOF on each master independently.",
+    "metadata": { "topic": "redis" }
+  },
+  {
+    "id": "tls-handshake",
+    "content": "The TLS 1.3 handshake completes in one round trip. The client sends ClientHello with supported cipher suites and a key share. The server responds with ServerHello, its certificate, a CertificateVerify signed with its private key, and Finished. The client validates the certificate chain, derives session keys, and sends Finished. TLS 1.3 was standardized in RFC 8446 in August 2018. Earlier versions required two round trips and are deprecated.",
+    "metadata": { "topic": "networking" }
+  },
+  {
+    "id": "http2",
+    "content": "HTTP/2 multiplexes multiple requests over a single TCP connection using streams. Header compression (HPACK) reduces redundant bytes per request. Server push lets the server proactively send resources the client will need. HTTP/2 over TLS uses ALPN to negotiate the protocol version during the handshake.",
+    "metadata": { "topic": "networking" }
+  },
+  {
+    "id": "dns-records",
+    "content": "DNS A records map names to IPv4 addresses; AAAA to IPv6. CNAME aliases one name to another. MX records direct mail to the right server with a priority value. TXT records hold arbitrary strings, used for SPF, DKIM, and verification. TTL controls how long resolvers cache the answer.",
+    "metadata": { "topic": "networking" }
+  },
+  {
+    "id": "err-conn-refused",
+    "content": "Error code ERR_CONNECTION_REFUSED 4101 indicates a TCP-level rejection. Check firewall rules, the service binding (0.0.0.0 vs 127.0.0.1), and whether the upstream process is actually listening on the expected port. On macOS, use lsof -iTCP -sTCP:LISTEN to enumerate listeners.",
+    "metadata": { "topic": "errors" }
+  },
+  {
+    "id": "err-oom",
+    "content": "The Linux OOM killer terminates processes when the system runs out of memory. The kernel scores each process; the highest-scored process receives SIGKILL. In Kubernetes, exceeding a memory limit triggers the cgroup OOM killer, which kills only the offending container. Diagnose with dmesg | grep -i 'oom-killer' on the host or kubectl describe pod for cgroup events.",
+    "metadata": { "topic": "errors" }
+  },
+  {
+    "id": "err-cve-xz",
+    "content": "CVE-2024-3094 is a backdoor in xz/liblzma versions 5.6.0 and 5.6.1 affecting sshd on certain Linux distributions. The malicious code modifies RSA_public_decrypt and allows remote unauthenticated command execution via crafted SSH connections. Mitigation: downgrade liblzma to a clean version (≤5.4.6) and rebuild any binaries that statically linked the affected versions.",
+    "metadata": { "topic": "errors" }
+  },
+  {
+    "id": "rust-ownership",
+    "content": "Rust's borrow checker enforces memory safety without a garbage collector. Each value has a single owner; when the owner goes out of scope the value is dropped. Borrowing references a value without transferring ownership — but you can have either one mutable reference or any number of shared references at once, never both. Lifetimes annotate how long borrowed references must remain valid. Most fights with the borrow checker resolve by restructuring data, not by adding lifetimes.",
+    "metadata": { "topic": "languages" }
+  },
+  {
+    "id": "python-gil",
+    "content": "The Python GIL (Global Interpreter Lock) is a mutex that allows only one thread to execute Python bytecode at a time. CPU-bound multithreaded Python code does not parallelize across cores; use multiprocessing or release the GIL in C extensions. Python 3.13 introduced an optional no-GIL build (PEP 703) but ecosystem support is still stabilizing.",
+    "metadata": { "topic": "languages" }
+  },
+  {
+    "id": "code-snippet",
+    "content": "useState is a React hook that returns a stateful value and a setter: const [count, setCount] = useState(0). Calling setCount(next) schedules a re-render with the new value. Updates batch within event handlers; React 18 batches across promises and timeouts too. For state that depends on previous state, pass a function: setCount(n => n + 1).",
+    "metadata": { "topic": "code" }
+  },
+  {
+    "id": "ml-fsdp",
+    "content": "FSDP (Fully Sharded Data Parallel) and ZeRO-3 are sharded data-parallel training strategies. They shard optimizer state, gradients, and parameters across GPUs to reduce per-device memory. ZeRO stages: stage 1 shards optimizer state, stage 2 adds gradient sharding, stage 3 (= FSDP equivalent) adds parameter sharding. Communication cost grows from stage 1 → 3 in exchange for memory savings.",
+    "metadata": { "topic": "ml" }
+  },
+  {
+    "id": "ml-tokenizers",
+    "content": "BPE (Byte Pair Encoding) tokenization starts with bytes and iteratively merges the most frequent adjacent pair into a new token. The result is a vocabulary that covers any input string while keeping common words as single tokens. GPT-2/3/4 use byte-level BPE; LLaMA uses SentencePiece BPE. Modern LLMs typically have 30k–100k vocab sizes.",
+    "metadata": { "topic": "ml" }
+  },
+  {
+    "id": "compliance-pii",
+    "content": "Personally identifiable information must be encrypted at rest and in transit. Audit logs are retained for seven years per regulatory requirement. Access to production systems requires MFA and is subject to quarterly review. Any access to customer data must be logged with the requesting principal, the records touched, and a justification.",
+    "metadata": { "topic": "compliance" }
+  },
+  {
+    "id": "compliance-soc2",
+    "content": "SOC 2 audits verify five trust service criteria: security, availability, processing integrity, confidentiality, and privacy. Type I audits assess the design of controls at a point in time; Type II assess operating effectiveness over a period (usually 6–12 months). Common controls include access reviews, change management, incident response, and vendor management.",
+    "metadata": { "topic": "compliance" }
+  },
+  {
+    "id": "prose-fog",
+    "content": "The fog rolled in over the harbor before sunrise, muffling the cries of gulls and softening the silhouettes of the moored boats. By the time the first ferry pushed off, the lighthouse beam was barely a smudge against the gray, and the pier creaked under footsteps that arrived without warning.",
+    "metadata": { "topic": "prose" }
+  },
+  {
+    "id": "prose-poem",
+    "content": "Whose woods these are I think I know. His house is in the village though; he will not see me stopping here to watch his woods fill up with snow. The little horse must think it queer to stop without a farmhouse near, between the woods and frozen lake the darkest evening of the year.",
+    "metadata": { "topic": "prose" }
+  },
+  {
+    "id": "spanish-postgres",
+    "content": "Para configurar el pool de conexiones en PostgreSQL, instale PgBouncer como proxy. Use el modo transaction para cargas OLTP de clientes cortos y session si los clientes mantienen estado de sesión como tablas temporales. El tamaño del pool debe ser aproximadamente (núcleos * 2) más el factor de E/S, no el número de hilos de la aplicación.",
+    "metadata": { "topic": "postgres", "lang": "es" }
+  },
+  {
+    "id": "japanese-dedup",
+    "content": "リレーショナルデータベースで重複行を削除するには、ROW_NUMBER ウィンドウ関数を使用する方法が一般的です。 PARTITION BY で重複の単位を指定し、ORDER BY で残す行を決め、 ROW_NUMBER が 1 より大きい行を削除します。 Postgres では DELETE 文と CTE を組み合わせて実行します。",
+    "metadata": { "topic": "postgres", "lang": "ja" }
+  },
+  {
+    "id": "rfc-7519-jwt",
+    "content": "RFC 7519 defines JSON Web Tokens (JWT). A JWT is three Base64url-encoded segments separated by dots: header, payload, signature. The signature covers the first two segments and is verified with the issuer's key. Common claims include iss, sub, aud, exp, iat, nbf, jti. Always validate exp and signature; never trust an unverified JWT.",
+    "metadata": { "topic": "security" }
+  },
+  {
+    "id": "x509-verify",
+    "content": "x509: certificate verify failed indicates that the TLS handshake could not validate the peer's certificate chain. Common causes: expired certificate, hostname mismatch, missing intermediate cert (chain incomplete), or the root CA not in the local trust store. Inspect the chain with openssl s_client -connect host:443 -showcerts. For private CAs, ensure the CA cert is mounted and trusted in the container.",
+    "metadata": { "topic": "errors" }
+  }
+]
