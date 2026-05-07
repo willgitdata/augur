@@ -19,7 +19,7 @@ await qb.index([
   { id: "k8s",   content: "Kubernetes manages containers across hosts." },
 ]);
 
-const { results, trace } = await qb.search({ query: "vector database" });
+const { results, trace } = await qb.search({ query: "best vector database for production" });
 
 console.log(trace.decision.strategy); // → "hybrid"
 console.log(results[0].chunk.documentId);

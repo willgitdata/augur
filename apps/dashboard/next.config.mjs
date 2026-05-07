@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   env: {
-    QUERYBRAIN_URL: process.env.QUERYBRAIN_URL ?? "http://localhost:3001",
+    AUGUR_URL: process.env.AUGUR_URL ?? "http://localhost:3001",
   },
 };
 export default nextConfig;

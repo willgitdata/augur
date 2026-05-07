@@ -112,7 +112,7 @@ Default base URL: `http://localhost:3001`. All endpoints accept and return JSON.
 
 ### Auth
 
-If the server was started with `QUERYBRAIN_API_KEY=<secret>`, every request must include `x-api-key: <secret>`. Otherwise no auth.
+If the server was started with `AUGUR_API_KEY=<secret>`, every request must include `x-api-key: <secret>`. Otherwise no auth.
 
 ### `GET /health`
 

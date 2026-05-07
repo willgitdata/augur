@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { TraceView } from "@/components/TraceView";
 
-const QB = process.env.QUERYBRAIN_URL ?? "http://localhost:3001";
+const QB = process.env.AUGUR_URL ?? "http://localhost:3001";
 
 export default function TracesPage() {
   const [traces, setTraces] = useState<any[]>([]);

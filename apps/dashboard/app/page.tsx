@@ -4,7 +4,7 @@ import { useState } from "react";
 import { TraceView } from "@/components/TraceView";
 import { ResultList } from "@/components/ResultList";
 
-const QB = process.env.QUERYBRAIN_URL ?? "http://localhost:3001";
+const QB = process.env.AUGUR_URL ?? "http://localhost:3001";
 
 interface SearchResp {
   results: Array<{
