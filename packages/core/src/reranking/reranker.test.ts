@@ -1,6 +1,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
+  CascadedReranker,
   CohereReranker,
   HeuristicReranker,
   HttpCrossEncoderReranker,
@@ -178,4 +179,48 @@ test("HttpCrossEncoderReranker throws on non-OK response", async () => {
     name: "internal",
   });
   await assert.rejects(() => r.rerank("q", candidates, 3), /internal failed.*500/);
+});
+
+// ---------- CascadedReranker ----------
+
+test("CascadedReranker: chains stages with declining topK", async () => {
+  // Stage 1: heuristic — narrows to top-N1
+  // Stage 2: stub cross-encoder — narrows to caller's topK
+  let stage1SeenK = 0;
+  let stage2SeenK = 0;
+  const stage1: import("./reranker.js").Reranker = {
+    name: "stage1",
+    async rerank(_q, results, topK) {
+      stage1SeenK = topK;
+      return results.slice(0, topK);
+    },
+  };
+  const stage2: import("./reranker.js").Reranker = {
+    name: "stage2",
+    async rerank(_q, results, topK) {
+      stage2SeenK = topK;
+      return results.slice(0, topK);
+    },
+  };
+  const cascade = new CascadedReranker([
+    [stage1, 5], // narrow to 5 (intermediate)
+    [stage2, 99], // ignored — final stage uses caller's topK
+  ]);
+  const out = await cascade.rerank("q", candidates, 2);
+  assert.equal(stage1SeenK, 5);
+  assert.equal(stage2SeenK, 2); // final stage uses caller's topK
+  assert.equal(out.length, 2);
+});
+
+test("CascadedReranker: throws when given no stages", () => {
+  assert.throws(() => new CascadedReranker([]), /at least one stage/);
+});
+
+test("CascadedReranker: name reflects pipeline", () => {
+  const c = new CascadedReranker([
+    [new HeuristicReranker(), 50],
+    [new HeuristicReranker(), 10],
+  ]);
+  assert.ok(c.name.includes("heuristic-reranker"));
+  assert.ok(c.name.includes("→"));
 });
