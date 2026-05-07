@@ -1,62 +1,3666 @@
 [
-  { "query": "who created PgBouncer?", "relevant": ["pg-pooling"], "category": "factoid" },
-  { "query": "when was TLS 1.3 standardized?", "relevant": ["tls-handshake"], "category": "factoid" },
-  { "query": "where does Redis store data on disk?", "relevant": ["redis-cache", "redis-cluster"], "category": "factoid" },
-  { "query": "which kubernetes object handles RBAC permissions?", "relevant": ["k8s-rbac"], "category": "factoid" },
-  { "query": "what version of Python introduced no-GIL?", "relevant": ["python-gil"], "category": "factoid" },
-
-  { "query": "how do I configure connection pooling for many short-lived clients?", "relevant": ["pg-pooling"], "category": "procedural" },
-  { "query": "why does my pod keep getting restarted by kubernetes?", "relevant": ["k8s-probes"], "category": "procedural" },
-  { "query": "how do I fix vacuum bloat on a large table without locking writes?", "relevant": ["pg-vacuum"], "category": "procedural" },
-  { "query": "how do I set up logical replication between two postgres databases?", "relevant": ["pg-replication"], "category": "procedural" },
-  { "query": "why does the OOM killer terminate my container?", "relevant": ["err-oom", "k8s-resources"], "category": "procedural" },
-
-  { "query": "what is logical replication in postgres", "relevant": ["pg-replication"], "category": "definitional" },
-  { "query": "what is the rust borrow checker exactly", "relevant": ["rust-ownership"], "category": "definitional" },
-  { "query": "what is the python GIL and why does it matter", "relevant": ["python-gil"], "category": "definitional" },
-  { "query": "what is ZeRO-3 sharding in distributed training", "relevant": ["ml-fsdp"], "category": "definitional" },
-  { "query": "what is BPE tokenization", "relevant": ["ml-tokenizers"], "category": "definitional" },
-
-  { "query": "useState", "relevant": ["code-snippet"], "category": "code" },
-  { "query": "pg_repack", "relevant": ["pg-vacuum"], "category": "code" },
-  { "query": "kubectl rollout undo", "relevant": ["k8s-deployments"], "category": "code" },
-  { "query": "rbac.authorization.k8s.io", "relevant": ["k8s-rbac"], "category": "code" },
-  { "query": "pool_mode=transaction", "relevant": ["pg-pooling"], "category": "code" },
-
-  { "query": "ERR_CONNECTION_REFUSED 4101", "relevant": ["err-conn-refused"], "category": "error_code" },
-  { "query": "OOM killer SIGKILL", "relevant": ["err-oom"], "category": "error_code" },
-  { "query": "CVE-2024-3094", "relevant": ["err-cve-xz"], "category": "error_code" },
-  { "query": "RFC 7519", "relevant": ["rfc-7519-jwt"], "category": "error_code" },
-  { "query": "x509: certificate verify failed", "relevant": ["x509-verify"], "category": "error_code" },
-
-  { "query": "\"liveness probes\"", "relevant": ["k8s-probes"], "category": "quoted" },
-  { "query": "\"borrow checker\"", "relevant": ["rust-ownership"], "category": "quoted" },
-  { "query": "\"connection refused\"", "relevant": ["err-conn-refused"], "category": "quoted" },
-  { "query": "\"audit log\"", "relevant": ["compliance-pii"], "category": "quoted" },
-  { "query": "\"OOM killer\"", "relevant": ["err-oom", "k8s-resources"], "category": "quoted" },
-
-  { "query": "redis", "relevant": ["redis-cache", "redis-pubsub", "redis-cluster"], "category": "short_kw" },
-  { "query": "pgbouncer", "relevant": ["pg-pooling", "spanish-postgres"], "category": "short_kw" },
-  { "query": "kubernetes", "relevant": ["k8s-probes", "k8s-resources", "k8s-deployments", "k8s-services", "k8s-rbac"], "category": "short_kw" },
-  { "query": "tls", "relevant": ["tls-handshake", "x509-verify"], "category": "short_kw" },
-  { "query": "GIL", "relevant": ["python-gil"], "category": "short_kw" },
-
-  { "query": "PgBouncer config production OLTP", "relevant": ["pg-pooling"], "category": "named_entity" },
-  { "query": "Redis Streams XADD consumer groups", "relevant": ["redis-pubsub"], "category": "named_entity" },
-  { "query": "Kubernetes Deployment rolling update strategy", "relevant": ["k8s-deployments"], "category": "named_entity" },
-  { "query": "TLS handshake ClientHello cipher suites", "relevant": ["tls-handshake"], "category": "named_entity" },
-  { "query": "FSDP sharded data parallel training", "relevant": ["ml-fsdp"], "category": "named_entity" },
-
-  { "query": "vacuum without locking writes", "relevant": ["pg-vacuum"], "category": "negation" },
-  { "query": "pod not restarting", "relevant": ["k8s-probes"], "category": "negation" },
-  { "query": "redis pubsub vs streams", "relevant": ["redis-pubsub"], "category": "negation" },
-
-  { "query": "cómo configurar pool de conexiones en postgres", "relevant": ["spanish-postgres", "pg-pooling"], "category": "non_english" },
-  { "query": "重複行 削除 PostgreSQL", "relevant": ["japanese-dedup"], "category": "non_english" },
-
-  { "query": "best vector database for production", "relevant": ["pg-pgvector"], "category": "ambiguous" },
-  { "query": "production postgres tuning checklist", "relevant": ["pg-pooling", "pg-vacuum", "pg-explain"], "category": "ambiguous" },
-  { "query": "kubernetes pod failure modes", "relevant": ["k8s-probes", "k8s-resources"], "category": "ambiguous" },
-  { "query": "tls vs ssl differences", "relevant": ["tls-handshake"], "category": "ambiguous" },
-  { "query": "vacuum bloat troubleshooting", "relevant": ["pg-vacuum"], "category": "ambiguous" }
+  {
+    "query": "who created PgBouncer?",
+    "relevant": [
+      "pg-pooling"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "when was TLS 1.3 standardized?",
+    "relevant": [
+      "tls-handshake"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "where does Redis store data on disk?",
+    "relevant": [
+      "redis-cache",
+      "redis-cluster"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "which kubernetes object handles RBAC permissions?",
+    "relevant": [
+      "k8s-rbac"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "what version of Python introduced no-GIL?",
+    "relevant": [
+      "python-gil"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "who maintains Apache Kafka?",
+    "relevant": [
+      "kafka-partitions"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "when was RFC 9110 published?",
+    "relevant": [
+      "rfc-9110"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "where does the OOM killer log events?",
+    "relevant": [
+      "err-oom"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "which cipher curves does Bitcoin use?",
+    "relevant": [
+      "crypto-ec"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "what year did Log4Shell hit?",
+    "relevant": [
+      "cve-log4shell"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "who manages cloud Pub/Sub on Google Cloud?",
+    "relevant": [
+      "gcp-pubsub"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "when do TOTP codes rotate?",
+    "relevant": [
+      "mfa-totp"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "where does Acme keep on-call handoff notes?",
+    "relevant": [
+      "on-call-handoff"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "which command rolls back a Kubernetes Deployment?",
+    "relevant": [
+      "k8s-deployments"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "what is the default Helm release strategy?",
+    "relevant": [
+      "k8s-helm"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "who runs Acme's quarterly access review?",
+    "relevant": [
+      "access-review"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "when does Acme's vacation policy require advance notice?",
+    "relevant": [
+      "vacation-policy"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "where does Acme store SBOMs?",
+    "relevant": [
+      "supply-chain"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "which AWS service provides versioned object storage?",
+    "relevant": [
+      "aws-s3"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "what algorithm does Dijkstra solve?",
+    "relevant": [
+      "algo-dijkstra"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "who designed the Transformer architecture?",
+    "relevant": [
+      "ml-transformer"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "when does Acme rotate production credentials?",
+    "relevant": [
+      "secret-rotation"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "where does ArgoCD pull manifests from?",
+    "relevant": [
+      "gitops-argocd"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "which exchange type fans out messages in RabbitMQ?",
+    "relevant": [
+      "rabbitmq-exchanges"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "what hash function does Bitcoin's curve use?",
+    "relevant": [
+      "crypto-ec"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "how do I configure connection pooling for many short-lived clients?",
+    "relevant": [
+      "pg-pooling"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "why does my pod keep getting restarted by kubernetes?",
+    "relevant": [
+      "k8s-probes"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I fix vacuum bloat on a large table without locking writes?",
+    "relevant": [
+      "pg-vacuum"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I set up logical replication between two postgres databases?",
+    "relevant": [
+      "pg-replication"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "why does the OOM killer terminate my container?",
+    "relevant": [
+      "err-oom",
+      "k8s-resources"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I roll back a kubernetes deployment safely?",
+    "relevant": [
+      "k8s-deployments",
+      "runbook-deploy-rollback"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how should I migrate from useEffect to React Server Components?",
+    "relevant": [
+      "react-server-components",
+      "react-effects"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "why is my postgres query using a sequential scan instead of an index?",
+    "relevant": [
+      "pg-explain",
+      "pg-indexes"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I implement zero-downtime deployments with rolling updates?",
+    "relevant": [
+      "k8s-deployments",
+      "production-deploy-checklist"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "why is my fetch request being blocked by CORS?",
+    "relevant": [
+      "cors-policy"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I handle errors in Rust without panicking?",
+    "relevant": [
+      "rust-error-handling"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I run async code concurrently in Python?",
+    "relevant": [
+      "python-asyncio"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "why does my goroutine leak?",
+    "relevant": [
+      "go-goroutines",
+      "go-context"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how should I structure a Terraform module for multiple environments?",
+    "relevant": [
+      "terraform-modules",
+      "terraform-state"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I configure GitHub Actions to cache npm dependencies?",
+    "relevant": [
+      "github-actions"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "why is my Lambda function taking forever to cold start?",
+    "relevant": [
+      "aws-lambda"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I prevent N+1 queries in Django?",
+    "relevant": [
+      "django-orm"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how should I respond to a security incident at Acme?",
+    "relevant": [
+      "security-incident-response"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "why does my JWT token verification keep failing?",
+    "relevant": [
+      "rfc-7519-jwt",
+      "x509-verify"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I design a pagination strategy for large datasets?",
+    "relevant": [
+      "pg-explain",
+      "pg-indexes"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I set up mTLS between two services?",
+    "relevant": [
+      "mtls"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "why do my Promise.all calls fail unexpectedly?",
+    "relevant": [
+      "promise-pitfalls"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I implement an atomic counter in Redis?",
+    "relevant": [
+      "redis-lua"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "why is my Kafka consumer falling behind on a single partition?",
+    "relevant": [
+      "kafka-partitions"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I set up automatic failover for Postgres?",
+    "relevant": [
+      "runbook-database-failover",
+      "pg-replication"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I follow the Acme deploy checklist before merging to main?",
+    "relevant": [
+      "production-deploy-checklist",
+      "code-review-guidelines"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I onboard as a new engineer at Acme?",
+    "relevant": [
+      "new-hire-onboarding"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "why is my Elasticsearch query returning no results despite matching data?",
+    "relevant": [
+      "elasticsearch-mappings"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I tune Postgres for a write-heavy workload?",
+    "relevant": [
+      "pg-vacuum",
+      "pg-wal",
+      "russian-postgres"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I implement a blameless postmortem at Acme?",
+    "relevant": [
+      "incident-postmortem-template"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "what is logical replication in postgres",
+    "relevant": [
+      "pg-replication"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is the rust borrow checker exactly",
+    "relevant": [
+      "rust-ownership",
+      "italian-rust"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is the python GIL and why does it matter",
+    "relevant": [
+      "python-gil"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is ZeRO-3 sharding in distributed training",
+    "relevant": [
+      "ml-fsdp"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is BPE tokenization",
+    "relevant": [
+      "ml-tokenizers"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what does reciprocal rank fusion compute",
+    "relevant": [
+      "algo-rrf"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is a Bloom filter useful for",
+    "relevant": [
+      "algo-bloom-filter"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what are React Server Components",
+    "relevant": [
+      "react-server-components"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what does the OWASP Top 10 cover",
+    "relevant": [
+      "owasp-top-10"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is OAuth 2.0 PKCE",
+    "relevant": [
+      "auth-oauth2"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is SOC 2 Type II",
+    "relevant": [
+      "compliance-soc2"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what does HIPAA require for PHI",
+    "relevant": [
+      "compliance-hipaa"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is GDPR's lawful basis for processing",
+    "relevant": [
+      "compliance-gdpr"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is RAG retrieval augmented generation",
+    "relevant": [
+      "ml-rag"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is LoRA fine-tuning",
+    "relevant": [
+      "ml-fine-tuning"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is RLHF in language model training",
+    "relevant": [
+      "ml-rlhf"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is a Merkle tree used for",
+    "relevant": [
+      "crypto-merkle"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is QUIC and HTTP/3",
+    "relevant": [
+      "quic-http3"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is an Acme architecture decision record",
+    "relevant": [
+      "adr-template"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is OpenTelemetry tracing",
+    "relevant": [
+      "otel-traces"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is Apache Cassandra tunable consistency",
+    "relevant": [
+      "cassandra-consistency"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what does Kubernetes RBAC do",
+    "relevant": [
+      "k8s-rbac"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is a StatefulSet for",
+    "relevant": [
+      "k8s-statefulsets"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is a NetworkPolicy in Kubernetes",
+    "relevant": [
+      "k8s-networkpolicy"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is the JIT in Postgres",
+    "relevant": [
+      "pg-explain"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what does a Bloom filter trade off",
+    "relevant": [
+      "algo-bloom-filter"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is the difference between sessions and JWTs",
+    "relevant": [
+      "auth-jwt-vs-session"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is structured logging",
+    "relevant": [
+      "structured-logging",
+      "log-best-practices"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is GitOps with ArgoCD",
+    "relevant": [
+      "gitops-argocd"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is a multi-stage Docker build",
+    "relevant": [
+      "docker-multistage"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is the SLSA framework",
+    "relevant": [
+      "supply-chain"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is workload identity federation",
+    "relevant": [
+      "gcp-iam"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is CSS subgrid",
+    "relevant": [
+      "css-flex-grid"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is INP in Core Web Vitals",
+    "relevant": [
+      "web-perf-cwv"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "useState",
+    "relevant": [
+      "code-snippet",
+      "code-react-hook"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "pg_repack",
+    "relevant": [
+      "pg-vacuum"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "kubectl rollout undo",
+    "relevant": [
+      "k8s-deployments"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "rbac.authorization.k8s.io",
+    "relevant": [
+      "k8s-rbac"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "pool_mode=transaction",
+    "relevant": [
+      "pg-pooling"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "asyncio.gather",
+    "relevant": [
+      "python-asyncio",
+      "code-python-asyncio"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "select_related",
+    "relevant": [
+      "django-orm"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "useEffect dependency array",
+    "relevant": [
+      "react-effects",
+      "code-react-hook"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "Promise.allSettled",
+    "relevant": [
+      "promise-pitfalls"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "go func channel",
+    "relevant": [
+      "code-go-goroutine",
+      "go-goroutines"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "tokio::spawn",
+    "relevant": [
+      "rust-async"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "context.WithTimeout",
+    "relevant": [
+      "go-context"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "errors.Is errors.As",
+    "relevant": [
+      "go-error-handling"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "Result Option ? operator",
+    "relevant": [
+      "rust-error-handling"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "WITH RECURSIVE",
+    "relevant": [
+      "code-sql-cte"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "CREATE EXTENSION vector",
+    "relevant": [
+      "pg-pgvector"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "find -print0 xargs -0",
+    "relevant": [
+      "code-bash-pipeline"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "FROM node:20-alpine AS build",
+    "relevant": [
+      "code-dockerfile",
+      "docker-multistage"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "kubectl apply -f",
+    "relevant": [
+      "k8s-deployments"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "EXPLAIN ANALYZE BUFFERS",
+    "relevant": [
+      "pg-explain"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "VACUUM FULL",
+    "relevant": [
+      "pg-vacuum"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "XADD XREAD XACK",
+    "relevant": [
+      "redis-pubsub"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "SETBIT GETBIT BITCOUNT",
+    "relevant": [
+      "redis-bitmaps"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "SCRIPT LOAD EVALSHA",
+    "relevant": [
+      "redis-lua"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "ALTER DEFAULT PRIVILEGES",
+    "relevant": [
+      "pg-roles"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "patronictl failover",
+    "relevant": [
+      "runbook-database-failover"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "kubectl auth can-i --list",
+    "relevant": [
+      "k8s-rbac"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "actions/cache",
+    "relevant": [
+      "github-actions"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "openssl s_client -connect",
+    "relevant": [
+      "x509-verify"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "dmesg | grep oom-killer",
+    "relevant": [
+      "err-oom"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "lsof -iTCP -sTCP:LISTEN",
+    "relevant": [
+      "err-conn-refused",
+      "err-eaddrinuse"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "ss -lntp",
+    "relevant": [
+      "err-eaddrinuse"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "SO_REUSEPORT",
+    "relevant": [
+      "err-eaddrinuse"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "go mod tidy",
+    "relevant": [
+      "go-modules"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "cargo build --release",
+    "relevant": [
+      "rust-cargo"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "uniqueBy generic function",
+    "relevant": [
+      "code-typescript-generic",
+      "ts-generics"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "impl Shape for Circle",
+    "relevant": [
+      "code-rust-trait",
+      "rust-traits"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "scope :active lambda",
+    "relevant": [
+      "rails-active-record"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "@SpringBootApplication",
+    "relevant": [
+      "spring-boot"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "fastify-plugin scope",
+    "relevant": [
+      "fastify-plugins"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "pip install uv",
+    "relevant": [
+      "python-virtualenv",
+      "python-packaging"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "pyproject.toml hatchling",
+    "relevant": [
+      "python-packaging"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "df.loc df.iloc groupby",
+    "relevant": [
+      "python-pandas"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "TypeVar Generic Protocol",
+    "relevant": [
+      "python-typing"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "fmt.Errorf %w",
+    "relevant": [
+      "go-error-handling"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "ERR_CONNECTION_REFUSED 4101",
+    "relevant": [
+      "err-conn-refused"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "OOM killer SIGKILL",
+    "relevant": [
+      "err-oom"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "CVE-2024-3094",
+    "relevant": [
+      "err-cve-xz"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "RFC 7519",
+    "relevant": [
+      "rfc-7519-jwt"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "x509: certificate verify failed",
+    "relevant": [
+      "x509-verify"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "SQLSTATE 40P01",
+    "relevant": [
+      "err-deadlock"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "EADDRINUSE",
+    "relevant": [
+      "err-eaddrinuse"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "SIGSEGV segmentation fault",
+    "relevant": [
+      "err-segfault"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "CVE-2021-44228 Log4Shell",
+    "relevant": [
+      "cve-log4shell"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "RFC 8446",
+    "relevant": [
+      "tls-handshake"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "RFC 9110 HTTP semantics",
+    "relevant": [
+      "rfc-9110"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "RFC 6238 TOTP",
+    "relevant": [
+      "mfa-totp"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "RFC 9112",
+    "relevant": [
+      "rfc-9110"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "PEP 484 type hints",
+    "relevant": [
+      "python-typing"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "PEP 703 no-GIL",
+    "relevant": [
+      "python-gil"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "PEP 517 build backend",
+    "relevant": [
+      "python-packaging"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "TLS 1.3 RFC 8446",
+    "relevant": [
+      "tls-handshake",
+      "arabic-tls"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "404 vs 410 Gone",
+    "relevant": [
+      "rfc-9110"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "503 Service Unavailable",
+    "relevant": [
+      "rfc-9110"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "Sev1 Sev0 incident",
+    "relevant": [
+      "on-call-escalation"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "\"liveness probes\"",
+    "relevant": [
+      "k8s-probes",
+      "german-kubernetes"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"borrow checker\"",
+    "relevant": [
+      "rust-ownership",
+      "italian-rust"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"connection refused\"",
+    "relevant": [
+      "err-conn-refused"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"audit log\"",
+    "relevant": [
+      "compliance-pii",
+      "access-review"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"OOM killer\"",
+    "relevant": [
+      "err-oom",
+      "k8s-resources"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"server-side rendering\"",
+    "relevant": [
+      "react-server-components"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"pool of connections\"",
+    "relevant": [
+      "pg-pooling"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"deadlock detected\"",
+    "relevant": [
+      "err-deadlock"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"cold start\"",
+    "relevant": [
+      "aws-lambda"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"Largest Contentful Paint\"",
+    "relevant": [
+      "web-perf-cwv"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"reciprocal rank fusion\"",
+    "relevant": [
+      "algo-rrf"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"chain of thought\"",
+    "relevant": [
+      "ml-prompt-engineering"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"data subject access request\"",
+    "relevant": [
+      "compliance-gdpr"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"break glass account\"",
+    "relevant": [
+      "access-review"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"global interpreter lock\"",
+    "relevant": [
+      "python-gil"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"event loop\"",
+    "relevant": [
+      "python-asyncio",
+      "node-streams"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"trait object\"",
+    "relevant": [
+      "rust-traits"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"head-of-line blocking\"",
+    "relevant": [
+      "http2",
+      "quic-http3"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"presigned URL\"",
+    "relevant": [
+      "aws-s3",
+      "portuguese-aws"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"multi-AZ\"",
+    "relevant": [
+      "aws-rds"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "redis",
+    "relevant": [
+      "redis-cache",
+      "redis-pubsub",
+      "redis-cluster",
+      "french-redis"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "pgbouncer",
+    "relevant": [
+      "pg-pooling",
+      "spanish-postgres",
+      "russian-postgres"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "kubernetes",
+    "relevant": [
+      "k8s-probes",
+      "k8s-resources",
+      "k8s-deployments",
+      "k8s-services",
+      "k8s-rbac",
+      "german-kubernetes"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "tls",
+    "relevant": [
+      "tls-handshake",
+      "x509-verify",
+      "arabic-tls"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "GIL",
+    "relevant": [
+      "python-gil"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "FSDP",
+    "relevant": [
+      "ml-fsdp"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "bgp",
+    "relevant": [
+      "bgp-routing"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "quic",
+    "relevant": [
+      "quic-http3"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "websockets",
+    "relevant": [
+      "websockets"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "mtls",
+    "relevant": [
+      "mtls"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "kafka",
+    "relevant": [
+      "kafka-partitions"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "lambda",
+    "relevant": [
+      "aws-lambda"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "iam",
+    "relevant": [
+      "aws-iam",
+      "gcp-iam",
+      "azure-rbac"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "vpc",
+    "relevant": [
+      "aws-vpc"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "rbac",
+    "relevant": [
+      "k8s-rbac",
+      "azure-rbac"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "helm",
+    "relevant": [
+      "k8s-helm"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "jwt",
+    "relevant": [
+      "rfc-7519-jwt",
+      "auth-jwt-vs-session"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "totp",
+    "relevant": [
+      "mfa-totp"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "rrf",
+    "relevant": [
+      "algo-rrf"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "lora",
+    "relevant": [
+      "ml-fine-tuning"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "rag",
+    "relevant": [
+      "ml-rag"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "rlhf",
+    "relevant": [
+      "ml-rlhf"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "mongodb",
+    "relevant": [
+      "mongodb-aggregation"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "elasticsearch",
+    "relevant": [
+      "elasticsearch-mappings"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "clickhouse",
+    "relevant": [
+      "clickhouse-mergetree"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "dynamodb",
+    "relevant": [
+      "dynamodb-keys"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "cassandra",
+    "relevant": [
+      "cassandra-consistency"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "sqlite",
+    "relevant": [
+      "sqlite-wal"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "argocd",
+    "relevant": [
+      "gitops-argocd"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "terraform",
+    "relevant": [
+      "terraform-state",
+      "terraform-modules"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "ansible",
+    "relevant": [
+      "ansible-playbook"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "fastify",
+    "relevant": [
+      "fastify-plugins"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "PgBouncer config production OLTP",
+    "relevant": [
+      "pg-pooling"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Redis Streams XADD consumer groups",
+    "relevant": [
+      "redis-pubsub"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Kubernetes Deployment rolling update strategy",
+    "relevant": [
+      "k8s-deployments"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "TLS handshake ClientHello cipher suites",
+    "relevant": [
+      "tls-handshake"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "FSDP sharded data parallel training",
+    "relevant": [
+      "ml-fsdp"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Postgres pgvector index ivfflat",
+    "relevant": [
+      "pg-pgvector"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "AWS S3 lifecycle Glacier",
+    "relevant": [
+      "aws-s3"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Acme PaymentsOnCall escalation",
+    "relevant": [
+      "runbook-payment-outage",
+      "on-call-escalation"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "ArgoCD ApplicationSet generators",
+    "relevant": [
+      "gitops-argocd"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Cilium NetworkPolicy L7",
+    "relevant": [
+      "k8s-networkpolicy"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "HashiCorp Vault dynamic secrets",
+    "relevant": [
+      "secrets-management"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Sigstore cosign signing",
+    "relevant": [
+      "supply-chain"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Tailscale MFA VPN",
+    "relevant": [
+      "vpn-access"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "PagerDuty Sev1 ack",
+    "relevant": [
+      "on-call-escalation"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Greenhouse hiring rubric",
+    "relevant": [
+      "engineering-hiring-rubric"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "BambooHR vacation request",
+    "relevant": [
+      "vacation-policy"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Expensify per diem",
+    "relevant": [
+      "expense-report"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Tendermint HotStuff BFT",
+    "relevant": [
+      "blockchain-consensus"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Curve25519 secp256k1 ECDSA",
+    "relevant": [
+      "crypto-ec"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Apache Log4j JNDI lookup",
+    "relevant": [
+      "cve-log4shell"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "GPTQ AWQ INT4 quantization",
+    "relevant": [
+      "ml-quantization"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Tendermint validator set",
+    "relevant": [
+      "blockchain-consensus"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Patroni leader DCS",
+    "relevant": [
+      "runbook-database-failover"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Snyk findings CI",
+    "relevant": [
+      "production-deploy-checklist"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Okta GitHub PagerDuty onboarding",
+    "relevant": [
+      "new-hire-onboarding"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "LaunchDarkly feature flag",
+    "relevant": [
+      "runbook-payment-outage"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "OWASP Top 10 SSRF",
+    "relevant": [
+      "owasp-top-10"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "DPO PPO reward model",
+    "relevant": [
+      "ml-rlhf"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Tokio runtime executor",
+    "relevant": [
+      "rust-async"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "vacuum without locking writes",
+    "relevant": [
+      "pg-vacuum"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "pod not restarting",
+    "relevant": [
+      "k8s-probes"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "redis pubsub vs streams",
+    "relevant": [
+      "redis-pubsub"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "tls vs ssl differences",
+    "relevant": [
+      "tls-handshake"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "JWT vs session cookies",
+    "relevant": [
+      "auth-jwt-vs-session"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "deploy without downtime",
+    "relevant": [
+      "k8s-deployments",
+      "production-deploy-checklist"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "session pooling vs transaction pooling",
+    "relevant": [
+      "pg-pooling"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "logical replication vs streaming replication",
+    "relevant": [
+      "pg-replication"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "PoW vs PoS consensus",
+    "relevant": [
+      "blockchain-consensus"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "Helm vs Kustomize",
+    "relevant": [
+      "k8s-helm"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "GiST vs GIN vs BRIN",
+    "relevant": [
+      "pg-indexes"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "Type I vs Type II SOC 2",
+    "relevant": [
+      "compliance-soc2"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "ClusterIP vs NodePort vs LoadBalancer",
+    "relevant": [
+      "k8s-services"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "blocking vs non-blocking IO without polling",
+    "relevant": [
+      "python-asyncio",
+      "node-streams"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "no global package installs",
+    "relevant": [
+      "python-virtualenv"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "rerank not slow",
+    "relevant": [
+      "ml-evaluation"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "never trust unverified JWT",
+    "relevant": [
+      "rfc-7519-jwt"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "without leaving production data exposed",
+    "relevant": [
+      "compliance-pii",
+      "secrets-management"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "rollback that won't lose data",
+    "relevant": [
+      "runbook-deploy-rollback"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "auth flow except implicit",
+    "relevant": [
+      "auth-oauth2"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "重複行 削除 PostgreSQL",
+    "relevant": [
+      "japanese-dedup"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "cómo configurar pool de conexiones en postgres",
+    "relevant": [
+      "spanish-postgres",
+      "pg-pooling"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "Redis cache stratégies en production",
+    "relevant": [
+      "french-redis",
+      "redis-cache"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "Kubernetes Liveness Probe konfigurieren",
+    "relevant": [
+      "german-kubernetes",
+      "k8s-probes"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "MongoDB 索引 复合索引 ESR",
+    "relevant": [
+      "chinese-mongodb",
+      "mongodb-aggregation"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "React Hook 사용 useState useEffect",
+    "relevant": [
+      "korean-react",
+      "code-snippet",
+      "react-effects"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "AWS S3 versionamento ciclo de vida",
+    "relevant": [
+      "portuguese-aws",
+      "aws-s3"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "PostgreSQL производительность shared_buffers work_mem",
+    "relevant": [
+      "russian-postgres"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "TLS 1.3 المصافحة شهادة",
+    "relevant": [
+      "arabic-tls",
+      "tls-handshake"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "Python त्रुटि अपवाद हैंडलिंग",
+    "relevant": [
+      "hindi-python"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "Rust ownership memoria garbage collector",
+    "relevant": [
+      "italian-rust",
+      "rust-ownership"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "Go goroutine channel select",
+    "relevant": [
+      "vietnamese-go",
+      "go-goroutines"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "PgBouncer 연결 풀 PostgreSQL",
+    "relevant": [
+      "pg-pooling"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "Kafka 分区 顺序 消费者",
+    "relevant": [
+      "kafka-partitions"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "Kubernetes Liveness Probe Container Neustart",
+    "relevant": [
+      "german-kubernetes",
+      "k8s-probes"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "best vector database for production",
+    "relevant": [
+      "pg-pgvector"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "production postgres tuning checklist",
+    "relevant": [
+      "pg-pooling",
+      "pg-vacuum",
+      "pg-explain",
+      "russian-postgres"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "kubernetes pod failure modes",
+    "relevant": [
+      "k8s-probes",
+      "k8s-resources"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "vacuum bloat troubleshooting",
+    "relevant": [
+      "pg-vacuum"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "scaling pubsub workloads",
+    "relevant": [
+      "redis-pubsub",
+      "kafka-partitions",
+      "gcp-pubsub"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "rerank pipeline retrieval",
+    "relevant": [
+      "ml-rag",
+      "algo-rrf"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "managing infrastructure as code",
+    "relevant": [
+      "terraform-modules",
+      "terraform-state",
+      "ansible-playbook"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "feature flag rollout strategies",
+    "relevant": [
+      "runbook-payment-outage"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "incident response retrospective",
+    "relevant": [
+      "incident-postmortem-template",
+      "security-incident-response"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "frontend performance baseline",
+    "relevant": [
+      "web-perf-cwv"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "css layout patterns modern",
+    "relevant": [
+      "css-flex-grid"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "internationalization rollout plan",
+    "relevant": [
+      "frontend-i18n"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "secrets in CI/CD",
+    "relevant": [
+      "github-actions",
+      "secrets-management"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "blue green deployment",
+    "relevant": [
+      "k8s-deployments"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "logging best practices microservices",
+    "relevant": [
+      "log-best-practices",
+      "structured-logging"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "horizontal scaling stateless services",
+    "relevant": [
+      "k8s-hpa",
+      "k8s-services"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "client side caching strategies",
+    "relevant": [
+      "redis-cache"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "cost optimization S3 storage classes",
+    "relevant": [
+      "aws-s3"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "managed message queue choice",
+    "relevant": [
+      "aws-sqs-fifo",
+      "rabbitmq-exchanges",
+      "nats-jetstream",
+      "gcp-pubsub"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "embeddings model selection",
+    "relevant": [
+      "ml-rag",
+      "ml-quantization"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "auth strategy multi tenant",
+    "relevant": [
+      "auth-oauth2",
+      "auth-jwt-vs-session"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "sharding horizontal partitioning",
+    "relevant": [
+      "pg-partitioning",
+      "redis-cluster",
+      "dynamodb-keys"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "observability spans metrics logs",
+    "relevant": [
+      "otel-traces",
+      "prometheus-pull",
+      "log-best-practices"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "compliance audit prep",
+    "relevant": [
+      "compliance-soc2",
+      "compliance-pii",
+      "access-review"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "what runbook covers payment outages at Acme",
+    "relevant": [
+      "runbook-payment-outage"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "what is Acme's on-call escalation policy",
+    "relevant": [
+      "on-call-escalation"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "where do I find the deploy rollback runbook",
+    "relevant": [
+      "runbook-deploy-rollback"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "what is the Acme database failover procedure",
+    "relevant": [
+      "runbook-database-failover"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme on-call handoff procedure",
+    "relevant": [
+      "on-call-handoff"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "incident postmortem template at Acme",
+    "relevant": [
+      "incident-postmortem-template"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "ADR template at Acme",
+    "relevant": [
+      "adr-template"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme design doc template",
+    "relevant": [
+      "design-doc-template"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "code review guidelines at Acme",
+    "relevant": [
+      "code-review-guidelines"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "what is Acme's vacation policy",
+    "relevant": [
+      "vacation-policy"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "how do I submit an expense report at Acme",
+    "relevant": [
+      "expense-report"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme secret rotation quarterly",
+    "relevant": [
+      "secret-rotation"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "quarterly access review process",
+    "relevant": [
+      "access-review"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme VPN access policy Tailscale",
+    "relevant": [
+      "vpn-access"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "production deploy checklist Acme",
+    "relevant": [
+      "production-deploy-checklist"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "new hire onboarding day 1 Acme",
+    "relevant": [
+      "new-hire-onboarding"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme engineering hiring rubric scores",
+    "relevant": [
+      "engineering-hiring-rubric"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme Slack channel naming conventions",
+    "relevant": [
+      "slack-channels"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme security incident response",
+    "relevant": [
+      "security-incident-response"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "two approvals required for billing changes",
+    "relevant": [
+      "code-review-guidelines"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "PaymentsOnCall escalation Sev1",
+    "relevant": [
+      "runbook-payment-outage",
+      "on-call-escalation"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme buddy assignment day 1",
+    "relevant": [
+      "new-hire-onboarding"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme staging soak before promotion",
+    "relevant": [
+      "production-deploy-checklist"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "what is the Acme break glass policy",
+    "relevant": [
+      "access-review"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "how often does Acme rotate credentials",
+    "relevant": [
+      "secret-rotation"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "who reviews access at Acme each quarter",
+    "relevant": [
+      "access-review"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "blameless postmortem culture",
+    "relevant": [
+      "incident-postmortem-template"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme RFC ADR distinction",
+    "relevant": [
+      "adr-template"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "ApplicationSets generators Acme",
+    "relevant": [
+      "gitops-argocd"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "30 60 90 check-ins Acme",
+    "relevant": [
+      "new-hire-onboarding"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "incident-private channel Acme",
+    "relevant": [
+      "security-incident-response"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme reimbursement timeline",
+    "relevant": [
+      "expense-report"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme deploy rolling restart Vault",
+    "relevant": [
+      "secret-rotation"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "engineering hiring committee weekly review",
+    "relevant": [
+      "engineering-hiring-rubric"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme channel archive policy",
+    "relevant": [
+      "slack-channels"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Apache Kafka exactly-once semantics",
+    "relevant": [
+      "kafka-partitions"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "OpenAI embeddings text-embedding-3-small",
+    "relevant": [
+      "pg-pgvector"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "Datadog APM trace propagation",
+    "relevant": [
+      "otel-traces"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "GitHub Dependabot version updates",
+    "relevant": [
+      "github-actions"
+    ],
+    "category": "named_entity"
+  },
+  {
+    "query": "preventing token replay",
+    "relevant": [
+      "auth-oauth2"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "design a dead letter queue",
+    "relevant": [
+      "gcp-pubsub"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "diagnose head-of-line blocking on http2",
+    "relevant": [
+      "http2",
+      "quic-http3"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "mitigate xz-utils backdoor",
+    "relevant": [
+      "err-cve-xz"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "prevent N+1 queries in Rails",
+    "relevant": [
+      "rails-active-record"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "investigate a deadlock in Postgres",
+    "relevant": [
+      "err-deadlock",
+      "pg-locks"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "set up RPKI for prefix validation",
+    "relevant": [
+      "bgp-routing"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "scale pubsub when consumers fall behind",
+    "relevant": [
+      "redis-pubsub",
+      "kafka-partitions"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "configure PgBouncer transaction pool",
+    "relevant": [
+      "pg-pooling"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "rotate quarterly credentials with Vault",
+    "relevant": [
+      "secret-rotation",
+      "secrets-management"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "implement a TURN fallback for WebRTC",
+    "relevant": [
+      "nat-traversal"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "set up Patroni with DNS update on failover",
+    "relevant": [
+      "runbook-database-failover"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "harden a Lambda execution role",
+    "relevant": [
+      "aws-lambda",
+      "aws-iam"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "implement a TURN STUN ICE pipeline",
+    "relevant": [
+      "nat-traversal"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "set up FSDP training in PyTorch",
+    "relevant": [
+      "ml-fsdp"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "build a multi-stage Dockerfile for a Node app",
+    "relevant": [
+      "docker-multistage",
+      "code-dockerfile"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "set up Helm release with values per environment",
+    "relevant": [
+      "k8s-helm"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "configure prometheus to scrape Kubernetes pods",
+    "relevant": [
+      "prometheus-pull"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "design a Grafana dashboard for SLOs",
+    "relevant": [
+      "grafana-dashboards"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "set up Tailscale for remote workers",
+    "relevant": [
+      "vpn-access"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "register a Workload Identity Federation pool",
+    "relevant": [
+      "gcp-iam"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "scope reduction for PCI",
+    "relevant": [
+      "compliance-pci"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "respond to a DSAR within one month",
+    "relevant": [
+      "compliance-gdpr"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "sign a BAA before sharing PHI",
+    "relevant": [
+      "compliance-hipaa"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "build an SBOM with Syft",
+    "relevant": [
+      "supply-chain"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "publish artifacts signed with cosign",
+    "relevant": [
+      "supply-chain"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "configure SIP NAT keep-alive",
+    "relevant": [
+      "nat-traversal"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "design a sharded Redis cluster",
+    "relevant": [
+      "redis-cluster"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "diagnose lock contention in Postgres",
+    "relevant": [
+      "pg-locks",
+      "err-deadlock"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "scale a write-heavy ClickHouse table",
+    "relevant": [
+      "clickhouse-mergetree"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "who created the Tendermint consensus protocol?",
+    "relevant": [
+      "blockchain-consensus"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "when does Postgres detect a deadlock?",
+    "relevant": [
+      "err-deadlock"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "where is the WAL archived in Postgres?",
+    "relevant": [
+      "pg-wal"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "which Helm flag rolls back automatically on failure?",
+    "relevant": [
+      "k8s-helm"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "what is the WAL?",
+    "relevant": [
+      "pg-wal"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "who introduced the Transformer paper?",
+    "relevant": [
+      "ml-transformer"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "when does a JWT expire?",
+    "relevant": [
+      "rfc-7519-jwt"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "where is the on-call schedule managed?",
+    "relevant": [
+      "on-call-escalation",
+      "on-call-handoff"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "which protocol replaces JNDI in Log4j fixes?",
+    "relevant": [
+      "cve-log4shell"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "what number is RFC 6238?",
+    "relevant": [
+      "mfa-totp"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "who funds maintenance for xz utils after CVE-2024-3094?",
+    "relevant": [
+      "err-cve-xz"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "when does Acme run quarterly access reviews?",
+    "relevant": [
+      "access-review"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "where is Acme's onboarding buddy assigned?",
+    "relevant": [
+      "new-hire-onboarding"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "which AWS service supports cold start metrics?",
+    "relevant": [
+      "aws-lambda"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "what does Acme's vacation policy minimum require?",
+    "relevant": [
+      "vacation-policy"
+    ],
+    "category": "factoid"
+  },
+  {
+    "query": "how does HPACK compress HTTP/2 headers",
+    "relevant": [
+      "http2"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is a refresh token rotation strategy",
+    "relevant": [
+      "auth-oauth2"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is BGP route hijacking",
+    "relevant": [
+      "bgp-routing"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is MergeTree in ClickHouse",
+    "relevant": [
+      "clickhouse-mergetree"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is a single-table design in DynamoDB",
+    "relevant": [
+      "dynamodb-keys"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is WAL mode in SQLite",
+    "relevant": [
+      "sqlite-wal"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is an SBOM in security",
+    "relevant": [
+      "supply-chain"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is mTLS in zero trust meshes",
+    "relevant": [
+      "mtls"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what does pg_stat_statements track",
+    "relevant": [
+      "pg-extensions"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what does a fanout exchange do in RabbitMQ",
+    "relevant": [
+      "rabbitmq-exchanges"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is the difference between a CTE and a subquery",
+    "relevant": [
+      "code-sql-cte"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "what is a GIN index",
+    "relevant": [
+      "pg-indexes"
+    ],
+    "category": "definitional"
+  },
+  {
+    "query": "how do I configure ConfigMap-driven config in K8s",
+    "relevant": [
+      "k8s-configmap"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I rotate Kubernetes secrets quarterly",
+    "relevant": [
+      "k8s-secrets",
+      "secret-rotation"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I run a StatefulSet with persistent volumes",
+    "relevant": [
+      "k8s-statefulsets"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I set up an HPA with custom metrics",
+    "relevant": [
+      "k8s-hpa"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I use Tokio select to multiplex futures",
+    "relevant": [
+      "rust-async"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I propagate context cancellation in Go",
+    "relevant": [
+      "go-context"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I lazy load i18n bundles per locale",
+    "relevant": [
+      "frontend-i18n"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I focus trap a modal for accessibility",
+    "relevant": [
+      "a11y-aria"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I migrate from Webpack to Vite",
+    "relevant": [
+      "vite-bundling"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I configure pip with uv for fast installs",
+    "relevant": [
+      "python-virtualenv",
+      "python-packaging"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I tune autovacuum on a partitioned table",
+    "relevant": [
+      "pg-vacuum",
+      "pg-partitioning"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I write a Lua script for atomic Redis ops",
+    "relevant": [
+      "redis-lua"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "how do I set up Sentinel for HA Redis",
+    "relevant": [
+      "redis-sentinel"
+    ],
+    "category": "procedural"
+  },
+  {
+    "query": "go.mod replace directive",
+    "relevant": [
+      "go-modules"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "context.Background context.TODO",
+    "relevant": [
+      "go-context"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "tokio::task::spawn_blocking",
+    "relevant": [
+      "rust-async"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "anyhow::Error thiserror::Error",
+    "relevant": [
+      "rust-error-handling"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "mypy pyright type checking",
+    "relevant": [
+      "python-typing"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "df.groupby().agg()",
+    "relevant": [
+      "python-pandas"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "asyncio.run main",
+    "relevant": [
+      "python-asyncio",
+      "code-python-asyncio"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "stream.pipeline node:stream/promises",
+    "relevant": [
+      "node-streams"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "import.meta.glob Vite",
+    "relevant": [
+      "vite-bundling"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "infer R conditional types",
+    "relevant": [
+      "ts-generics"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "fastify.register fastify-plugin",
+    "relevant": [
+      "fastify-plugins"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "django prefetch_related",
+    "relevant": [
+      "django-orm"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "ActiveRecord includes eager load",
+    "relevant": [
+      "rails-active-record"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "@Bean @Configuration Spring",
+    "relevant": [
+      "spring-boot"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "@actuator/health endpoint",
+    "relevant": [
+      "spring-boot"
+    ],
+    "category": "code"
+  },
+  {
+    "query": "RFC 7515 JWS",
+    "relevant": [
+      "rfc-7519-jwt"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "RFC 9000 QUIC",
+    "relevant": [
+      "quic-http3"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "exit code 137 OOMKilled",
+    "relevant": [
+      "err-oom"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "exit code 139 segfault",
+    "relevant": [
+      "err-segfault"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "errno 98 EADDRINUSE",
+    "relevant": [
+      "err-eaddrinuse"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "ssl: SSL_ERROR_SYSCALL",
+    "relevant": [
+      "x509-verify"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "ENOTFOUND DNS lookup failed",
+    "relevant": [
+      "dns-records"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "504 Gateway Timeout upstream",
+    "relevant": [
+      "rfc-9110"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "\"hot partition\"",
+    "relevant": [
+      "dynamodb-keys",
+      "kafka-partitions"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"kernel cgroup\"",
+    "relevant": [
+      "k8s-resources",
+      "err-oom"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"prepared statements\"",
+    "relevant": [
+      "pg-pooling"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"side effect\"",
+    "relevant": [
+      "react-effects"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"feature flag\"",
+    "relevant": [
+      "runbook-payment-outage"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"least privilege\"",
+    "relevant": [
+      "aws-iam"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"break-glass\"",
+    "relevant": [
+      "access-review"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"gradient checkpointing\"",
+    "relevant": [
+      "ml-fsdp"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"head-based sampling\"",
+    "relevant": [
+      "otel-traces"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "react",
+    "relevant": [
+      "code-snippet",
+      "react-effects",
+      "react-server-components",
+      "korean-react"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "rust",
+    "relevant": [
+      "rust-ownership",
+      "rust-async",
+      "rust-traits",
+      "rust-error-handling",
+      "italian-rust"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "python",
+    "relevant": [
+      "python-gil",
+      "python-asyncio",
+      "python-typing",
+      "python-pandas",
+      "hindi-python"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "go",
+    "relevant": [
+      "go-goroutines",
+      "go-context",
+      "go-modules",
+      "go-error-handling",
+      "vietnamese-go"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "vault",
+    "relevant": [
+      "secrets-management"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "patroni",
+    "relevant": [
+      "runbook-database-failover"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "tailscale",
+    "relevant": [
+      "vpn-access"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "pagerduty",
+    "relevant": [
+      "on-call-escalation"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "okta",
+    "relevant": [
+      "new-hire-onboarding"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "expensify",
+    "relevant": [
+      "expense-report"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "bamboohr",
+    "relevant": [
+      "vacation-policy"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "docker",
+    "relevant": [
+      "docker-multistage",
+      "code-dockerfile"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "argo",
+    "relevant": [
+      "gitops-argocd"
+    ],
+    "category": "short_kw"
+  },
+  {
+    "query": "diff between PoW and PoS without energy concerns",
+    "relevant": [
+      "blockchain-consensus"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "scaling without losing ordering",
+    "relevant": [
+      "kafka-partitions"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "rotate secrets without downtime",
+    "relevant": [
+      "secret-rotation",
+      "secrets-management"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "deploy without breaking active sessions",
+    "relevant": [
+      "k8s-deployments"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "Postgres pooling without dropping prepared statements",
+    "relevant": [
+      "pg-pooling"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "tracing without head sampling",
+    "relevant": [
+      "otel-traces"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "no global mutable state",
+    "relevant": [
+      "python-virtualenv",
+      "rust-ownership"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "Helm Recreate vs RollingUpdate",
+    "relevant": [
+      "k8s-deployments"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "Docker scratch vs distroless",
+    "relevant": [
+      "docker-multistage"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "Postgres GIN vs GiST for full text",
+    "relevant": [
+      "pg-indexes"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "PostgreSQL Verbindungspool konfigurieren",
+    "relevant": [
+      "pg-pooling"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "ストリーム削除 Kafka",
+    "relevant": [
+      "kafka-partitions"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "Kubernetes RBAC 권한 ClusterRole",
+    "relevant": [
+      "k8s-rbac"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "Rust 所有权 借用检查器",
+    "relevant": [
+      "rust-ownership"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "MongoDB агрегация pipeline",
+    "relevant": [
+      "mongodb-aggregation"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "AWS S3 lifecycle политика",
+    "relevant": [
+      "aws-s3"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "TLS 1.3 הצפנה",
+    "relevant": [
+      "tls-handshake"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "Postgres VACUUM बड़ी टेबल",
+    "relevant": [
+      "pg-vacuum"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "Goroutine kênh chọn",
+    "relevant": [
+      "go-goroutines",
+      "vietnamese-go"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "índices em PostgreSQL B-tree GIN",
+    "relevant": [
+      "pg-indexes"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "what does my service mesh need to support",
+    "relevant": [
+      "mtls"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "designing a feature flag system",
+    "relevant": [
+      "runbook-payment-outage"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "high availability strategy",
+    "relevant": [
+      "redis-sentinel",
+      "aws-rds",
+      "k8s-statefulsets"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "modeling a write-once read-many table",
+    "relevant": [
+      "clickhouse-mergetree",
+      "sqlite-wal"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "cost-aware compute scaling",
+    "relevant": [
+      "k8s-hpa",
+      "aws-lambda"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "documenting decisions for the team",
+    "relevant": [
+      "adr-template",
+      "design-doc-template"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "handling spike traffic gracefully",
+    "relevant": [
+      "k8s-hpa",
+      "redis-cache"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "platform engineering golden paths",
+    "relevant": [
+      "k8s-helm",
+      "gitops-argocd"
+    ],
+    "category": "ambiguous"
+  },
+  {
+    "query": "Acme on-call shadow week 1",
+    "relevant": [
+      "new-hire-onboarding"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme nit policy in code review",
+    "relevant": [
+      "code-review-guidelines"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme expense per diem rates",
+    "relevant": [
+      "expense-report"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme Sev0 manager escalation",
+    "relevant": [
+      "on-call-escalation"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme PII encryption requirements",
+    "relevant": [
+      "compliance-pii"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme audit log retention 7 years",
+    "relevant": [
+      "compliance-pii"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme channel auto-archive 30 days",
+    "relevant": [
+      "slack-channels"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme ApplicationSet rollout",
+    "relevant": [
+      "gitops-argocd"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme Sigstore cosign artifacts",
+    "relevant": [
+      "supply-chain"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme dashboards LCP CLS INP",
+    "relevant": [
+      "web-perf-cwv"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme runbook payments dashboard URL",
+    "relevant": [
+      "runbook-payment-outage"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme database failover patroni",
+    "relevant": [
+      "runbook-database-failover"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme Slack incident channel pattern",
+    "relevant": [
+      "slack-channels",
+      "security-incident-response"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme migration compatibility forward fix",
+    "relevant": [
+      "runbook-deploy-rollback"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme buddy program engineering",
+    "relevant": [
+      "new-hire-onboarding"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "PostgreSQL 中文 索引 维护",
+    "relevant": [
+      "pg-indexes",
+      "chinese-mongodb"
+    ],
+    "category": "non_english"
+  },
+  {
+    "query": "RFC 9114 HTTP/3",
+    "relevant": [
+      "quic-http3"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "RFC 5246 TLS 1.2 deprecated",
+    "relevant": [
+      "tls-handshake"
+    ],
+    "category": "error_code"
+  },
+  {
+    "query": "\"data plane\"",
+    "relevant": [
+      "mtls",
+      "k8s-services"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "\"control plane\"",
+    "relevant": [
+      "k8s-rbac",
+      "gitops-argocd"
+    ],
+    "category": "quoted"
+  },
+  {
+    "query": "vector index without exact match",
+    "relevant": [
+      "pg-pgvector"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "auth without long-lived keys",
+    "relevant": [
+      "aws-iam",
+      "gcp-iam",
+      "auth-oauth2"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "deploy without manual intervention",
+    "relevant": [
+      "gitops-argocd"
+    ],
+    "category": "negation"
+  },
+  {
+    "query": "Acme PageDuty Sev1 vs Sev0",
+    "relevant": [
+      "on-call-escalation"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme MFA hardware key requirement",
+    "relevant": [
+      "vpn-access"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme reviewer 1 business day SLA",
+    "relevant": [
+      "code-review-guidelines"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme deploy soak time 2 hours",
+    "relevant": [
+      "production-deploy-checklist"
+    ],
+    "category": "internal"
+  },
+  {
+    "query": "Acme rotating signing keys",
+    "relevant": [
+      "secret-rotation"
+    ],
+    "category": "internal"
+  }
 ]
