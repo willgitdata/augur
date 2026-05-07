@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { tokenizeAdvanced } from "./text-utils.js";
 
 /**
@@ -26,6 +28,19 @@ export interface Embedder {
    * No-op by default — embedders without corpus state ignore this.
    */
   fit?(texts: string[]): void;
+  /**
+   * Optional: embed text(s) explicitly tagged as documents-to-be-indexed.
+   * Embedders that distinguish doc vs query roles (Gemini's task types,
+   * Cohere v3's input_type, BGE's instruct-prefixes) implement this for
+   * better retrieval quality. Augur prefers this over `embed()` during
+   * `index()` when available.
+   */
+  embedDocuments?(texts: string[]): Promise<number[][]>;
+  /**
+   * Optional: embed a single text explicitly tagged as a search query.
+   * Augur prefers this over `embed()` during `search()` when available.
+   */
+  embedQuery?(text: string): Promise<number[]>;
 }
 
 /**
@@ -73,6 +88,251 @@ export class HashEmbedder implements Embedder {
     norm = Math.sqrt(norm) || 1;
     return vec.map((v) => v / norm);
   }
+}
+
+/**
+ * GeminiEmbedder — Google Gemini embeddings via the Generative Language API.
+ *
+ * Default model is `gemini-embedding-001` (configurable output dimensionality;
+ * we default to 768 for storage/latency, supporting 128/256/512/768/1536/3072).
+ * Pass `model: "gemini-embedding-2"` for the newer generation.
+ *
+ * Why this matters: Gemini's bi-encoder embeddings are real semantic vectors.
+ * Pairing with task-type tagging (RETRIEVAL_DOCUMENT vs RETRIEVAL_QUERY)
+ * gives noticeably better retrieval than treating both roles symmetrically —
+ * the encoder produces different-but-aligned spaces tuned for each role.
+ *
+ * Auth: pass `apiKey`, or set the `GEMINI_API_KEY` (or `GOOGLE_API_KEY`)
+ * environment variable. Never check the key into source.
+ *
+ * Batching: the underlying `:batchEmbedContents` endpoint accepts up to 100
+ * inputs per request. Larger batches are split client-side automatically.
+ */
+export class GeminiEmbedder implements Embedder {
+  readonly name: string;
+  readonly dimension: number;
+  private apiKey: string;
+  private model: string;
+  private baseURL: string;
+  private batchSize: number;
+
+  private maxRetries: number;
+  private throttleMs: number;
+  private cacheDir: string | null;
+
+  constructor(opts: {
+    apiKey?: string;
+    model?: string;
+    /** Output vector size. Only meaningful for models that accept output_dimensionality. */
+    dimension?: number;
+    /** Max items per batch request. Defaults to 100 (the API ceiling). */
+    batchSize?: number;
+    /** Override for proxies / on-prem. Defaults to public Generative Language API. */
+    baseURL?: string;
+    /** Retries on 429/5xx with exponential backoff. Defaults to 5. */
+    maxRetries?: number;
+    /** Min delay between requests in ms (free-tier safety). Defaults to 0. */
+    throttleMs?: number;
+    /**
+     * On-disk cache directory keyed by sha256(model|dim|taskType|text). Highly
+     * recommended in production — embedding cost is non-trivial and texts
+     * rarely change. Defaults to null (no caching).
+     */
+    cacheDir?: string | null;
+  } = {}) {
+    this.apiKey =
+      opts.apiKey ??
+      process.env.GEMINI_API_KEY ??
+      process.env.GOOGLE_API_KEY ??
+      "";
+    this.model = opts.model ?? "gemini-embedding-001";
+    this.dimension = opts.dimension ?? 768;
+    this.baseURL = opts.baseURL ?? "https://generativelanguage.googleapis.com/v1beta";
+    this.batchSize = opts.batchSize ?? 100;
+    this.maxRetries = opts.maxRetries ?? 5;
+    this.throttleMs = opts.throttleMs ?? 0;
+    this.cacheDir = opts.cacheDir ?? null;
+    if (this.cacheDir && !existsSync(this.cacheDir)) {
+      mkdirSync(this.cacheDir, { recursive: true });
+    }
+    this.name = `gemini:${this.model}`;
+    if (!this.apiKey) {
+      throw new Error(
+        "GeminiEmbedder: apiKey not provided and GEMINI_API_KEY / GOOGLE_API_KEY not set"
+      );
+    }
+  }
+
+  /** Default to the document task type — typical use site is index-time embedding. */
+  async embed(texts: string[]): Promise<number[][]> {
+    return this.embedBatch(texts, "RETRIEVAL_DOCUMENT");
+  }
+
+  async embedDocuments(texts: string[]): Promise<number[][]> {
+    return this.embedBatch(texts, "RETRIEVAL_DOCUMENT");
+  }
+
+  async embedQuery(text: string): Promise<number[]> {
+    const [v] = await this.embedBatch([text], "RETRIEVAL_QUERY");
+    if (!v) throw new Error("GeminiEmbedder: empty embedding response");
+    return v;
+  }
+
+  private async embedBatch(
+    texts: string[],
+    taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY"
+  ): Promise<number[][]> {
+    if (texts.length === 0) return [];
+
+    // Check cache first — only un-cached texts make API calls.
+    const out = new Array<number[] | null>(texts.length).fill(null);
+    const missing: Array<{ index: number; text: string }> = [];
+    if (this.cacheDir) {
+      for (let i = 0; i < texts.length; i++) {
+        const cached = this.readCache(texts[i]!, taskType);
+        if (cached) out[i] = cached;
+        else missing.push({ index: i, text: texts[i]! });
+      }
+    } else {
+      for (let i = 0; i < texts.length; i++) missing.push({ index: i, text: texts[i]! });
+    }
+    if (missing.length === 0) return out as number[][];
+
+    // Embed only the misses, then merge back into the result array.
+    const batchTexts = missing.map((m) => m.text);
+    const fresh = await this.embedBatchUncached(batchTexts, taskType);
+    for (let j = 0; j < missing.length; j++) {
+      const vec = fresh[j]!;
+      out[missing[j]!.index] = vec;
+      if (this.cacheDir) this.writeCache(missing[j]!.text, taskType, vec);
+    }
+    return out as number[][];
+  }
+
+  private async embedBatchUncached(
+    texts: string[],
+    taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY"
+  ): Promise<number[][]> {
+    const out: number[][] = [];
+    for (let i = 0; i < texts.length; i += this.batchSize) {
+      const batch = texts.slice(i, i + this.batchSize);
+      // gemini-embedding-* models accept outputDimensionality (128 / 256 / 512
+      // / 768 / 1536 / 3072). Older text-embedding-* models ignore it.
+      const body = {
+        requests: batch.map((text) => {
+          const req: Record<string, unknown> = {
+            model: `models/${this.model}`,
+            content: { parts: [{ text }] },
+            taskType,
+          };
+          if (this.model.startsWith("gemini-embedding-")) {
+            req["outputDimensionality"] = this.dimension;
+          }
+          return req;
+        }),
+      };
+      const url = `${this.baseURL}/models/${this.model}:batchEmbedContents?key=${encodeURIComponent(
+        this.apiKey
+      )}`;
+      const json = await this.fetchWithRetry(url, body);
+      for (const e of json.embeddings) out.push(this.normalize(e.values));
+      if (this.throttleMs > 0 && i + this.batchSize < texts.length) {
+        await sleep(this.throttleMs);
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Retry on 429 (rate limit) and 5xx with exponential backoff. Honors a
+   * `Retry-After` header when the server provides one. Avoids echoing the
+   * API key into thrown error messages.
+   */
+  private async fetchWithRetry(
+    url: string,
+    body: unknown
+  ): Promise<{ embeddings: Array<{ values: number[] }> }> {
+    let attempt = 0;
+    let lastErr: Error | null = null;
+    while (attempt <= this.maxRetries) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        return (await res.json()) as { embeddings: Array<{ values: number[] }> };
+      }
+      const retriable = res.status === 429 || (res.status >= 500 && res.status < 600);
+      if (!retriable || attempt === this.maxRetries) {
+        throw new Error(`Gemini embed failed (${res.status} ${res.statusText})`);
+      }
+      const retryAfter = parseRetryAfter(res.headers.get("retry-after"));
+      const backoff = retryAfter ?? Math.min(60_000, 1_000 * Math.pow(2, attempt));
+      lastErr = new Error(
+        `Gemini ${res.status}; retrying in ${backoff}ms (attempt ${attempt + 1}/${this.maxRetries})`
+      );
+      // eslint-disable-next-line no-console
+      console.warn(`[gemini] ${lastErr.message}`);
+      await sleep(backoff + Math.floor(Math.random() * 200));
+      attempt += 1;
+    }
+    throw lastErr ?? new Error("Gemini embed failed after retries");
+  }
+
+  /**
+   * L2-normalize. Gemini returns normalized vectors only at the native 3072
+   * dimension; for any smaller `outputDimensionality` the docs explicitly say
+   * to normalize client-side. We always normalize so cosine == dot product
+   * downstream.
+   */
+  private normalize(vec: number[]): number[] {
+    let norm = 0;
+    for (const v of vec) norm += v * v;
+    norm = Math.sqrt(norm) || 1;
+    return vec.map((v) => v / norm);
+  }
+
+  private cachePath(text: string, taskType: string): string | null {
+    if (!this.cacheDir) return null;
+    const key = createHash("sha256")
+      .update(`${this.model}|${this.dimension}|${taskType}|${text}`)
+      .digest("hex");
+    return join(this.cacheDir, `${key}.json`);
+  }
+
+  private readCache(text: string, taskType: string): number[] | null {
+    const path = this.cachePath(text, taskType);
+    if (!path || !existsSync(path)) return null;
+    try {
+      return JSON.parse(readFileSync(path, "utf8")) as number[];
+    } catch {
+      return null;
+    }
+  }
+
+  private writeCache(text: string, taskType: string, vec: number[]): void {
+    const path = this.cachePath(text, taskType);
+    if (!path) return;
+    writeFileSync(path, JSON.stringify(vec));
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Parse a `Retry-After` header value into milliseconds. Supports both
+ * delta-seconds and HTTP-date formats. Returns null if absent/unparseable.
+ */
+function parseRetryAfter(value: string | null): number | null {
+  if (!value) return null;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  const date = Date.parse(value);
+  if (!Number.isNaN(date)) return Math.max(0, date - Date.now());
+  return null;
 }
 
 /**

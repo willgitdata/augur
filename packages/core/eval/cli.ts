@@ -16,11 +16,16 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   Augur,
+  GeminiEmbedder,
   HashEmbedder,
+  HeuristicReranker,
+  LocalEmbedder,
+  LocalReranker,
   MetadataChunker,
   SentenceChunker,
   TfIdfEmbedder,
   type Embedder,
+  type Reranker,
 } from "../src/index.js";
 import { formatReport, runEval, type EvalDoc, type EvalQuery, type EvalReport } from "./runner.js";
 
@@ -30,12 +35,26 @@ interface Args {
   verbose: boolean;
   save?: string;
   compare?: string;
-  embedder: "hash" | "tfidf";
+  embedder: "hash" | "tfidf" | "gemini" | "local";
+  reranker: "none" | "heuristic" | "local";
+  localEmbedderModel?: string;
+  localEmbedderQueryPrefix?: string;
+  localEmbedderDocPrefix?: string;
+  localRerankerModel?: string;
+  geminiModel?: string;
+  geminiThrottleMs?: number;
+  geminiCacheDir?: string;
+  limit?: number;
   metadataChunker: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
-  const out: Args = { verbose: false, embedder: "hash", metadataChunker: false };
+  const out: Args = {
+    verbose: false,
+    embedder: "hash",
+    reranker: "heuristic",
+    metadataChunker: false,
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--verbose" || a === "-v") out.verbose = true;
@@ -43,18 +62,60 @@ function parseArgs(argv: string[]): Args {
     else if (a === "--compare") out.compare = argv[++i];
     else if (a === "--embedder") {
       const v = argv[++i];
-      if (v !== "hash" && v !== "tfidf") {
-        throw new Error(`--embedder must be 'hash' or 'tfidf', got ${v}`);
+      if (v !== "hash" && v !== "tfidf" && v !== "gemini" && v !== "local") {
+        throw new Error(`--embedder must be 'hash' | 'tfidf' | 'gemini' | 'local', got ${v}`);
       }
       out.embedder = v;
-    } else if (a === "--metadata-chunker") out.metadataChunker = true;
+    } else if (a === "--reranker") {
+      const v = argv[++i];
+      if (v !== "none" && v !== "heuristic" && v !== "local") {
+        throw new Error(`--reranker must be 'none' | 'heuristic' | 'local', got ${v}`);
+      }
+      out.reranker = v;
+    } else if (a === "--local-embedder-model") out.localEmbedderModel = argv[++i];
+    else if (a === "--local-embedder-query-prefix") out.localEmbedderQueryPrefix = argv[++i];
+    else if (a === "--local-embedder-doc-prefix") out.localEmbedderDocPrefix = argv[++i];
+    else if (a === "--local-reranker-model") out.localRerankerModel = argv[++i];
+    else if (a === "--gemini-model") out.geminiModel = argv[++i];
+    else if (a === "--gemini-throttle") out.geminiThrottleMs = parseInt(argv[++i]!, 10);
+    else if (a === "--gemini-cache-dir") out.geminiCacheDir = argv[++i];
+    else if (a === "--limit") out.limit = parseInt(argv[++i]!, 10);
+    else if (a === "--metadata-chunker") out.metadataChunker = true;
   }
   return out;
 }
 
-function buildEmbedder(kind: Args["embedder"]): Embedder {
-  if (kind === "tfidf") return new TfIdfEmbedder();
+function buildEmbedder(args: Args): Embedder {
+  if (args.embedder === "tfidf") return new TfIdfEmbedder();
+  if (args.embedder === "gemini") {
+    return new GeminiEmbedder({
+      ...(args.geminiModel ? { model: args.geminiModel } : {}),
+      ...(args.geminiThrottleMs !== undefined ? { throttleMs: args.geminiThrottleMs } : {}),
+      ...(args.geminiCacheDir ? { cacheDir: args.geminiCacheDir } : {}),
+    });
+  }
+  if (args.embedder === "local") {
+    return new LocalEmbedder({
+      ...(args.localEmbedderModel ? { model: args.localEmbedderModel } : {}),
+      ...(args.localEmbedderQueryPrefix !== undefined
+        ? { queryPrefix: args.localEmbedderQueryPrefix }
+        : {}),
+      ...(args.localEmbedderDocPrefix !== undefined
+        ? { docPrefix: args.localEmbedderDocPrefix }
+        : {}),
+    });
+  }
   return new HashEmbedder();
+}
+
+function buildReranker(args: Args): Reranker | null {
+  if (args.reranker === "none") return null;
+  if (args.reranker === "local") {
+    return new LocalReranker({
+      ...(args.localRerankerModel ? { model: args.localRerankerModel } : {}),
+    });
+  }
+  return new HeuristicReranker();
 }
 
 function loadJson<T>(path: string): T {
@@ -89,15 +150,20 @@ async function main() {
   const chunker = args.metadataChunker
     ? new MetadataChunker({ base: baseChunker })
     : baseChunker;
-  const embedder = buildEmbedder(args.embedder);
+  const embedder = buildEmbedder(args);
+  const reranker = buildReranker(args);
 
   console.log(
-    `Config: embedder=${embedder.name}  chunker=${(chunker as { name: string }).name}` +
+    `Config: embedder=${embedder.name}  chunker=${(chunker as { name: string }).name}  reranker=${reranker ? reranker.name : "none"}` +
       (args.metadataChunker ? "  (metadata-prepend ON)" : "")
   );
   console.log();
 
-  const augur = new Augur({ embedder, chunker });
+  const augur = new Augur({
+    embedder,
+    chunker,
+    ...(reranker ? { reranker } : {}),
+  });
   const report = await runEval(augur, corpus, queries);
 
   console.log(formatReport(report, { verbose: args.verbose }));

@@ -24,7 +24,10 @@
       "import": "./dist/routing/index.js"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
@@ -34,9 +37,9 @@
     "clean": "rm -rf dist"
   },
   "devDependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "@types/node": "^20.11.0",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0"
-  },
-  "dependencies": {}
+  }
 }

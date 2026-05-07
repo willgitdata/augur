@@ -104,9 +104,9 @@ Writing a new adapter is implementing five methods. See [`examples/custom-adapte
 | You bring                         | Augur provides                              |
 |-----------------------------------|--------------------------------------------------|
 | Documents                         | Chunking (3 strategies + `MetadataChunker` wrapper) |
-| (optional) An embedder + API key  | `HashEmbedder` (offline placeholder), `TfIdfEmbedder` (offline real-baseline), `OpenAIEmbedder` |
+| (optional) An embedder + API key  | Offline: `HashEmbedder`, `TfIdfEmbedder`, `LocalEmbedder` (ONNX, no network). Hosted: `OpenAIEmbedder`, `GeminiEmbedder` |
 | (optional) A vector DB            | A default `InMemoryAdapter` (BM25 + brute-force vector + RRF hybrid) |
-| (optional) A reranker             | `HeuristicReranker`, `CohereReranker`, `JinaReranker`, `HttpCrossEncoderReranker`, `CascadedReranker` |
+| (optional) A reranker             | Offline: `HeuristicReranker`, `LocalReranker` (cross-encoder ONNX). Hosted: `CohereReranker`, `JinaReranker`, `HttpCrossEncoderReranker`. Plus `CascadedReranker` for staged pipelines. |
 | Nothing                           | Routing, hybrid fusion, traces, dashboard, HTTP API |
 
 ## Evaluation
@@ -125,23 +125,35 @@ pnpm eval                                                        # default confi
 pnpm eval -- --verbose                                           # per-query lines
 pnpm eval -- --save baseline.json                                # snapshot metrics
 pnpm eval -- --compare baseline.json                             # diff vs snapshot
-pnpm eval -- --embedder tfidf                                    # swap to TfIdfEmbedder
-pnpm eval -- --embedder tfidf --metadata-chunker                 # + metadata-prepend
-pnpm eval -- --embedder tfidf --metadata-chunker --save x.json   # combine flags
+pnpm eval -- --embedder tfidf                                    # swap to TfIdfEmbedder (offline, no deps)
+pnpm eval -- --embedder local                                    # offline ONNX (Xenova/all-MiniLM-L6-v2, ~22MB)
+pnpm eval -- --embedder local --reranker local                   # + cross-encoder reranker (~22MB)
+pnpm eval -- --embedder local --reranker local --metadata-chunker # full local stack
+pnpm eval -- --embedder gemini --gemini-cache-dir .cache/gemini  # Gemini API w/ disk cache
 ```
 
 ### Reference numbers (no API keys, no network)
 
-| Config                                                | NDCG@10 | MRR    | Recall@10 |
-| ----------------------------------------------------- | ------: | -----: | --------: |
-| `HashEmbedder` (default)                              | 0.786   | 0.782  | 0.857     |
-| `TfIdfEmbedder`                                       | 0.825   | 0.816  | 0.906     |
-| `TfIdfEmbedder` + `MetadataChunker`                   | **0.848** | **0.839** | **0.923** |
+Measured on the bundled 504-query / 182-doc eval. **All numbers below are
+real, locally reproducible runs** — no remote APIs touched.
 
-Real production embedders (BGE, Cohere v3, OpenAI text-embedding-3) lift
-the vector strategy substantially on top of this. The harness is a pure
-function of the `Augur` instance, so swap the embedder, adapter, router,
-or reranker between runs to measure the impact of any change.
+| Config                                                                       | NDCG@10 | MRR    | Recall@10 |
+| ---------------------------------------------------------------------------- | ------: | -----: | --------: |
+| `HashEmbedder` (default placeholder, not semantic)                           | 0.786   | 0.782  | 0.857     |
+| `TfIdfEmbedder`                                                              | 0.825   | 0.816  | 0.906     |
+| `TfIdfEmbedder` + `MetadataChunker`                                          | 0.848   | 0.839  | 0.923     |
+| `LocalEmbedder` (Xenova/all-MiniLM-L6-v2)                                    | 0.845   | 0.835  | 0.924     |
+| `LocalEmbedder` + `LocalReranker` (ms-marco-MiniLM-L-6-v2 cross-encoder)     | 0.877   | 0.871  | 0.932     |
+| `LocalEmbedder` + `LocalReranker` + `MetadataChunker`                        | **0.899** | **0.896** | **0.943** |
+
+The bottom row uses ~44MB of on-device ONNX models, no network at query
+time, and beats the HashEmbedder default by **+11.3% NDCG@10**, with
+vector-strategy NDCG going from **0.638 → 0.922 (+28.4%)**.
+
+Hosted production embedders (Cohere v3, OpenAI text-embedding-3, Voyage)
+typically lift another 5-10% on top of all-MiniLM-L6-v2. The harness is
+a pure function of the `Augur` instance, so swap the embedder, adapter,
+router, or reranker between runs to measure the impact of any change.
 
 ## Status
 
