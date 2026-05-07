@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build / typecheck / test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm -r --filter './packages/*' build
+
+      - name: Typecheck workspace
+        run: pnpm typecheck
+
+      - name: Core test suite
+        working-directory: packages/core
+        run: node --import tsx --test src/routing/router.test.ts src/augur.test.ts
+
+      - name: Run examples (smoke)
+        run: |
+          pnpm --filter example-basic-search start
+          pnpm --filter example-chunking start
+          pnpm --filter example-custom-adapter start

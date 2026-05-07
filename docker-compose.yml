@@ -1,0 +1,41 @@
+# Local dev compose: server + dashboard on different ports.
+#
+# Usage:
+#   docker compose up
+#   open http://localhost:3000   # dashboard
+#   open http://localhost:3001/docs  # API docs
+#
+# Defaults to in-memory adapter and the HashEmbedder so it runs offline with
+# no API keys. Override env vars to point at Pinecone / pgvector / OpenAI.
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: "3001"
+      LOG_LEVEL: "info"
+      QUERYBRAIN_ADAPTER: "in-memory"
+      QUERYBRAIN_EMBEDDER: "hash"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:3001/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  dashboard:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "corepack enable && pnpm install && pnpm --filter dashboard dev"
+    volumes:
+      - ./:/app
+    ports:
+      - "3000:3000"
+    environment:
+      QUERYBRAIN_URL: "http://server:3001"
+    depends_on:
+      server:
+        condition: service_healthy
