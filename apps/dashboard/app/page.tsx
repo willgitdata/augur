@@ -4,7 +4,7 @@ import { useState } from "react";
 import { TraceView } from "@/components/TraceView";
 import { ResultList } from "@/components/ResultList";
 
-const QB = process.env.AUGUR_URL ?? "http://localhost:3001";
+const AUGR = process.env.AUGUR_URL ?? "http://localhost:3001";
 
 interface SearchResp {
   results: Array<{
@@ -31,7 +31,7 @@ export default function PlaygroundPage() {
       const body: any = { query, topK };
       if (forced) body.forceStrategy = forced;
       if (budget !== "") body.latencyBudgetMs = Number(budget);
-      const r = await fetch(`${QB}/search`, {
+      const r = await fetch(`${AUGR}/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
