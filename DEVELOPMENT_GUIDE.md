@@ -84,6 +84,25 @@ pnpm typecheck
 
 Useful in CI as a fast gate before the slower `build`.
 
+### Run the eval harness
+
+```bash
+pnpm eval                              # 32-doc corpus, 50 queries
+pnpm eval -- --verbose                 # per-query lines
+pnpm eval -- --save baseline.json      # snapshot
+pnpm eval -- --compare baseline.json   # diff vs snapshot
+```
+
+Reports NDCG@10 / MRR / Recall@10 — overall, per category, per
+router-chosen strategy. The harness instantiates a default `Augur`,
+indexes the corpus, runs every query, and grades the retrieved chunks
+against the labeled relevant docs. Because the runner is a pure function
+of an `Augur` instance, swap the embedder, adapter, router, or reranker
+between runs to measure the real impact of any change.
+
+Corpus and queries live at `packages/core/eval/{corpus,queries}.json` —
+add domain-specific labeled pairs there to evaluate on your own data.
+
 ### Format
 
 ```bash

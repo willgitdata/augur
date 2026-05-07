@@ -66,6 +66,9 @@ export interface RoutingDecision {
   reranked: boolean;
 }
 
+/** Refined question type. `null` means the query isn't a question. */
+export type QuestionType = "factoid" | "procedural" | "definitional";
+
 /** Signals derived from the query. */
 export interface QuerySignals {
   /** Token count (whitespace-split, lowercased). */
@@ -80,6 +83,38 @@ export interface QuerySignals {
   isQuestion: boolean;
   /** Heuristic ambiguity score 0..1. Higher = more ambiguous. */
   ambiguity: number;
+  /**
+   * Has a probable named entity — capitalized non-stopword token outside the
+   * very first position. Catches "PgBouncer", "Redis Streams", "TLS handshake".
+   */
+  hasNamedEntity: boolean;
+  /**
+   * Has code-like syntax — camelCase identifiers, dotted paths, snake_case,
+   * `::` scope, function-call parens. Stronger keyword signal than prose.
+   */
+  hasCodeLike: boolean;
+  /**
+   * Has a date, semver, RFC, or CVE token. Specific identifiers users want
+   * matched literally.
+   */
+  hasDateOrVersion: boolean;
+  /**
+   * Refined question taxonomy. `factoid` → who/when/where/which (entity match
+   * matters); `procedural` → how/why (semantic); `definitional` → "what is X"
+   * (semantic + rerank). `null` if not a question.
+   */
+  questionType: QuestionType | null;
+  /**
+   * Has a negation token — "not", "without", "except", "vs", "never". Bi-encoders
+   * famously confuse "X without Y" with "X with Y", so this forces rerank on.
+   */
+  hasNegation: boolean;
+  /**
+   * Heuristic language tag. `"non-en"` when the query is dominated by non-Latin
+   * script — BM25 in our default analyzer is English-tuned, so we steer toward
+   * vector search for non-English queries.
+   */
+  language: "en" | "non-en";
 }
 
 /** A timing span recorded during search. */

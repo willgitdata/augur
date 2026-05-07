@@ -134,6 +134,29 @@ const augr = new Augur({
 
 Three constructor args. No code changes elsewhere. The router automatically adapts to Pinecone's keyword-incapable status (it stops picking keyword and lets the reranker carry precision).
 
+### Picking a reranker
+
+The `Reranker` interface has four ready implementations:
+
+```ts
+import {
+  HeuristicReranker,        // zero-dep, sub-ms; weak baseline
+  CohereReranker,            // hosted cross-encoder, multilingual v3
+  JinaReranker,              // hosted cross-encoder, multilingual v2
+  HttpCrossEncoderReranker,  // BYO endpoint — self-hosted BGE / mxbai / etc
+} from "@augur/core";
+
+// Generic fetch-based hookup for any cross-encoder you serve internally:
+const myReranker = new HttpCrossEncoderReranker({
+  endpoint: "http://rerank.svc.cluster.local/score",
+  // Default protocol: POST { query, documents, topK } → { scores: number[] }.
+  // Override `requestBody` and `parseResponse` to match a different shape.
+});
+```
+
+`HeuristicReranker` is fine for a smoke test; cross-encoder rerankers are
+typically the single biggest accuracy lever once embeddings are decent.
+
 ---
 
 ## 6. Postgres with pgvector

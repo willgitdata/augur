@@ -61,7 +61,12 @@ export {
   type Reranker,
   HeuristicReranker,
   CohereReranker,
+  JinaReranker,
+  HttpCrossEncoderReranker,
 } from "./reranking/reranker.js";
+
+// Question taxonomy from signals (re-exported for routers consuming the type).
+export type { QuestionType } from "./types.js";
 
 // Observability
 export { Tracer, TraceStore } from "./observability/tracer.js";
