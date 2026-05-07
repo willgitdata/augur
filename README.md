@@ -103,30 +103,45 @@ Writing a new adapter is implementing five methods. See [`examples/custom-adapte
 
 | You bring                         | Augur provides                              |
 |-----------------------------------|--------------------------------------------------|
-| Documents                         | Chunking (3 strategies)                          |
-| (optional) An embedder + API key  | A default `HashEmbedder` that runs offline       |
-| (optional) A vector DB            | A default `InMemoryAdapter`                      |
-| (optional) A reranker             | `HeuristicReranker`, `CohereReranker`, `JinaReranker`, `HttpCrossEncoderReranker` |
+| Documents                         | Chunking (3 strategies + `MetadataChunker` wrapper) |
+| (optional) An embedder + API key  | `HashEmbedder` (offline placeholder), `TfIdfEmbedder` (offline real-baseline), `OpenAIEmbedder` |
+| (optional) A vector DB            | A default `InMemoryAdapter` (BM25 + brute-force vector + RRF hybrid) |
+| (optional) A reranker             | `HeuristicReranker`, `CohereReranker`, `JinaReranker`, `HttpCrossEncoderReranker`, `CascadedReranker` |
 | Nothing                           | Routing, hybrid fusion, traces, dashboard, HTTP API |
 
 ## Evaluation
 
-Augur ships a small built-in eval harness (32-doc corpus, 50 labeled queries
-across 10 archetypes — factoid, procedural, definitional, code, error_code,
-quoted, short_kw, named_entity, negation, non_english, ambiguous). It
-computes NDCG@10, MRR, and Recall@10 — overall, per category, and per
-router-chosen strategy.
+Augur ships a built-in eval harness (**182 docs, 504 labeled queries**
+across 12 archetypes — factoid, procedural, definitional, code,
+error_code, quoted, short_kw, named_entity, negation, non_english,
+ambiguous, internal). The corpus covers Postgres, Kubernetes, Redis,
+networking, ML/AI, security/compliance, code snippets, company-internal
+runbooks/policies, and 12 foreign languages (es, ja, fr, de, zh, ko, pt,
+ru, ar, hi, it, vi). Metrics: NDCG@10, MRR, Recall@10 — overall, per
+category, per router-chosen strategy.
 
 ```bash
-pnpm eval                                       # run with defaults
-pnpm eval -- --verbose                          # per-query lines
-pnpm eval -- --save baseline.json               # snapshot metrics
-pnpm eval -- --compare baseline.json            # diff vs snapshot
+pnpm eval                                                        # default config
+pnpm eval -- --verbose                                           # per-query lines
+pnpm eval -- --save baseline.json                                # snapshot metrics
+pnpm eval -- --compare baseline.json                             # diff vs snapshot
+pnpm eval -- --embedder tfidf                                    # swap to TfIdfEmbedder
+pnpm eval -- --embedder tfidf --metadata-chunker                 # + metadata-prepend
+pnpm eval -- --embedder tfidf --metadata-chunker --save x.json   # combine flags
 ```
 
-The harness is a pure function of the `Augur` instance, so swap the
-embedder, adapter, router, or reranker between runs to measure the impact
-of any change.
+### Reference numbers (no API keys, no network)
+
+| Config                                                | NDCG@10 | MRR    | Recall@10 |
+| ----------------------------------------------------- | ------: | -----: | --------: |
+| `HashEmbedder` (default)                              | 0.786   | 0.782  | 0.857     |
+| `TfIdfEmbedder`                                       | 0.825   | 0.816  | 0.906     |
+| `TfIdfEmbedder` + `MetadataChunker`                   | **0.848** | **0.839** | **0.923** |
+
+Real production embedders (BGE, Cohere v3, OpenAI text-embedding-3) lift
+the vector strategy substantially on top of this. The harness is a pure
+function of the `Augur` instance, so swap the embedder, adapter, router,
+or reranker between runs to measure the impact of any change.
 
 ## Status
 

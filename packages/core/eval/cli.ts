@@ -1,31 +1,60 @@
 /**
- * Eval CLI. Loads corpus + queries from disk, runs the default Augur pipeline
- * (in-memory adapter, hash embedder, sentence chunker, heuristic router +
- * reranker), and prints aggregate + per-strategy + per-category metrics.
+ * Eval CLI. Loads corpus + queries from disk, runs the Augur pipeline, and
+ * prints aggregate + per-strategy + per-category metrics.
  *
  * Usage:
- *   pnpm --filter @augur/core eval                     # run with defaults
- *   pnpm --filter @augur/core eval -- --verbose        # per-query lines
- *   pnpm --filter @augur/core eval -- --save out.json  # write metrics JSON
- *   pnpm --filter @augur/core eval -- --compare baseline.json  # diff
+ *   pnpm eval                                   # default config
+ *   pnpm eval -- --verbose                      # per-query lines
+ *   pnpm eval -- --save out.json                # write metrics JSON
+ *   pnpm eval -- --compare baseline.json        # diff vs baseline
+ *   pnpm eval -- --embedder tfidf               # swap embedder (hash | tfidf)
+ *   pnpm eval -- --metadata-chunker             # prepend doc metadata to chunks
+ *   pnpm eval -- --embedder tfidf --metadata-chunker --save tfidf-meta.json
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Augur } from "../src/index.js";
+import {
+  Augur,
+  HashEmbedder,
+  MetadataChunker,
+  SentenceChunker,
+  TfIdfEmbedder,
+  type Embedder,
+} from "../src/index.js";
 import { formatReport, runEval, type EvalDoc, type EvalQuery, type EvalReport } from "./runner.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-function parseArgs(argv: string[]): { verbose: boolean; save?: string; compare?: string } {
-  const out: { verbose: boolean; save?: string; compare?: string } = { verbose: false };
+interface Args {
+  verbose: boolean;
+  save?: string;
+  compare?: string;
+  embedder: "hash" | "tfidf";
+  metadataChunker: boolean;
+}
+
+function parseArgs(argv: string[]): Args {
+  const out: Args = { verbose: false, embedder: "hash", metadataChunker: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--verbose" || a === "-v") out.verbose = true;
     else if (a === "--save") out.save = argv[++i];
     else if (a === "--compare") out.compare = argv[++i];
+    else if (a === "--embedder") {
+      const v = argv[++i];
+      if (v !== "hash" && v !== "tfidf") {
+        throw new Error(`--embedder must be 'hash' or 'tfidf', got ${v}`);
+      }
+      out.embedder = v;
+    } else if (a === "--metadata-chunker") out.metadataChunker = true;
   }
   return out;
+}
+
+function buildEmbedder(kind: Args["embedder"]): Embedder {
+  if (kind === "tfidf") return new TfIdfEmbedder();
+  return new HashEmbedder();
 }
 
 function loadJson<T>(path: string): T {
@@ -56,7 +85,19 @@ async function main() {
   const corpus = loadJson<EvalDoc[]>(join(HERE, "corpus.json"));
   const queries = loadJson<EvalQuery[]>(join(HERE, "queries.json"));
 
-  const augur = new Augur();
+  const baseChunker = new SentenceChunker();
+  const chunker = args.metadataChunker
+    ? new MetadataChunker({ base: baseChunker })
+    : baseChunker;
+  const embedder = buildEmbedder(args.embedder);
+
+  console.log(
+    `Config: embedder=${embedder.name}  chunker=${(chunker as { name: string }).name}` +
+      (args.metadataChunker ? "  (metadata-prepend ON)" : "")
+  );
+  console.log();
+
+  const augur = new Augur({ embedder, chunker });
   const report = await runEval(augur, corpus, queries);
 
   console.log(formatReport(report, { verbose: args.verbose }));

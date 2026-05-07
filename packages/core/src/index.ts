@@ -42,6 +42,7 @@ export {
   FixedSizeChunker,
   SentenceChunker,
   SemanticChunker,
+  MetadataChunker,
   chunkDocument,
 } from "./chunking/index.js";
 
@@ -49,8 +50,12 @@ export {
 export {
   type Embedder,
   HashEmbedder,
+  TfIdfEmbedder,
   OpenAIEmbedder,
   tokenize,
+  tokenizeAdvanced,
+  stem,
+  STOPWORDS,
 } from "./embeddings/embedder.js";
 
 // Routing
@@ -63,6 +68,7 @@ export {
   CohereReranker,
   JinaReranker,
   HttpCrossEncoderReranker,
+  CascadedReranker,
 } from "./reranking/reranker.js";
 
 // Question taxonomy from signals (re-exported for routers consuming the type).

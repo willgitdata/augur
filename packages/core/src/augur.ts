@@ -92,7 +92,11 @@ export class Augur {
     // 2. Embed (skip if adapter computes embeddings itself)
     if (!this.adapter.capabilities.computesEmbeddings && allChunks.length > 0) {
       const e0 = performance.now();
-      const vecs = await this.embedder.embed(allChunks.map((c) => c.content));
+      const texts = allChunks.map((c) => c.content);
+      // Let stateful embedders (TfIdfEmbedder etc) ingest the corpus before
+      // embedding, so query-time IDFs reflect indexed content.
+      this.embedder.fit?.(texts);
+      const vecs = await this.embedder.embed(texts);
       vecs.forEach((v, i) => {
         allChunks[i]!.embedding = v;
       });

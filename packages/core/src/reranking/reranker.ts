@@ -175,6 +175,50 @@ export class JinaReranker implements Reranker {
 }
 
 /**
+ * CascadedReranker — chain N rerankers, each narrowing the candidate set.
+ *
+ * The standard production pattern: a cheap first-pass narrows from 1000
+ * candidates to 100, an expensive cross-encoder narrows from 100 to 10.
+ * Each stage trades latency for precision; stacking them gets you both.
+ *
+ * Usage:
+ *   const reranker = new CascadedReranker([
+ *     [new HeuristicReranker(), 100],   // cheap, broad
+ *     [new CohereReranker(), 10],       // expensive, narrow
+ *   ]);
+ *
+ * Each tuple is [reranker, topK_for_that_stage]. The final stage's topK
+ * is what the caller asked for; intermediate stages should pass more.
+ */
+export class CascadedReranker implements Reranker {
+  readonly name: string;
+  private stages: Array<[Reranker, number]>;
+
+  constructor(stages: Array<[Reranker, number]>) {
+    if (stages.length === 0) {
+      throw new Error("CascadedReranker requires at least one stage");
+    }
+    this.stages = stages;
+    this.name = `cascade(${stages.map(([r]) => r.name).join("→")})`;
+  }
+
+  async rerank(
+    query: string,
+    results: SearchResult[],
+    topK: number
+  ): Promise<SearchResult[]> {
+    let current = results;
+    for (let i = 0; i < this.stages.length; i++) {
+      const [reranker, stageTopK] = this.stages[i]!;
+      // Final stage uses the caller's topK; earlier stages use their declared topK.
+      const k = i === this.stages.length - 1 ? topK : stageTopK;
+      current = await reranker.rerank(query, current, k);
+    }
+    return current;
+  }
+}
+
+/**
  * HttpCrossEncoderReranker — generic adapter for any cross-encoder hosted
  * behind an HTTP endpoint. Bring-your-own request and response shape.
  *
