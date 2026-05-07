@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <nav className="flex gap-6 text-ink-300 text-xs">
             <a href="/" className="hover:text-white">Playground</a>
             <a href="/traces" className="hover:text-white">Traces</a>
-            <a href={process.env.QUERYBRAIN_URL + "/docs"} target="_blank" className="hover:text-white">API Docs ↗</a>
+            <a href={process.env.AUGUR_URL + "/docs"} target="_blank" className="hover:text-white">API Docs ↗</a>
           </nav>
         </header>
         <main className="px-6 py-6 max-w-6xl mx-auto">{children}</main>

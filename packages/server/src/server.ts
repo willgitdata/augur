@@ -30,7 +30,7 @@ export interface ServerOptions extends AugurOptions {
 
 export function buildServer(options: ServerOptions = {}): FastifyInstance {
   const traceStore = options.traceStore ?? new TraceStore(2000);
-  const qb = new Augur({ ...options, traceStore });
+  const augr = new Augur({ ...options, traceStore });
 
   const app = Fastify({
     logger: { level: process.env.LOG_LEVEL ?? "info" },
@@ -59,12 +59,12 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
 
   app.get("/health", async () => ({
     status: "ok",
-    adapter: qb.adapter.name,
-    embedder: qb.embedder.name,
-    chunker: qb.chunker.name,
-    router: qb.router.name,
-    reranker: qb.reranker.name,
-    capabilities: qb.adapter.capabilities,
+    adapter: augr.adapter.name,
+    embedder: augr.embedder.name,
+    chunker: augr.chunker.name,
+    router: augr.router.name,
+    reranker: augr.reranker.name,
+    capabilities: augr.adapter.capabilities,
   }));
 
   app.get("/openapi.json", async () => openApiSpec);
@@ -81,7 +81,7 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
       reply.code(400).send({ error: "body.documents must be an array of Document" });
       return;
     }
-    const result = await qb.index(documents);
+    const result = await augr.index(documents);
     return result;
   });
 
@@ -93,7 +93,7 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
       reply.code(400).send({ error: "body.query is required" });
       return;
     }
-    const result = await qb.search(body);
+    const result = await augr.search(body);
     return result;
   });
 
@@ -121,13 +121,13 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
   // ---------- Admin ----------
 
   app.post("/admin/clear", async () => {
-    await qb.clear();
+    await augr.clear();
     return { ok: true };
   });
 
   app.get("/admin/stats", async () => {
     return {
-      chunks: await qb.adapter.count(),
+      chunks: await augr.adapter.count(),
       traces: traceStore.size(),
     };
   });

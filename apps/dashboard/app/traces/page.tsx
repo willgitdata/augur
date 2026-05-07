@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { TraceView } from "@/components/TraceView";
 
-const QB = process.env.QUERYBRAIN_URL ?? "http://localhost:3001";
+const AUGR = process.env.AUGUR_URL ?? "http://localhost:3001";
 
 export default function TracesPage() {
   const [traces, setTraces] = useState<any[]>([]);
@@ -12,7 +12,7 @@ export default function TracesPage() {
 
   async function load() {
     try {
-      const r = await fetch(`${QB}/traces?limit=200`);
+      const r = await fetch(`${AUGR}/traces?limit=200`);
       const json = await r.json();
       setTraces(json.traces);
       if (!selected && json.traces[0]) setSelected(json.traces[0]);

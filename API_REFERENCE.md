@@ -11,7 +11,7 @@ Two surfaces: the **TypeScript SDK** (`@augur/core`) and the **HTTP API** (`@aug
 ```ts
 import { Augur } from "@augur/core";
 
-const qb = new Augur({
+const augr = new Augur({
   adapter,        // VectorAdapter        — default: InMemoryAdapter
   embedder,       // Embedder             — default: HashEmbedder
   chunker,        // Chunker              — default: SentenceChunker
@@ -24,21 +24,21 @@ const qb = new Augur({
 
 All options are optional; with none, you get a fully functional in-memory pipeline.
 
-### `qb.index(documents)`
+### `augr.index(documents)`
 
 Chunks → embeds → upserts.
 
 ```ts
-const result = await qb.index([
+const result = await augr.index([
   { id: "1", content: "...", metadata: { source: "wiki" } },
 ]);
 // result = { documents: 1, chunks: 4, trace: { chunkingMs, embeddingMs, upsertMs, totalMs } }
 ```
 
-### `qb.search(request)`
+### `augr.search(request)`
 
 ```ts
-const { results, trace } = await qb.search({
+const { results, trace } = await augr.search({
   query: "...",
   documents,           // optional — ad-hoc inline docs
   topK: 10,            // default 10
@@ -100,7 +100,7 @@ interface SearchTrace {
 }
 ```
 
-### `qb.clear()`
+### `augr.clear()`
 
 Wipes the underlying adapter.
 
@@ -112,7 +112,7 @@ Default base URL: `http://localhost:3001`. All endpoints accept and return JSON.
 
 ### Auth
 
-If the server was started with `QUERYBRAIN_API_KEY=<secret>`, every request must include `x-api-key: <secret>`. Otherwise no auth.
+If the server was started with `AUGUR_API_KEY=<secret>`, every request must include `x-api-key: <secret>`. Otherwise no auth.
 
 ### `GET /health`
 
@@ -203,7 +203,7 @@ Wipes the underlying adapter. Idempotent.
 ### Force a strategy for testing
 
 ```ts
-await qb.search({ query: "...", forceStrategy: "keyword" });
+await augr.search({ query: "...", forceStrategy: "keyword" });
 ```
 
 The decision still ends up in the trace, with `forceStrategy=...` as the recorded reason.
@@ -211,7 +211,7 @@ The decision still ends up in the trace, with `forceStrategy=...` as the recorde
 ### Bound latency
 
 ```ts
-await qb.search({ query: "...", latencyBudgetMs: 250 });
+await augr.search({ query: "...", latencyBudgetMs: 250 });
 ```
 
 A budget under 800ms disables reranking automatically. The trace will say "reranking skipped (latency budget)".
@@ -219,7 +219,7 @@ A budget under 800ms disables reranking automatically. The trace will say "reran
 ### Filter by metadata
 
 ```ts
-await qb.search({ query: "...", filter: { source: "wiki", lang: "en" } });
+await augr.search({ query: "...", filter: { source: "wiki", lang: "en" } });
 ```
 
 Adapters that report `capabilities.filtering = true` (all of ours except HashEmbedder-mode) honor this. Filters are AND-combined.
@@ -242,10 +242,10 @@ class LoggingRouter extends HeuristicRouter {
 import { Augur } from "@augur/core";
 import express from "express";
 
-const qb = new Augur({ /* prod config */ });
+const augr = new Augur({ /* prod config */ });
 const app = express();
 app.post("/search", async (req, res) => {
-  const result = await qb.search(req.body);
+  const result = await augr.search(req.body);
   res.json(result);
 });
 ```

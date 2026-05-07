@@ -39,9 +39,9 @@ export interface AugurOptions {
  *
  * The "Stripe-feel" design constraint shows up here:
  *
- *   const qb = new Augur();              // works
- *   await qb.index([{ id: "1", content: "..." }]);
- *   const { results, trace } = await qb.search({ query: "hello" });
+ *   const augr = new Augur();              // works
+ *   await augr.index([{ id: "1", content: "..." }]);
+ *   const { results, trace } = await augr.search({ query: "hello" });
  *
  * No config files, no SDKs, no API keys. The defaults are real defaults that
  * produce real answers. Swapping in production-grade pieces (OpenAIEmbedder,

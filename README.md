@@ -9,14 +9,14 @@ It is **not** a vector database. It is a thin, composable orchestration layer de
 ```ts
 import { Augur } from "@augur/core";
 
-const qb = new Augur();
+const augr = new Augur();
 
-await qb.index([
+await augr.index([
   { id: "1", content: "PostgreSQL supports vector indexing via pgvector." },
   { id: "2", content: "Pinecone is a managed vector database." },
 ]);
 
-const { results, trace } = await qb.search({
+const { results, trace } = await augr.search({
   query: "How do I store vectors in Postgres?",
 });
 

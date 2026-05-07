@@ -91,14 +91,14 @@ function cosine(a: number[], b: number[]) {
 async function main() {
   const adapter = new JsonFileAdapter("./store.json");
   await adapter.load();
-  const qb = new Augur({ adapter });
+  const augr = new Augur({ adapter });
 
-  await qb.index([
+  await augr.index([
     { id: "1", content: "Augur is an adaptive retrieval orchestration layer." },
     { id: "2", content: "Custom adapters are easy: implement the VectorAdapter interface." },
   ]);
 
-  const { results, trace } = await qb.search({ query: "how to write an adapter" });
+  const { results, trace } = await augr.search({ query: "how to write an adapter" });
   console.log("strategy:", trace.decision.strategy);
   for (const r of results) console.log(r.chunk.id, r.score.toFixed(3), r.chunk.content);
 }

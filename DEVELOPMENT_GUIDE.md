@@ -46,9 +46,9 @@ pnpm dev:server
 The server runs with the `InMemoryAdapter` and `HashEmbedder` by default. To use real services:
 
 ```bash
-QUERYBRAIN_ADAPTER=pgvector \
+AUGUR_ADAPTER=pgvector \
 DATABASE_URL=postgres://localhost/qb \
-QUERYBRAIN_EMBEDDER=openai \
+AUGUR_EMBEDDER=openai \
 OPENAI_API_KEY=sk-... \
 pnpm dev:server
 ```
@@ -65,7 +65,7 @@ pnpm dev:dashboard
 # → http://localhost:3000
 ```
 
-The dashboard expects the server at `http://localhost:3001`. Override with `QUERYBRAIN_URL=...`.
+The dashboard expects the server at `http://localhost:3001`. Override with `AUGUR_URL=...`.
 
 ### Run tests
 
@@ -122,7 +122,7 @@ class MyRouter implements Router {
   }
 }
 
-const qb = new Augur({ router: new MyRouter() });
+const augr = new Augur({ router: new MyRouter() });
 ```
 
 Two principles:
@@ -162,7 +162,7 @@ When this is more than once a month, switch to changesets.
 
 **The server returns 500 on `/search`** — check `/health`. The `capabilities` block tells you what the configured adapter supports. If you forced a strategy the adapter can't do, that's the cause.
 
-**`HashEmbedder` results look random** — they kind of are. It's a feature-hash, not a semantic embedder. For real semantics, set `QUERYBRAIN_EMBEDDER=openai`.
+**`HashEmbedder` results look random** — they kind of are. It's a feature-hash, not a semantic embedder. For real semantics, set `AUGUR_EMBEDDER=openai`.
 
 ## Deployment
 
@@ -171,9 +171,9 @@ When this is more than once a month, switch to changesets.
 ```bash
 docker build -t augur-server .
 docker run -p 3001:3001 \
-  -e QUERYBRAIN_ADAPTER=pgvector \
+  -e AUGUR_ADAPTER=pgvector \
   -e DATABASE_URL=... \
-  -e QUERYBRAIN_API_KEY=$(openssl rand -hex 32) \
+  -e AUGUR_API_KEY=$(openssl rand -hex 32) \
   augur-server
 ```
 
@@ -189,7 +189,7 @@ Most teams will want:
 - `/qb/*` → dashboard
 - All HTTPS / auth / rate limits handled at the proxy
 
-The server has an optional `QUERYBRAIN_API_KEY` for shared-secret auth. For anything more sophisticated (per-user keys, OAuth) use your reverse proxy or wrap the Fastify app.
+The server has an optional `AUGUR_API_KEY` for shared-secret auth. For anything more sophisticated (per-user keys, OAuth) use your reverse proxy or wrap the Fastify app.
 
 ## Contributing
 
