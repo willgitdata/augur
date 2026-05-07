@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 import { Augur, TraceStore } from "./index.js";
 
 test("end-to-end: index + search returns relevant results", async () => {
-  const qb = new Augur();
-  await qb.index([
+  const augr = new Augur();
+  await augr.index([
     { id: "1", content: "The Postgres database supports vector indexing via pgvector." },
     { id: "2", content: "Pinecone is a managed vector database service." },
     { id: "3", content: "Espresso machines require regular descaling." },
   ]);
-  const { results, trace } = await qb.search({
+  const { results, trace } = await augr.search({
     query: "How do I store vectors in Postgres?",
     topK: 2,
   });
@@ -22,8 +22,8 @@ test("end-to-end: index + search returns relevant results", async () => {
 });
 
 test("ad-hoc search with inline documents requires no prior indexing", async () => {
-  const qb = new Augur();
-  const { results } = await qb.search({
+  const augr = new Augur();
+  const { results } = await augr.search({
     query: "kubernetes pod restart",
     documents: [
       { id: "a", content: "Kubernetes pods restart based on liveness probes." },
@@ -37,16 +37,16 @@ test("ad-hoc search with inline documents requires no prior indexing", async () 
 
 test("trace store captures every search", async () => {
   const store = new TraceStore();
-  const qb = new Augur({ traceStore: store });
-  await qb.index([{ id: "1", content: "hello world" }]);
-  await qb.search({ query: "hello" });
-  await qb.search({ query: "world" });
+  const augr = new Augur({ traceStore: store });
+  await augr.index([{ id: "1", content: "hello world" }]);
+  await augr.search({ query: "hello" });
+  await augr.search({ query: "world" });
   assert.equal(store.size(), 2);
 });
 
 test("forced strategy overrides router", async () => {
-  const qb = new Augur();
-  await qb.index([{ id: "1", content: "alpha beta gamma delta" }]);
-  const { trace } = await qb.search({ query: "alpha", forceStrategy: "keyword" });
+  const augr = new Augur();
+  await augr.index([{ id: "1", content: "alpha beta gamma delta" }]);
+  const { trace } = await augr.search({ query: "alpha", forceStrategy: "keyword" });
   assert.equal(trace.decision.strategy, "keyword");
 });

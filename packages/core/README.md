@@ -9,14 +9,14 @@ npm install @augur/core
 ```ts
 import { Augur } from "@augur/core";
 
-const qb = new Augur();
+const augr = new Augur();
 
-await qb.index([
+await augr.index([
   { id: "1", content: "Postgres supports vector search via pgvector." },
   { id: "2", content: "Pinecone is a managed vector database." },
 ]);
 
-const { results, trace } = await qb.search({
+const { results, trace } = await augr.search({
   query: "How do I store vectors in Postgres?",
   topK: 5,
 });
