@@ -18,8 +18,8 @@ services:
     environment:
       PORT: "3001"
       LOG_LEVEL: "info"
-      QUERYBRAIN_ADAPTER: "in-memory"
-      QUERYBRAIN_EMBEDDER: "hash"
+      AUGUR_ADAPTER: "in-memory"
+      AUGUR_EMBEDDER: "hash"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O-", "http://localhost:3001/health"]
       interval: 5s
@@ -29,13 +29,13 @@ services:
   dashboard:
     image: node:20-alpine
     working_dir: /app
-    command: sh -c "corepack enable && pnpm install && pnpm --filter dashboard dev"
+    command: sh -c "corepack enable && pnpm install && pnpm --filter @augur/dashboard dev"
     volumes:
       - ./:/app
     ports:
       - "3000:3000"
     environment:
-      QUERYBRAIN_URL: "http://server:3001"
+      AUGUR_URL: "http://server:3001"
     depends_on:
       server:
         condition: service_healthy

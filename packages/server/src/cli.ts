@@ -28,7 +28,7 @@ async function main() {
   const app = buildServer({
     adapter,
     embedder,
-    apiKey: process.env.QUERYBRAIN_API_KEY,
+    apiKey: process.env.AUGUR_API_KEY,
   });
 
   try {
@@ -44,7 +44,7 @@ async function main() {
 }
 
 function pickEmbedder(): Embedder {
-  const kind = process.env.QUERYBRAIN_EMBEDDER ?? "hash";
+  const kind = process.env.AUGUR_EMBEDDER ?? "hash";
   if (kind === "openai") {
     return new OpenAIEmbedder({
       apiKey: process.env.OPENAI_API_KEY,
@@ -55,7 +55,7 @@ function pickEmbedder(): Embedder {
 }
 
 async function pickAdapter(): Promise<VectorAdapter> {
-  const kind = process.env.QUERYBRAIN_ADAPTER ?? "in-memory";
+  const kind = process.env.AUGUR_ADAPTER ?? "in-memory";
   if (kind === "pinecone") {
     return new PineconeAdapter({
       indexHost: requireEnv("PINECONE_INDEX_HOST"),
