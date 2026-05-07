@@ -11,9 +11,9 @@
 import { Augur } from "@augur/core";
 
 async function main() {
-  const qb = new Augur();
+  const augr = new Augur();
 
-  await qb.index([
+  await augr.index([
     {
       id: "pg-pooling",
       content:
@@ -53,7 +53,7 @@ async function main() {
   ];
 
   for (const q of queries) {
-    const { results, trace } = await qb.search({ query: q, topK: 2 });
+    const { results, trace } = await augr.search({ query: q, topK: 2 });
     console.log("\n=== Query:", q);
     console.log(
       `Strategy: ${trace.decision.strategy}${trace.decision.reranked ? " (+rerank)" : ""}  ` +

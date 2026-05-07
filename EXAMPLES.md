@@ -11,15 +11,15 @@ The 30-line "hello world".
 ```ts
 import { Augur } from "@augur/core";
 
-const qb = new Augur();
+const augr = new Augur();
 
-await qb.index([
+await augr.index([
   { id: "pg",    content: "PostgreSQL supports vector search via pgvector." },
   { id: "redis", content: "Redis is an in-memory key-value store." },
   { id: "k8s",   content: "Kubernetes manages containers across hosts." },
 ]);
 
-const { results, trace } = await qb.search({ query: "vector database" });
+const { results, trace } = await augr.search({ query: "best vector database for production" });
 
 console.log(trace.decision.strategy); // → "hybrid"
 console.log(results[0].chunk.documentId);
@@ -80,7 +80,7 @@ class JsonFileAdapter extends BaseAdapter {
   // ... upsert / searchVector / searchKeyword / delete / count / clear ...
 }
 
-const qb = new Augur({ adapter: new JsonFileAdapter("./store.json") });
+const augr = new Augur({ adapter: new JsonFileAdapter("./store.json") });
 ```
 
 The full implementation is `examples/custom-adapter/index.ts`. About 90 lines, including the BM25-ish keyword search.
@@ -121,7 +121,7 @@ import {
   CohereReranker,
 } from "@augur/core";
 
-const qb = new Augur({
+const augr = new Augur({
   adapter: new PineconeAdapter({
     indexHost: process.env.PINECONE_INDEX_HOST!,
     apiKey: process.env.PINECONE_API_KEY!,
@@ -163,7 +163,7 @@ import { Augur, PgVectorAdapter, OpenAIEmbedder } from "@augur/core";
 const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await client.connect();
 
-const qb = new Augur({
+const augr = new Augur({
   adapter: new PgVectorAdapter({
     client: { query: (sql, params) => client.query(sql, params).then((r) => ({ rows: r.rows })) },
     table: "chunks",
@@ -182,7 +182,7 @@ Vector + keyword + hybrid all in one place, no extra services.
 The whole point of the system. Every search produces a trace; every trace is enough to explain (or debug) the result.
 
 ```ts
-const { trace } = await qb.search({ query: "how to deploy with zero downtime" });
+const { trace } = await augr.search({ query: "how to deploy with zero downtime" });
 
 console.log(trace.decision);
 // {
@@ -226,10 +226,10 @@ import { BaseRetriever } from "@langchain/core/retrievers";
 import { Augur } from "@augur/core";
 
 class AugurRetriever extends BaseRetriever {
-  qb = new Augur({ /* ... */ });
+  augr = new Augur({ /* ... */ });
   lc_namespace = ["custom", "augur"];
   async _getRelevantDocuments(query: string) {
-    const { results } = await this.qb.search({ query });
+    const { results } = await this.augr.search({ query });
     return results.map((r) => ({
       pageContent: r.chunk.content,
       metadata: { ...r.chunk.metadata, score: r.score, traceId: r.chunk.id },
