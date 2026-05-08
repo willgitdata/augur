@@ -199,3 +199,39 @@ test("alwaysRerank=false: negation still forces rerank on keyword", () => {
   assert.equal(d.reranked, true);
   assert.ok(d.reasons.some((x) => x.includes("negation")));
 });
+
+// ---------- hasReranker honesty ----------
+
+test("router: hasReranker=false forces reranked: false even when alwaysRerank=true", () => {
+  // The trace must reflect what actually executes downstream, not intent.
+  // If the orchestrator has no reranker, the router cannot promise a rerank.
+  const r = new HeuristicRouter();
+  const d = r.decide(
+    { query: "How do I tune autovacuum?" },
+    fullCaps,
+    /* hasReranker */ false
+  );
+  assert.equal(d.reranked, false);
+  assert.ok(
+    d.reasons.some((x) => x.includes("no reranker configured")),
+    "trace should explain why rerank was skipped"
+  );
+});
+
+test("router: hasReranker=false suppresses negation-forced rerank too", () => {
+  const r = new HeuristicRouter({ alwaysRerank: false });
+  const d = r.decide(
+    { query: '"connection refused" without firewall' },
+    fullCaps,
+    /* hasReranker */ false
+  );
+  assert.equal(d.reranked, false);
+  assert.ok(d.reasons.some((x) => x.includes("no reranker configured")));
+});
+
+test("router: hasReranker defaults to true (back-compat)", () => {
+  // Existing callers that don't pass the third arg should see no change.
+  const r = new HeuristicRouter();
+  const d = r.decide({ query: "How do I tune autovacuum?" }, fullCaps);
+  assert.equal(d.reranked, true);
+});

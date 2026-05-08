@@ -1,7 +1,7 @@
 import type { Chunk, Document } from "../types.js";
 
 /**
- * Chunker interface.
+ * Chunker interface (synchronous).
  *
  * Why a Chunker is a discrete component:
  * - Different content types (code, prose, transcripts, structured docs) want
@@ -13,10 +13,29 @@ import type { Chunk, Document } from "../types.js";
  * - Be deterministic given the same input (so chunk IDs are stable)
  * - Respect the user's content boundaries when meaningful
  * - Generate stable chunk IDs of the form `${docId}:${index}`
+ *
+ * Use `AsyncChunker` for chunkers that need to call out to a model
+ * (semantic boundaries, contextualization, doc2query expansion).
  */
 export interface Chunker {
   readonly name: string;
   chunk(doc: Document): Chunk[];
+}
+
+/**
+ * Async chunker interface — for chunkers whose work requires a model
+ * call: SemanticChunker (embeds sentences), Doc2QueryChunker (generates
+ * synthetic questions), ContextualChunker (Anthropic's contextual
+ * retrieval). Anything that can produce chunks synchronously should
+ * use the `Chunker` interface instead.
+ *
+ * APIs that accept either flavor (`AugurOptions.chunker`,
+ * `chunkDocument`) take `Chunker | AsyncChunker` and dispatch on
+ * `chunkAsync` presence.
+ */
+export interface AsyncChunker {
+  readonly name: string;
+  chunkAsync(doc: Document): Promise<Chunk[]>;
 }
 
 /**
@@ -141,8 +160,18 @@ export class SentenceChunker implements Chunker {
  * This is intentionally simple: a 1-pass scan with a similarity threshold.
  * More elaborate variants (sliding-window outliers, double-pass) are easy to
  * layer on top by implementing the Chunker interface.
+ *
+ * **Design note — async only.** SemanticChunker deliberately does NOT
+ * `implements Chunker`. The `Chunker` interface returns `Chunk[]`
+ * synchronously; SemanticChunker has to embed sentences first, so its
+ * only entrypoint is `chunkAsync`. APIs that accept either flavor
+ * (notably `AugurOptions.chunker` and the `chunkDocument` helper) take
+ * `Chunker | SemanticChunker` and dispatch on `chunkAsync` presence.
+ * If you previously cast `new SemanticChunker(...)` to `Chunker` and
+ * called `.chunk()`, that path used to throw at runtime; now it's
+ * a type error at the cast — same fix, found at compile time.
  */
-export class SemanticChunker implements Chunker {
+export class SemanticChunker implements AsyncChunker {
   readonly name = "semantic";
   private embedder: import("../embeddings/embedder.js").Embedder;
   private threshold: number;
@@ -158,10 +187,6 @@ export class SemanticChunker implements Chunker {
     this.embedder = opts.embedder;
     this.threshold = opts.threshold ?? 0.65;
     this.maxSize = opts.maxSize ?? 1500;
-  }
-
-  chunk(_doc: Document): Chunk[] {
-    throw new Error("SemanticChunker is async; use chunkAsync()");
   }
 
   async chunkAsync(doc: Document): Promise<Chunk[]> {
@@ -208,17 +233,18 @@ export class SemanticChunker implements Chunker {
 /**
  * Compatibility helper: any Chunker, sync or async.
  *
- * Async chunkers (SemanticChunker, Doc2QueryChunker, MetadataChunker over
- * an async base) implement `chunkAsync(doc)`. Detected by feature, not by
- * class — keeps third-party async chunkers working without subclassing.
+ * Dispatches by feature (`chunkAsync` presence), not class. Third-party
+ * async chunkers that implement `AsyncChunker` work without subclassing
+ * any of the bundled implementations.
  */
 export async function chunkDocument(
-  chunker: Chunker | SemanticChunker,
+  chunker: Chunker | AsyncChunker,
   doc: Document
 ): Promise<Chunk[]> {
-  const c = chunker as { chunkAsync?: (doc: Document) => Promise<Chunk[]> };
-  if (typeof c.chunkAsync === "function") return c.chunkAsync(doc);
-  return chunker.chunk(doc);
+  if ("chunkAsync" in chunker && typeof chunker.chunkAsync === "function") {
+    return chunker.chunkAsync(doc);
+  }
+  return (chunker as Chunker).chunk(doc);
 }
 
 // ---------- Helpers ----------

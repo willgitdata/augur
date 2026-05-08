@@ -77,12 +77,23 @@ export interface HybridSearchOpts extends VectorSearchOpts, KeywordSearchOpts {
 }
 
 /**
- * BaseAdapter provides default implementations that work for most stores.
+ * BaseAdapter — the right starting point for users implementing their
+ * own `VectorAdapter`.
  *
- * Subclasses only need to implement vector + keyword and they get hybrid
- * via reciprocal rank fusion (RRF) for free. RRF beats weighted-sum-of-scores
- * in practice because it doesn't require score normalization across
- * heterogeneous backends.
+ * Subclass it, implement the six abstract methods (`upsert`,
+ * `searchVector`, `searchKeyword`, `delete`, `count`, `clear`), and you
+ * get `searchHybrid` for free via reciprocal rank fusion of your vector
+ * and keyword paths. RRF beats weighted-sum-of-scores in practice
+ * because it doesn't require score normalization across heterogeneous
+ * backends — you don't have to calibrate BM25 against cosine.
+ *
+ * Adapters that have a native hybrid mode (e.g. Turbopuffer with
+ * `rank_by`) should override `searchHybrid` directly. Adapters that
+ * can't do keyword search at all (e.g. Pinecone) should set
+ * `capabilities.keyword = false` and throw from `searchKeyword`; the
+ * router knows to skip them.
+ *
+ * See `examples/custom-adapter` for a worked example.
  */
 export abstract class BaseAdapter implements VectorAdapter {
   abstract readonly name: string;
@@ -98,7 +109,11 @@ export abstract class BaseAdapter implements VectorAdapter {
    * Default hybrid: reciprocal rank fusion of vector + keyword.
    *
    * RRF score for a doc = vectorWeight * 1/(k+rank_v) + (1-vectorWeight) * 1/(k+rank_k)
-   * where k is a smoothing constant (60 is the de-facto standard).
+   * where k is the canonical Cormack-2009 smoothing constant (60).
+   * `expandedTopK = topK * 4` pulls more candidates so the fusion has
+   * signal beyond the trim point — without it, fusion of two top-10
+   * lists can be dominated by whichever side happens to put more docs
+   * in their top-10.
    */
   async searchHybrid(opts: HybridSearchOpts): Promise<SearchResult[]> {
     const k = 60;

@@ -53,12 +53,9 @@ export class Tracer {
   }
 
   /** Build the final trace. The orchestrator fills in the routing decision. */
-  finish(opts: {
-    decision: SearchTrace["decision"];
-    candidates: number;
-    adapter: string;
-    embeddingModel?: string;
-  }): SearchTrace {
+  finish(
+    opts: Omit<SearchTrace, "id" | "query" | "startedAt" | "totalMs" | "spans">
+  ): SearchTrace {
     return {
       id: randomUUID(),
       query: this.query,
