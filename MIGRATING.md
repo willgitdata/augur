@@ -111,6 +111,74 @@ no longer exported from `@augur/core`. Implement the `Embedder` /
 This keeps `@augur/core` dependency-free and forces secrets management
 into the user's own code, where it belongs.
 
+### `trace.adapter` no longer carries the "(ad-hoc)" suffix
+
+In `0.1.x`, the trace's `adapter` field was sometimes mutated to mark
+ad-hoc / cache state:
+
+```
+"in-memory"
+"in-memory (ad-hoc)"
+"in-memory (ad-hoc, cached)"
+```
+
+In `0.2.x` the adapter field is always the bare adapter name. The
+ad-hoc and cache signals moved to typed boolean fields on the trace:
+
+```diff
+- if (trace.adapter.includes("ad-hoc")) { ... }
++ if (trace.adHoc) { ... }
++ if (trace.adHocCacheHit) { ... }
+```
+
+This is also visible in the `/traces` HTTP API output. New typed
+fields on `SearchTrace`: `adHoc`, `adHocCacheHit`, `autoLanguageFilter`,
+`autoLanguageFilterDropped`.
+
+### Async chunkers no longer implement the synchronous `Chunker` interface
+
+`SemanticChunker`, `Doc2QueryChunker`, and `ContextualChunker` need to
+embed sentences / call a model / call an LLM at chunking time, so they
+can't satisfy the synchronous `Chunker.chunk(doc): Chunk[]` contract.
+In `0.1.x` they pretended they did and threw at runtime if you called
+`.chunk()` directly. In `0.2.x` they implement a new `AsyncChunker`
+interface (`chunkAsync(doc): Promise<Chunk[]>` only).
+
+Concretely: any code that explicitly typed an async chunker as
+`Chunker` is now a compile error rather than a runtime error.
+
+```diff
+- const chunker: Chunker = new SemanticChunker({ embedder });
++ // Use the union (or the specific class) at the point of use.
++ const chunker: Chunker | AsyncChunker = new SemanticChunker({ embedder });
+```
+
+If you were going through `Augur` (the recommended path), nothing
+changes — `AugurOptions.chunker` already accepted both flavors via
+`Chunker | SemanticChunker`; the type widened to
+`Chunker | AsyncChunker` to cover all three async chunkers cleanly.
+The `chunkDocument` helper still does the right thing.
+
+### `Router.decide` gained an optional `hasReranker` parameter
+
+```ts
+// Before:
+decide(req: SearchRequest, caps: AdapterCapabilities): RoutingDecision;
+
+// After:
+decide(
+  req: SearchRequest,
+  caps: AdapterCapabilities,
+  hasReranker?: boolean   // defaults to true for back-compat
+): RoutingDecision;
+```
+
+Existing third-party `Router` implementations that ignore the third
+arg keep working — the default is `true`. If you build your own router,
+plumb the flag through to your "should we rerank?" decision so the
+trace doesn't claim `reranked: true` when the orchestrator can't
+actually rerank.
+
 ### `apps/dashboard` and `evaluations/` removed from the repo
 
 These were development tools, not runtime dependencies. The repo now
