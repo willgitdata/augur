@@ -58,8 +58,28 @@ export interface Router {
  * trace explorer can show *why* a route was picked. This is the
  * "observability + explainability" requirement made concrete.
  */
+export interface HeuristicRouterOptions {
+  /**
+   * Force reranking on for *every* strategy (including pure keyword)
+   * when a reranker is configured. The default heuristic skips rerank
+   * on keyword strategies because BM25 scores are already lexical and
+   * rerank costs latency. But for accuracy-first deployments — where a
+   * cross-encoder might catch keyword-routed queries whose right doc is
+   * actually a vector match — turn this on to push every query through
+   * the multi-stage gather → fuse → rerank pipeline. Trades latency for
+   * NDCG. Default: false.
+   */
+  alwaysRerank?: boolean;
+}
+
 export class HeuristicRouter implements Router {
-  readonly name = "heuristic-v1";
+  readonly name: string;
+  private alwaysRerank: boolean;
+
+  constructor(opts: HeuristicRouterOptions = {}) {
+    this.alwaysRerank = opts.alwaysRerank ?? false;
+    this.name = this.alwaysRerank ? "heuristic-v1+always-rerank" : "heuristic-v1";
+  }
 
   decide(req: SearchRequest, caps: AdapterCapabilities): RoutingDecision {
     const signals = computeSignals(req.query);
@@ -68,19 +88,19 @@ export class HeuristicRouter implements Router {
     // 1. Forced strategy.
     if (req.forceStrategy) {
       reasons.push(`forceStrategy=${req.forceStrategy}`);
-      return finalize(req.forceStrategy, signals, reasons, caps, req);
+      return finalize(req.forceStrategy, signals, reasons, caps, req, this.alwaysRerank);
     }
 
     // 2. Capability fallback — adapter only supports vector.
     if (!caps.keyword && !caps.hybrid) {
       reasons.push("adapter is vector-only");
-      return finalize("vector", signals, reasons, caps, req);
+      return finalize("vector", signals, reasons, caps, req, this.alwaysRerank);
     }
 
     // 3. Non-English → vector (English-tuned BM25 fails on CJK and similar).
     if (signals.language === "non-en") {
       reasons.push("non-English query → semantic search");
-      return finalize("vector", signals, reasons, caps, req);
+      return finalize("vector", signals, reasons, caps, req, this.alwaysRerank);
     }
 
     let strategy: RetrievalStrategy;
@@ -155,7 +175,7 @@ export class HeuristicRouter implements Router {
       strategy = "vector";
     }
 
-    return finalize(strategy, signals, reasons, caps, req);
+    return finalize(strategy, signals, reasons, caps, req, this.alwaysRerank);
   }
 }
 
@@ -164,11 +184,14 @@ function finalize(
   signals: QuerySignals,
   reasons: string[],
   _caps: AdapterCapabilities,
-  req: SearchRequest
+  req: SearchRequest,
+  alwaysRerank: boolean
 ): RoutingDecision {
-  const reranked = shouldRerank(strategy, signals, req);
+  const reranked = shouldRerank(strategy, signals, req, alwaysRerank);
   if (reranked) {
-    if (signals.hasNegation && strategy !== "rerank") {
+    if (alwaysRerank && strategy === "keyword") {
+      reasons.push("alwaysRerank=true → multi-stage rerank on keyword strategy");
+    } else if (signals.hasNegation && strategy !== "rerank") {
       reasons.push("negation detected → reranking forced");
     } else {
       reasons.push("reranking enabled (latency budget allows)");
@@ -184,6 +207,11 @@ function finalize(
  *
  * Heuristic:
  *   - Forced "rerank" strategy → always rerank.
+ *   - `alwaysRerank` router option → rerank on every strategy, including
+ *     keyword. Trades p50 latency for NDCG. Recommended when accuracy
+ *     matters more than ms (e.g. RAG feeding an LLM, where the LLM call
+ *     dominates latency anyway and the cross-encoder picking the right
+ *     keyword-retrieved doc is worth the +20ms).
  *   - Negation present → always rerank. Bi-encoders fail on negation; the
  *     reranker reads the negation token. Even keyword retrieval benefits.
  *   - Keyword strategies otherwise skip rerank (scores already lexical).
@@ -192,9 +220,14 @@ function finalize(
 function shouldRerank(
   strategy: RetrievalStrategy,
   signals: QuerySignals,
-  req: SearchRequest
+  req: SearchRequest,
+  alwaysRerank: boolean
 ): boolean {
   if (strategy === "rerank") return true;
+  if (alwaysRerank) {
+    const budget = req.latencyBudgetMs;
+    return budget === undefined || budget > 800;
+  }
   if (signals.hasNegation) return true;
   if (strategy === "keyword") return false;
   const budget = req.latencyBudgetMs;
