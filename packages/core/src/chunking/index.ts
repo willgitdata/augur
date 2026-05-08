@@ -1,5 +1,6 @@
 export {
   type Chunker,
+  type AsyncChunker,
   FixedSizeChunker,
   SentenceChunker,
   SemanticChunker,

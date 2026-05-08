@@ -1,47 +1,41 @@
 /**
  * Eval smoke test — minimal regression harness.
  *
- * The full BEIR + 504-query eval that produced the README's NDCG@10 =
- * 0.920 number lives in git history (removed from main in feffc73), and
- * the published numbers were measured against the packages exactly as
- * they ship. That's the right tool for "is this routing change actually
- * better?" — it's a 30+ minute job over a real corpus with the real
- * 22 MB ONNX models.
+ * **What this is.** A synthetic 16-doc / 12-query fixture with
+ * hand-crafted relevance labels, run with a deterministic stub
+ * embedder. Asserts NDCG@10 > 0.65 and "every query returns ≥1
+ * result". Runs in <50ms as part of `pnpm test`.
  *
- * This file is the smaller cousin: a synthetic 16-doc / 12-query
- * fixture with hand-crafted relevance labels, run with a deterministic
- * stub embedder. It can't tell you if you've squeezed +0.005 NDCG out
- * of a tweak — but it WILL tell you, in <50ms, that the routing /
- * fusion / rerank pipeline still works end-to-end. That's the bar:
- * a refactor that breaks "vector queries find vector-relevant docs" or
- * "keyword queries find exact-match docs" should fail this test.
+ * **What this is NOT.** This is *not* the eval that produced the
+ * README's NDCG@10 = 0.920 / SciFact 0.707 / FiQA 0.338 numbers.
+ * Those measure retrieval *quality* against real corpora with real
+ * ONNX models (LocalEmbedder + LocalReranker + MetadataChunker +
+ * stemmed BM25); the harness is preserved in git history under
+ * `evaluations/` (removed from main in commit feffc73). To re-run
+ * those numbers, check out `feffc73^` and run `pnpm eval` from the
+ * `evaluations/` package — it's a ~30 min job over the bundled
+ * 504-query corpus and the BEIR datasets it pulls.
  *
- * The floor (NDCG@10 > 0.65) is calibrated against the current stub
- * stack. If you intentionally regress retrieval — e.g. flatten the
- * router to one strategy — this test will fire, and you'll need to
- * decide whether to update the floor or revert the change.
+ * **The bar this enforces.** A refactor that breaks "vector queries
+ * find vector-relevant docs" or "keyword queries find exact-match
+ * docs" should fail this test. It's the structural regression net
+ * for the routing / fusion / rerank pipeline — it can't tell you if
+ * you've squeezed +0.005 NDCG out of a tweak (use the real eval for
+ * that), but it WILL tell you in <50ms that the pipeline still
+ * works end-to-end.
+ *
+ * **About the floor.** NDCG@10 > 0.65 is calibrated against the
+ * current stub stack. The number is meaningless to compare against
+ * the real-eval numbers — different embedder, different corpus,
+ * different scale. If you intentionally regress retrieval, this
+ * test will fire and you'll need to decide whether to update the
+ * floor or revert the change.
  */
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Augur, tokenize, type Embedder } from "./index.js";
-
-class StubEmbedder implements Embedder {
-  readonly name = "stub";
-  readonly dimension = 64;
-  async embed(texts: string[]): Promise<number[][]> {
-    return texts.map((t) => {
-      const v = new Array(this.dimension).fill(0);
-      for (const tok of tokenize(t)) {
-        let h = 0;
-        for (let i = 0; i < tok.length; i++) h = (h * 31 + tok.charCodeAt(i)) >>> 0;
-        v[h % this.dimension] += 1;
-      }
-      const norm = Math.hypot(...v) || 1;
-      return v.map((x) => x / norm);
-    });
-  }
-}
+import { Augur } from "./index.js";
+import { StubEmbedder } from "./test-fixtures.js";
 
 const CORPUS = [
   { id: "pg-pool", content: "PostgreSQL connection pooling. PgBouncer multiplexes client connections in transaction mode. Three modes: session, transaction, statement." },

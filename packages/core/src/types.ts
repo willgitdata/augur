@@ -152,10 +152,40 @@ export interface SearchTrace {
   spans: TraceSpan[];
   /** Number of candidates considered before reranking & top-K cutoff. */
   candidates: number;
-  /** Adapter implementation name, e.g. "in-memory" or "pinecone". */
+  /**
+   * Adapter implementation name, e.g. "in-memory" or "pinecone". Always
+   * the adapter's bare name — the ad-hoc / cache signals are surfaced
+   * as separate boolean fields below, not by mutating this string.
+   */
   adapter: string;
   /** Embedding model name, when applicable. */
   embeddingModel?: string;
+  /**
+   * `true` when this query used a scratch in-memory adapter built from
+   * `SearchRequest.documents` rather than the configured adapter. The
+   * scratch adapter is built once per fingerprint and cached for repeat
+   * queries (see `adHocCacheHit`).
+   */
+  adHoc?: boolean;
+  /**
+   * `true` when an ad-hoc query reused a previously-cached scratch
+   * adapter (saved the chunking + embedding cost). Only meaningful when
+   * `adHoc` is true.
+   */
+  adHocCacheHit?: boolean;
+  /**
+   * BCP-47 language code that the auto-language filter pinned the
+   * candidate pool to, when fired. Only set when `Augur` was constructed
+   * with `autoLanguageFilter: true`, the query's detected language is
+   * non-English, and the user didn't supply an explicit `filter.lang`.
+   */
+  autoLanguageFilter?: string;
+  /**
+   * `true` when the auto-language filter would have emptied the candidate
+   * pool and search retried without it. Soft-fallback signal — useful
+   * for telling "filter helped" from "filter would have hurt".
+   */
+  autoLanguageFilterDropped?: boolean;
 }
 
 /** Result of a search call. */

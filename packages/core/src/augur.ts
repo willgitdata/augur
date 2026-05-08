@@ -1,7 +1,13 @@
 import type { VectorAdapter } from "./adapters/adapter.js";
 import { InMemoryAdapter } from "./adapters/in-memory.js";
-import { type Chunker, SentenceChunker, SemanticChunker, chunkDocument } from "./chunking/chunker.js";
+import {
+  type AsyncChunker,
+  type Chunker,
+  SentenceChunker,
+  chunkDocument,
+} from "./chunking/chunker.js";
 import type { Embedder } from "./embeddings/embedder.js";
+import { fingerprintDocs } from "./fingerprint.js";
 import {
   adaptWeightByConfidence,
   composeFilter,
@@ -31,7 +37,7 @@ export interface AugurOptions {
   /** Storage adapter. Defaults to InMemoryAdapter. */
   adapter?: VectorAdapter;
   /** Chunker used during `index()`. Defaults to SentenceChunker. */
-  chunker?: Chunker | SemanticChunker;
+  chunker?: Chunker | AsyncChunker;
   /** Routing engine. Defaults to HeuristicRouter. */
   router?: Router;
   /**
@@ -95,7 +101,7 @@ export interface AugurOptions {
 export class Augur {
   readonly adapter: VectorAdapter;
   readonly embedder: Embedder;
-  readonly chunker: Chunker | SemanticChunker;
+  readonly chunker: Chunker | AsyncChunker;
   readonly router: Router;
   readonly reranker: Reranker | null;
   readonly traceStore?: TraceStore;
@@ -255,7 +261,11 @@ export class Augur {
       scratchUsed = true;
     }
 
-    const decision = this.router.decide(req, activeAdapter.capabilities);
+    const decision = this.router.decide(
+      req,
+      activeAdapter.capabilities,
+      this.reranker !== null
+    );
     const willRerank = decision.reranked;
     const userFilter = req.filter;
 
@@ -315,10 +325,10 @@ export class Augur {
     const trace = tracer.finish({
       decision,
       candidates: candidates.length,
-      adapter: scratchUsed
-        ? `${activeAdapter.name} (ad-hoc${scratchCacheHit ? ", cached" : ""})`
-        : activeAdapter.name,
+      adapter: activeAdapter.name,
       embeddingModel: this.embedder.name,
+      ...(scratchUsed ? { adHoc: true } : {}),
+      ...(scratchCacheHit ? { adHocCacheHit: true } : {}),
       ...(autoLang ? { autoLanguageFilter: autoLang } : {}),
       ...(langFilterDropped ? { autoLanguageFilterDropped: true } : {}),
     });
@@ -432,41 +442,5 @@ export class Augur {
       return v!;
     });
   }
-}
-
-/**
- * Cheap deterministic fingerprint of an ad-hoc document set. Used as the
- * cache key for scratch adapters built from `req.documents`.
- *
- * Properties we care about:
- *   - Same docs in same order → same key (cache hit).
- *   - Reordering changes the key (different docs are still different
- *     even if you flipped them — cheaper than canonicalizing order, and
- *     callers who really want order-independence can sort before passing).
- *   - One byte change → different key (no false cache hits on edits).
- *   - Doesn't allocate the full corpus content as a string.
- *
- * Implementation: FNV-1a-style 32-bit rolling hash over (id ‖ content)
- * bytes. Not cryptographic; collision risk is negligible for typical
- * cache sizes (Map<string, …> with size ≤ 8).
- */
-function fingerprintDocs(docs: ReadonlyArray<Document>): string {
-  let h = 0x811c9dc5;
-  for (const d of docs) {
-    for (let i = 0; i < d.id.length; i++) {
-      h ^= d.id.charCodeAt(i);
-      h = Math.imul(h, 0x01000193);
-    }
-    h ^= 0;
-    h = Math.imul(h, 0x01000193);
-    for (let i = 0; i < d.content.length; i++) {
-      h ^= d.content.charCodeAt(i);
-      h = Math.imul(h, 0x01000193);
-    }
-    h ^= 0xff;
-    h = Math.imul(h, 0x01000193);
-  }
-  // Suffix with doc count to differentiate prefix-equal corpora.
-  return `${docs.length}:${(h >>> 0).toString(36)}`;
 }
 

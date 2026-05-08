@@ -21,8 +21,8 @@
  */
 
 import type { Chunk, Document } from "../types.js";
-import type { Chunker } from "./chunker.js";
-import { chunkDocument, SemanticChunker } from "./chunker.js";
+import type { AsyncChunker, Chunker } from "./chunker.js";
+import { chunkDocument } from "./chunker.js";
 
 const pipelineCache = new Map<string, Promise<unknown>>();
 
@@ -41,7 +41,7 @@ async function getGenerationPipeline(model: string): Promise<unknown> {
 
 export interface Doc2QueryChunkerOptions {
   /** Base chunker that produces the original chunks. Required. */
-  base: Chunker | SemanticChunker;
+  base: Chunker | AsyncChunker;
   /** ONNX text2text model used to generate synthetic queries. Default: Xenova/LaMini-T5-61M. */
   model?: string;
   /** How many synthetic queries per chunk. More = better recall, longer index time. Default 3. */
@@ -62,9 +62,9 @@ export interface Doc2QueryChunkerOptions {
   format?: (originalContent: string, queries: string[]) => string;
 }
 
-export class Doc2QueryChunker implements Chunker {
+export class Doc2QueryChunker implements AsyncChunker {
   readonly name: string;
-  private base: Chunker | SemanticChunker;
+  private base: Chunker | AsyncChunker;
   private model: string;
   private numQueries: number;
   private maxLength: number;
@@ -83,11 +83,7 @@ export class Doc2QueryChunker implements Chunker {
         queries.length === 0
           ? original
           : `${original}\n\nQuestions answered:\n${queries.map((q) => `- ${q}`).join("\n")}`);
-    this.name = `doc2query(${(opts.base as Chunker).name ?? "base"}, ${this.model})`;
-  }
-
-  chunk(_doc: Document): Chunk[] {
-    throw new Error("Doc2QueryChunker is async; use chunkAsync() via chunkDocument()");
+    this.name = `doc2query(${opts.base.name}, ${this.model})`;
   }
 
   async chunkAsync(doc: Document): Promise<Chunk[]> {

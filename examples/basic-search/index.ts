@@ -1,7 +1,16 @@
 /**
  * Basic search — the "hello world" of Augur with the recommended stack.
  *
- * Run:  pnpm --filter example-basic-search start
+ * Run (from the repo root):
+ *   pnpm install
+ *   pnpm --filter example-basic-search start
+ *
+ * **Standalone copy of this example?** `LocalEmbedder` and
+ * `LocalReranker` use the optional peer dep `@huggingface/transformers`.
+ * The repo workspace already resolves it; if you copy this file out of
+ * the repo into a fresh project, install it explicitly:
+ *
+ *   npm i @augur/core @huggingface/transformers
  *
  * This example reproduces the headline configuration from the README:
  *

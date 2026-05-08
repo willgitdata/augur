@@ -12,12 +12,14 @@ test("Doc2QueryChunker: default model is Xenova/LaMini-T5-61M", () => {
   assert.ok(c.name.includes("Xenova/LaMini-T5-61M"));
 });
 
-test("Doc2QueryChunker: throws on sync chunk() — must use chunkAsync via chunkDocument", () => {
+test("Doc2QueryChunker: exposes chunkAsync only — no synchronous .chunk()", () => {
+  // Doc2QueryChunker doesn't implement the sync Chunker interface (it
+  // has to call out to a generation model). Pinning the absence so any
+  // refactor that re-adds .chunk() — even one that throws — has to
+  // consciously update this test.
   const c = new Doc2QueryChunker({ base: new SentenceChunker() });
-  assert.throws(
-    () => c.chunk({ id: "x", content: "hi" }),
-    /async; use chunkAsync/
-  );
+  assert.equal(typeof (c as { chunk?: unknown }).chunk, "undefined");
+  assert.equal(typeof c.chunkAsync, "function");
 });
 
 test("Doc2QueryChunker: empty doc returns empty without invoking the model", async () => {

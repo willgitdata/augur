@@ -1,27 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Augur, TraceStore, tokenize, type Embedder } from "./index.js";
-
-// Tiny deterministic stub. Real semantics live in LocalEmbedder, but unit
-// tests should not download a 22MB ONNX model just to verify routing /
-// indexing / trace plumbing — a hashed bag-of-tokens is enough to make
-// keyword-overlapping docs score high.
-class StubEmbedder implements Embedder {
-  readonly name = "stub";
-  readonly dimension = 64;
-  async embed(texts: string[]): Promise<number[][]> {
-    return texts.map((t) => {
-      const v = new Array(this.dimension).fill(0);
-      for (const tok of tokenize(t)) {
-        let h = 0;
-        for (let i = 0; i < tok.length; i++) h = (h * 31 + tok.charCodeAt(i)) >>> 0;
-        v[h % this.dimension] += 1;
-      }
-      const norm = Math.hypot(...v) || 1;
-      return v.map((x) => x / norm);
-    });
-  }
-}
+import { Augur, TraceStore } from "./index.js";
+import { StubEmbedder } from "./test-fixtures.js";
 
 const embedder = new StubEmbedder();
 
@@ -90,8 +70,10 @@ test("ad-hoc cache: repeat searches over same docs reuse the scratch adapter", a
   ];
   const first = await augr.search({ query: "pod restart", documents: docs, topK: 1 });
   const second = await augr.search({ query: "pasta recipe", documents: docs, topK: 1 });
-  assert.match(first.trace.adapter, /ad-hoc(?!,)/);
-  assert.match(second.trace.adapter, /ad-hoc, cached/);
+  assert.equal(first.trace.adHoc, true);
+  assert.equal(first.trace.adHocCacheHit, undefined);
+  assert.equal(second.trace.adHoc, true);
+  assert.equal(second.trace.adHocCacheHit, true);
 });
 
 test("ad-hoc cache: different documents produce a fresh scratch adapter (no false hits)", async () => {
@@ -100,8 +82,10 @@ test("ad-hoc cache: different documents produce a fresh scratch adapter (no fals
   const docsB = [{ id: "a", content: "beta content here" }]; // same id, diff content
   const first = await augr.search({ query: "alpha", documents: docsA, topK: 1 });
   const second = await augr.search({ query: "beta", documents: docsB, topK: 1 });
-  assert.match(first.trace.adapter, /ad-hoc(?!,)/);
-  assert.match(second.trace.adapter, /ad-hoc(?!,)/);
+  assert.equal(first.trace.adHoc, true);
+  assert.equal(first.trace.adHocCacheHit, undefined);
+  assert.equal(second.trace.adHoc, true);
+  assert.equal(second.trace.adHocCacheHit, undefined);
 });
 
 test("ad-hoc cache: adHocCacheSize=0 disables caching", async () => {
@@ -109,6 +93,8 @@ test("ad-hoc cache: adHocCacheSize=0 disables caching", async () => {
   const docs = [{ id: "a", content: "alpha content here" }];
   const first = await augr.search({ query: "alpha", documents: docs, topK: 1 });
   const second = await augr.search({ query: "alpha", documents: docs, topK: 1 });
-  assert.match(first.trace.adapter, /ad-hoc(?!,)/);
-  assert.match(second.trace.adapter, /ad-hoc(?!,)/);
+  assert.equal(first.trace.adHoc, true);
+  assert.equal(first.trace.adHocCacheHit, undefined);
+  assert.equal(second.trace.adHoc, true);
+  assert.equal(second.trace.adHocCacheHit, undefined);
 });

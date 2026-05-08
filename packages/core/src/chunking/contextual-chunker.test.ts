@@ -84,13 +84,14 @@ test("ContextualChunker: empty context falls through unchanged", async () => {
   }
 });
 
-test("ContextualChunker: synchronous chunk() throws helpful error", () => {
+test("ContextualChunker: exposes chunkAsync only — no synchronous .chunk()", () => {
+  // ContextualChunker does not implement the sync Chunker interface
+  // (every chunk needs an LLM call). Pinning the absence so a refactor
+  // that re-adds .chunk() has to consciously update this test.
   const chunker = new ContextualChunker({
     base: new SentenceChunker(),
     provider: new CountingProvider(),
   });
-  assert.throws(
-    () => chunker.chunk({ id: "x", content: "test" }),
-    /async/
-  );
+  assert.equal(typeof (chunker as { chunk?: unknown }).chunk, "undefined");
+  assert.equal(typeof chunker.chunkAsync, "function");
 });

@@ -14,10 +14,18 @@ import { computeSignals } from "./signals.js";
  * Tomorrow: MLRouter (logistic regression / small classifier trained on
  *   click logs and eval datasets). Both implement this interface, so the
  *   Augur class never has to change.
+ *
+ * `hasReranker` lets the router decline to mark a query as reranked when
+ * the orchestrator has no reranker configured. Without it, the trace
+ * lies: "reranked: true" with no rerank actually executed downstream.
  */
 export interface Router {
   readonly name: string;
-  decide(req: SearchRequest, caps: AdapterCapabilities): RoutingDecision;
+  decide(
+    req: SearchRequest,
+    caps: AdapterCapabilities,
+    hasReranker?: boolean
+  ): RoutingDecision;
 }
 
 /**
@@ -67,26 +75,30 @@ export class HeuristicRouter implements Router {
     this.name = this.alwaysRerank ? "heuristic-v1" : "heuristic-v1+fast-keyword";
   }
 
-  decide(req: SearchRequest, caps: AdapterCapabilities): RoutingDecision {
+  decide(
+    req: SearchRequest,
+    caps: AdapterCapabilities,
+    hasReranker = true
+  ): RoutingDecision {
     const signals = computeSignals(req.query);
     const reasons: string[] = [];
 
     // 1. Forced strategy.
     if (req.forceStrategy) {
       reasons.push(`forceStrategy=${req.forceStrategy}`);
-      return finalize(req.forceStrategy, signals, reasons, req, this.alwaysRerank);
+      return finalize(req.forceStrategy, signals, reasons, req, this.alwaysRerank, hasReranker);
     }
 
     // 2. Capability fallback — adapter only supports vector.
     if (!caps.keyword && !caps.hybrid) {
       reasons.push("adapter is vector-only");
-      return finalize("vector", signals, reasons, req, this.alwaysRerank);
+      return finalize("vector", signals, reasons, req, this.alwaysRerank, hasReranker);
     }
 
     // 3. Non-English → vector (English-tuned BM25 fails on CJK and similar).
     if (signals.language !== "en") {
       reasons.push(`${signals.language} query → semantic search`);
-      return finalize("vector", signals, reasons, req, this.alwaysRerank);
+      return finalize("vector", signals, reasons, req, this.alwaysRerank, hasReranker);
     }
 
     let strategy: RetrievalStrategy;
@@ -161,7 +173,7 @@ export class HeuristicRouter implements Router {
       strategy = "vector";
     }
 
-    return finalize(strategy, signals, reasons, req, this.alwaysRerank);
+    return finalize(strategy, signals, reasons, req, this.alwaysRerank, hasReranker);
   }
 }
 
@@ -170,9 +182,14 @@ function finalize(
   signals: QuerySignals,
   reasons: string[],
   req: SearchRequest,
-  alwaysRerank: boolean
+  alwaysRerank: boolean,
+  hasReranker: boolean
 ): RoutingDecision {
-  const reranked = shouldRerank(strategy, signals, req, alwaysRerank);
+  const wantsRerank = shouldRerank(strategy, signals, req, alwaysRerank);
+  // If the orchestrator has no reranker configured, force `reranked: false`
+  // regardless of intent. The trace must reflect what actually happened,
+  // not what we'd have liked to do.
+  const reranked = wantsRerank && hasReranker;
   if (reranked) {
     if (alwaysRerank && strategy === "keyword") {
       reasons.push("alwaysRerank=true → multi-stage rerank on keyword strategy");
@@ -181,6 +198,8 @@ function finalize(
     } else {
       reasons.push("reranking enabled (latency budget allows)");
     }
+  } else if (wantsRerank && !hasReranker) {
+    reasons.push("reranking skipped (no reranker configured)");
   } else if (strategy !== "keyword") {
     reasons.push("reranking skipped (latency budget)");
   }

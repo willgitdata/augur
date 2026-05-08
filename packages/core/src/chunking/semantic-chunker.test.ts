@@ -37,12 +37,14 @@ class TopicEmbedder implements Embedder {
 
 const embedder = new TopicEmbedder();
 
-test("SemanticChunker: chunk() throws (async-only API)", () => {
+test("SemanticChunker: exposes chunkAsync only — no synchronous .chunk()", () => {
+  // SemanticChunker doesn't implement the synchronous Chunker interface
+  // by design (it has to embed first). Pinning the absence so a
+  // refactor that re-adds .chunk() — even one that throws — has to
+  // consciously update this test.
   const c = new SemanticChunker({ embedder });
-  assert.throws(
-    () => c.chunk({ id: "d1", content: "hi" }),
-    /async/
-  );
+  assert.equal(typeof (c as { chunk?: unknown }).chunk, "undefined");
+  assert.equal(typeof c.chunkAsync, "function");
 });
 
 test("SemanticChunker: cuts when adjacent sentences shift topic", async () => {
