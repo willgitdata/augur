@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Augur, tokenize, type Embedder } from "./index.js";
+import { Augur } from "./index.js";
+import { StubEmbedder } from "./test-fixtures.js";
 
 /**
  * autoLanguageFilter integration tests.
@@ -18,22 +19,6 @@ import { Augur, tokenize, type Embedder } from "./index.js";
  * because the filter lives at the orchestration layer in `Augur.search`.
  */
 
-class StubEmbedder implements Embedder {
-  readonly name = "stub";
-  readonly dimension = 64;
-  async embed(texts: string[]): Promise<number[][]> {
-    return texts.map((t) => {
-      const v = new Array(this.dimension).fill(0);
-      for (const tok of tokenize(t)) {
-        let h = 0;
-        for (let i = 0; i < tok.length; i++) h = (h * 31 + tok.charCodeAt(i)) >>> 0;
-        v[h % this.dimension] += 1;
-      }
-      const norm = Math.hypot(...v) || 1;
-      return v.map((x) => x / norm);
-    });
-  }
-}
 const embedder = new StubEmbedder();
 
 test("autoLanguageFilter: OFF (default) — Japanese query returns English doc", async () => {
@@ -57,7 +42,7 @@ test("autoLanguageFilter: ON — Japanese query filters to Japanese doc", async 
   const { results, trace } = await augr.search({ query: "Kubernetesをスケールする方法" });
   assert.ok(results.length >= 1);
   assert.equal(results[0]!.chunk.documentId, "ja");
-  assert.equal((trace as unknown as { autoLanguageFilter?: string }).autoLanguageFilter, "ja");
+  assert.equal(trace.autoLanguageFilter, "ja");
 });
 
 test("autoLanguageFilter: ON — English query is unaffected", async () => {
@@ -69,7 +54,7 @@ test("autoLanguageFilter: ON — English query is unaffected", async () => {
   const { results, trace } = await augr.search({ query: "How do I scale Kubernetes?" });
   assert.ok(results.length >= 1);
   assert.equal(
-    (trace as unknown as { autoLanguageFilter?: string }).autoLanguageFilter,
+    trace.autoLanguageFilter,
     undefined,
     "filter should NOT fire on English queries"
   );
@@ -85,7 +70,7 @@ test("autoLanguageFilter: ON — soft-fallback when filtered pool is empty", asy
   const { results, trace } = await augr.search({ query: "Kubernetesをスケールする方法" });
   assert.ok(results.length >= 1, "soft fallback should produce results");
   assert.equal(
-    (trace as unknown as { autoLanguageFilterDropped?: boolean }).autoLanguageFilterDropped,
+    trace.autoLanguageFilterDropped,
     true,
     "trace should record that the filter was dropped"
   );
@@ -104,7 +89,7 @@ test("autoLanguageFilter: ON — explicit user filter.lang wins over auto-detect
     filter: { lang: "fr" },
   });
   assert.equal(
-    (trace as unknown as { autoLanguageFilter?: string }).autoLanguageFilter,
+    trace.autoLanguageFilter,
     undefined,
     "auto-filter must not override an explicit user filter"
   );
