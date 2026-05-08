@@ -54,6 +54,14 @@ export interface SearchRequest {
   filter?: Record<string, unknown>;
   /** Free-form context the router can use (e.g. user id, session id, ab-test bucket). */
   context?: Record<string, unknown>;
+  /**
+   * Confidence floor — drop any result whose final score is below this
+   * value. Useful when "no answer" is a better signal to the LLM than a
+   * noisy low-relevance answer. Score units depend on the active reranker:
+   * cross-encoders typically emit calibrated [0, 1] sigmoid scores, so
+   * `minScore: 0.4` is a reasonable starting point.
+   */
+  minScore?: number;
 }
 
 /** A routing decision recorded for observability. */
@@ -71,10 +79,15 @@ export type QuestionType = "factoid" | "procedural" | "definitional";
 
 /** Signals derived from the query. */
 export interface QuerySignals {
-  /** Token count (whitespace-split, lowercased). */
-  tokens: number;
-  /** Average token length — proxy for technical/long-form queries. */
-  avgTokenLen: number;
+  /**
+   * Whitespace-split word count. NOT the embedding model's subword token
+   * count — these signals are used by the router's rule decisions
+   * ("≥6 words AND isQuestion → vector"), not the embedder. The embedder
+   * has its own WordPiece/BPE tokenization that's independent of this.
+   */
+  wordCount: number;
+  /** Average word length in characters — proxy for technical/long-form queries. */
+  avgWordLen: number;
   /** Has quoted phrases — strong signal for keyword search. */
   hasQuotedPhrase: boolean;
   /** Has rare/specific tokens (numbers, identifiers, code-like patterns). */
@@ -110,11 +123,14 @@ export interface QuerySignals {
    */
   hasNegation: boolean;
   /**
-   * Heuristic language tag. `"non-en"` when the query is dominated by non-Latin
-   * script — BM25 in our default analyzer is English-tuned, so we steer toward
-   * vector search for non-English queries.
+   * BCP-47-style language code derived from Unicode-script analysis.
+   * `"en"` for Latin script (default), or `"ja" | "zh" | "ko" | "ru" |
+   * "ar" | "hi" | "th" | "he" | "el"` for the corresponding non-Latin
+   * scripts. Drives two things: the router's vector-bias rule for
+   * non-English queries, and Augur's automatic language-aware filter
+   * at search time (see `Augur.search`).
    */
-  language: "en" | "non-en";
+  language: string;
 }
 
 /** A timing span recorded during search. */

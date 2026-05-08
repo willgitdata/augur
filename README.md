@@ -7,6 +7,8 @@
 
 **An adaptive retrieval orchestration layer for AI / RAG systems.**
 
+> **Competitive accuracy, out of the box. Full traces on every search. Retrieval becomes a one-line constructor — not a six-week side quest.**
+
 Augur sits on top of your existing vector database, embedder, and reranker and decides — *per query* — which retrieval strategy to use: vector, keyword, hybrid, or vector-then-rerank. Every decision is a transparent trace recorded in the response. Drop into any RAG pipeline; **the auto method is best out of the box**.
 
 ```ts
