@@ -263,6 +263,13 @@ export class Augur {
  *   - Long natural-language question (≥6 tokens, no specific tokens) →
  *     vector leans (0.7). Semantic match dominates lexical at length.
  *   - Default → 0.5. Equal mix when the query gives no strong signal.
+ *
+ * Note: we tried lowering the weight further (0.2) for `hasNegation` queries
+ * on the theory that bi-encoders can't read "not"/"without". On the bundled
+ * eval it regressed negation NDCG (-0.014) — BM25 alone wasn't ranking the
+ * right docs either. The fix probably has to come from a stronger reranker
+ * (which is already enabled on negation per the router) rather than a weight
+ * tweak. Leaving the slot for when we revisit.
  */
 function pickVectorWeight(signals: import("./types.js").QuerySignals): number {
   if (signals.hasQuotedPhrase || signals.hasSpecificTokens || signals.hasCodeLike) return 0.3;
