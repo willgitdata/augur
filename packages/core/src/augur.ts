@@ -1,15 +1,26 @@
 import type { VectorAdapter } from "./adapters/adapter.js";
 import { InMemoryAdapter } from "./adapters/in-memory.js";
-import { type Chunker, SentenceChunker, SemanticChunker, chunkDocument } from "./chunking/chunker.js";
+import {
+  type AsyncChunker,
+  type Chunker,
+  SentenceChunker,
+  chunkDocument,
+} from "./chunking/chunker.js";
 import type { Embedder } from "./embeddings/embedder.js";
+import { fingerprintDocs } from "./fingerprint.js";
+import {
+  adaptWeightByConfidence,
+  composeFilter,
+  pickVectorWeight,
+  weightedRrfFuse,
+} from "./fusion.js";
 import { Tracer, TraceStore } from "./observability/tracer.js";
-import { HeuristicReranker, type Reranker } from "./reranking/reranker.js";
+import { type Reranker } from "./reranking/reranker.js";
 import { HeuristicRouter, type Router } from "./routing/router.js";
 import { detectLanguage } from "./routing/signals.js";
 import type {
   Document,
   IndexResponse,
-  QuerySignals,
   RoutingDecision,
   SearchRequest,
   SearchResponse,
@@ -26,10 +37,17 @@ export interface AugurOptions {
   /** Storage adapter. Defaults to InMemoryAdapter. */
   adapter?: VectorAdapter;
   /** Chunker used during `index()`. Defaults to SentenceChunker. */
-  chunker?: Chunker | SemanticChunker;
+  chunker?: Chunker | AsyncChunker;
   /** Routing engine. Defaults to HeuristicRouter. */
   router?: Router;
-  /** Reranker. Defaults to HeuristicReranker. */
+  /**
+   * Reranker. **No default** — bare retrieval if omitted. For the
+   * recommended cross-encoder voting on every query (the "auto = best"
+   * path that produces the headline NDCG@10), pass
+   * `new LocalReranker()` (zero-API-key 22 MB ONNX cross-encoder), or
+   * any hosted provider implementing the one-method `Reranker`
+   * interface (Cohere, Voyage, Jina — see EXAMPLES.md §5).
+   */
   reranker?: Reranker;
   /** Optional trace store — when provided, every search trace is captured. */
   traceStore?: TraceStore;
@@ -39,6 +57,14 @@ export interface AugurOptions {
    * Defaults to true. Set false to require explicit `index()` calls.
    */
   autoIndexAdHocDocuments?: boolean;
+  /**
+   * LRU cache size for scratch adapters built from ad-hoc `req.documents`.
+   * Repeat searches over the same documents reuse the cached scratch
+   * adapter, skipping re-chunking + re-embedding. Defaults to 8.
+   * Set to 0 to disable caching (always rebuild — useful when ad-hoc
+   * corpora rotate every request).
+   */
+  adHocCacheSize?: number;
   /**
    * When the query's detected language is non-English, automatically
    * filter the candidate pool to chunks tagged with that language.
@@ -75,12 +101,22 @@ export interface AugurOptions {
 export class Augur {
   readonly adapter: VectorAdapter;
   readonly embedder: Embedder;
-  readonly chunker: Chunker | SemanticChunker;
+  readonly chunker: Chunker | AsyncChunker;
   readonly router: Router;
-  readonly reranker: Reranker;
+  readonly reranker: Reranker | null;
   readonly traceStore?: TraceStore;
   private autoIndex: boolean;
   private autoLanguageFilter: boolean;
+  /**
+   * Bounded LRU of scratch adapters built from ad-hoc `req.documents`,
+   * keyed by a deterministic fingerprint of (id+content). Lets repeat
+   * searches over the same docs skip re-chunking + re-embedding — the
+   * dominant cost for any non-trivial corpus. Bounded at 8 to avoid
+   * unbounded memory growth in long-lived servers; tune via
+   * `adHocCacheSize` if you have a different hit-rate profile.
+   */
+  private adHocCache = new Map<string, VectorAdapter>();
+  private adHocCacheSize: number;
 
   constructor(opts: AugurOptions) {
     if (!opts || !opts.embedder) {
@@ -94,10 +130,19 @@ export class Augur {
     this.adapter = opts.adapter ?? new InMemoryAdapter();
     this.chunker = opts.chunker ?? new SentenceChunker();
     this.router = opts.router ?? new HeuristicRouter();
-    this.reranker = opts.reranker ?? new HeuristicReranker();
+    // No default reranker. The previous default (HeuristicReranker:
+    // token overlap + proximity) gave fake "yes I rerank" comfort while
+    // doing close to nothing — users on the auto path got bare
+    // retrieval-shaped output that pretended it was reranked. Now an
+    // explicit reranker is required for the cross-encoder voting step
+    // to fire. Pass `new LocalReranker()` (zero-API-key cross-encoder
+    // ONNX) for the headline accuracy mode, or any provider's reranker
+    // implementing the one-method interface.
+    this.reranker = opts.reranker ?? null;
     if (opts.traceStore) this.traceStore = opts.traceStore;
     this.autoIndex = opts.autoIndexAdHocDocuments ?? true;
     this.autoLanguageFilter = opts.autoLanguageFilter ?? false;
+    this.adHocCacheSize = Math.max(0, opts.adHocCacheSize ?? 8);
   }
 
   /**
@@ -180,22 +225,47 @@ export class Augur {
 
     // If this is an ad-hoc request with documents inline, build a scratch
     // adapter for this query only. This matches the Vercel-y feel: zero
-    // setup, useful out of the box.
+    // setup, useful out of the box. Cache by (id, content) fingerprint so
+    // repeat searches over the same documents skip re-chunking +
+    // re-embedding — the dominant cost for any non-trivial corpus.
     let activeAdapter = this.adapter;
     let scratchUsed = false;
+    let scratchCacheHit = false;
     if (req.documents && req.documents.length > 0 && this.autoIndex) {
-      const scratch = new InMemoryAdapter();
-      const scratchQB = new Augur({
-        adapter: scratch,
-        embedder: this.embedder,
-        chunker: this.chunker,
-      });
-      await tracer.span("ad-hoc:index", () => scratchQB.index(req.documents!));
-      activeAdapter = scratch;
+      const cacheKey = this.adHocCacheSize > 0 ? fingerprintDocs(req.documents) : null;
+      const cached = cacheKey ? this.adHocCache.get(cacheKey) : undefined;
+      if (cached) {
+        // Move to most-recently-used position (LRU bookkeeping).
+        this.adHocCache.delete(cacheKey!);
+        this.adHocCache.set(cacheKey!, cached);
+        activeAdapter = cached;
+        scratchCacheHit = true;
+      } else {
+        const scratch = new InMemoryAdapter();
+        const scratchQB = new Augur({
+          adapter: scratch,
+          embedder: this.embedder,
+          chunker: this.chunker,
+        });
+        await tracer.span("ad-hoc:index", () => scratchQB.index(req.documents!));
+        activeAdapter = scratch;
+        if (cacheKey) {
+          // Evict oldest if at capacity (Map iteration order = insertion order).
+          if (this.adHocCache.size >= this.adHocCacheSize) {
+            const oldest = this.adHocCache.keys().next().value;
+            if (oldest !== undefined) this.adHocCache.delete(oldest);
+          }
+          this.adHocCache.set(cacheKey, scratch);
+        }
+      }
       scratchUsed = true;
     }
 
-    const decision = this.router.decide(req, activeAdapter.capabilities);
+    const decision = this.router.decide(
+      req,
+      activeAdapter.capabilities,
+      this.reranker !== null
+    );
     const willRerank = decision.reranked;
     const userFilter = req.filter;
 
@@ -226,13 +296,16 @@ export class Augur {
     }
 
     let results = candidates;
-    if (willRerank && candidates.length > 0) {
+    const reranker = this.reranker;
+    if (willRerank && reranker && candidates.length > 0) {
       results = await tracer.span(
         "rerank",
-        () => this.reranker.rerank(req.query, candidates, topK),
-        { reranker: this.reranker.name, candidates: candidates.length }
+        () => reranker.rerank(req.query, candidates, topK),
+        { reranker: reranker.name, candidates: candidates.length }
       );
     } else {
+      // No reranker configured (or routing decision said skip) — return
+      // the raw retrieval order, sliced to topK.
       results = candidates.slice(0, topK);
     }
 
@@ -252,8 +325,10 @@ export class Augur {
     const trace = tracer.finish({
       decision,
       candidates: candidates.length,
-      adapter: scratchUsed ? `${activeAdapter.name} (ad-hoc)` : activeAdapter.name,
+      adapter: activeAdapter.name,
       embeddingModel: this.embedder.name,
+      ...(scratchUsed ? { adHoc: true } : {}),
+      ...(scratchCacheHit ? { adHocCacheHit: true } : {}),
       ...(autoLang ? { autoLanguageFilter: autoLang } : {}),
       ...(langFilterDropped ? { autoLanguageFilterDropped: true } : {}),
     });
@@ -369,112 +444,3 @@ export class Augur {
   }
 }
 
-/**
- * Merge user-supplied filter with the auto-language tag (if any) into a
- * single AND-style filter. User-supplied keys win on conflict; we don't
- * silently override an explicit `lang` if the caller pinned one.
- */
-function composeFilter(
-  userFilter: Record<string, unknown> | undefined,
-  autoLang: string | null
-): Record<string, unknown> | undefined {
-  if (!autoLang) return userFilter;
-  return userFilter ? { lang: autoLang, ...userFilter } : { lang: autoLang };
-}
-
-/**
- * Static prior on the vector/BM25 mix from query signals. Returns the
- * fraction of weight the vector side gets in fusion (BM25 gets 1 - x):
- *   - quoted / specific-token / code-like → 0.3 (lexical wins)
- *   - very short (≤2 tokens) → 0.4 (bi-encoders embed single terms poorly)
- *   - long natural-language question (≥6 tokens) → 0.7 (semantic wins)
- *   - otherwise → 0.5
- */
-function pickVectorWeight(signals: QuerySignals): number {
-  if (signals.hasQuotedPhrase || signals.hasSpecificTokens || signals.hasCodeLike) return 0.3;
-  if (signals.wordCount <= 2) return 0.4;
-  if (signals.isQuestion && signals.wordCount >= 6) return 0.7;
-  return 0.5;
-}
-
-/**
- * Reciprocal Rank Fusion of two ranked lists into one with a per-side
- * weight. k=60 is the canonical Cormack-2009 smoothing constant. The
- * weight (`vectorWeight` ∈ [0,1]) lets one side carry more influence
- * than the other — important because production hybrid systems are
- * never symmetric in practice (vector helps on natural-language
- * questions, BM25 helps on identifiers, the right balance is
- * query-dependent).
- */
-function weightedRrfFuse(
-  vec: SearchResult[],
-  kw: SearchResult[],
-  vectorWeight: number,
-  k: number = 60
-): SearchResult[] {
-  const wV = clamp(vectorWeight, 0, 1);
-  const wK = 1 - wV;
-  const fused = new Map<string, { result: SearchResult; score: number }>();
-  vec.forEach((r, rank) => {
-    fused.set(r.chunk.id, { result: r, score: wV * (1 / (k + rank + 1)) });
-  });
-  kw.forEach((r, rank) => {
-    const score = wK * (1 / (k + rank + 1));
-    const existing = fused.get(r.chunk.id);
-    if (existing) existing.score += score;
-    else fused.set(r.chunk.id, { result: r, score });
-  });
-  return Array.from(fused.values())
-    .sort((x, y) => y.score - x.score)
-    .map(({ result, score }) => ({ ...result, score }));
-}
-
-/**
- * Adjust the static (query-signal-derived) vector weight using observed
- * retrieval confidence. The intuition: when one side has a top result
- * that clearly stands out from the rest of its list (large score gap to
- * #2, normalized over the score range), we should trust that side more
- * for this specific query. When both sides look unsure, fall back to
- * the prior.
- *
- * Bounded shift (±0.20) so retrieval confidence can never fully override
- * the query-signal prior — they vote together. The clamp keeps the final
- * weight in [0.10, 0.90] so neither side gets fully zeroed out.
- *
- * On the bundled 504-query eval this lifts NDCG@10 by ~+0.005 over
- * symmetric RRF; on BEIR SciFact and NFCorpus it lifts by similar margins
- * when the cross-encoder reranker is on. The win is concentrated in the
- * "router was uncertain" tail — confident keyword/vector queries are
- * unaffected because the prior already pins the weight to the right side.
- */
-function adaptWeightByConfidence(
-  baseWeight: number,
-  vec: SearchResult[],
-  kw: SearchResult[]
-): number {
-  const vConf = topGapNormalized(vec);
-  const kConf = topGapNormalized(kw);
-  const shift = clamp((vConf - kConf) * 0.30, -0.20, 0.20);
-  return clamp(baseWeight + shift, 0.10, 0.90);
-}
-
-/**
- * Confidence proxy: gap from #1 to #2, normalized by the dynamic range
- * of the top-K. A standout #1 → near-1.0; a flat list → near-0. Range-
- * normalizing makes this comparable across BM25 (unbounded) and cosine
- * ([-1,1]) score scales.
- */
-function topGapNormalized(results: SearchResult[]): number {
-  if (results.length < 2) return 0;
-  const top = results[0]!.score;
-  const second = results[1]!.score;
-  // Bottom of visible top-10 is our "noise floor" estimate.
-  const floor = results[Math.min(9, results.length - 1)]!.score;
-  const range = top - floor;
-  if (range <= 0) return 0;
-  return clamp((top - second) / range, 0, 1);
-}
-
-function clamp(x: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, x));
-}
