@@ -40,21 +40,34 @@
 
 import type { Embedder } from "./embedder.js";
 
-// Cache the pipeline promise per model name so repeated instantiation is free.
+// Cache the pipeline promise per (model, dtype, device) so repeated
+// instantiation is free.
 const pipelineCache = new Map<string, Promise<unknown>>();
 
-async function getEmbeddingPipeline(model: string): Promise<unknown> {
-  let p = pipelineCache.get(model);
+async function getEmbeddingPipeline(
+  model: string,
+  dtype: string | undefined,
+  device: string | undefined
+): Promise<unknown> {
+  const key = `${model}|${dtype ?? ""}|${device ?? ""}`;
+  let p = pipelineCache.get(key);
   if (p) return p;
   p = (async () => {
     // Dynamic import — keeps consumers who don't use this class free of the
     // transformers.js + onnxruntime-node install footprint (~100MB).
     const transformers = (await import("@huggingface/transformers")) as unknown as {
-      pipeline: (task: string, model: string) => Promise<unknown>;
+      pipeline: (
+        task: string,
+        model: string,
+        opts?: { dtype?: string; device?: string }
+      ) => Promise<unknown>;
     };
-    return transformers.pipeline("feature-extraction", model);
+    const opts: { dtype?: string; device?: string } = {};
+    if (dtype) opts.dtype = dtype;
+    if (device) opts.device = device;
+    return transformers.pipeline("feature-extraction", model, opts);
   })();
-  pipelineCache.set(model, p);
+  pipelineCache.set(key, p);
   return p;
 }
 
@@ -65,6 +78,8 @@ export class LocalEmbedder implements Embedder {
   private queryPrefix: string;
   private docPrefix: string;
   private batchSize: number;
+  private dtype: string | undefined;
+  private device: string | undefined;
 
   constructor(opts: {
     /**
@@ -83,13 +98,28 @@ export class LocalEmbedder implements Embedder {
     docPrefix?: string;
     /** Texts per pipeline call. Larger = better GPU/CPU utilization. */
     batchSize?: number;
+    /**
+     * ONNX weight quantization. "fp32" is the canonical/published config
+     * (highest quality, biggest model, slowest). "fp16" cuts size and
+     * latency ~2× with near-zero quality loss. "q8" / "q4" trade accuracy
+     * for ~3-4× speedup — useful for indexing large corpora when the
+     * absolute quality ceiling matters less than throughput. Whether a
+     * given model has the variant available is a publish-time choice by
+     * the model author; transformers.js downloads the matching ONNX file.
+     */
+    dtype?: "fp32" | "fp16" | "q8" | "q4";
+    /** "wasm" (default), "webgpu" if available. Most setups stay on wasm. */
+    device?: "wasm" | "webgpu" | "cpu";
   } = {}) {
     this.model = opts.model ?? "Xenova/all-MiniLM-L6-v2";
     this.dimension = opts.dimension ?? 384;
     this.queryPrefix = opts.queryPrefix ?? "";
     this.docPrefix = opts.docPrefix ?? "";
     this.batchSize = opts.batchSize ?? 32;
-    this.name = `local:${this.model}`;
+    this.dtype = opts.dtype;
+    this.device = opts.device;
+    const tag = [this.dtype, this.device].filter(Boolean).join(",");
+    this.name = `local:${this.model}${tag ? `(${tag})` : ""}`;
   }
 
   async embed(texts: string[]): Promise<number[][]> {
@@ -110,7 +140,7 @@ export class LocalEmbedder implements Embedder {
   private async embedTagged(texts: string[], prefix: string): Promise<number[][]> {
     if (texts.length === 0) return [];
     const tagged = prefix ? texts.map((t) => prefix + t) : texts;
-    const pipe = (await getEmbeddingPipeline(this.model)) as (
+    const pipe = (await getEmbeddingPipeline(this.model, this.dtype, this.device)) as (
       input: string | string[],
       opts: { pooling: "mean" | "cls" | "none"; normalize: boolean }
     ) => Promise<{ data: Float32Array; dims: number[] }>;
