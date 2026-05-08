@@ -47,10 +47,22 @@ export class LocalReranker implements Reranker {
   readonly name: string;
   private model: string;
   private batchSize: number;
+  private applySigmoid: boolean;
 
-  constructor(opts: { model?: string; batchSize?: number } = {}) {
+  constructor(opts: {
+    model?: string;
+    batchSize?: number;
+    /**
+     * Apply sigmoid to raw cross-encoder logits to get calibrated [0,1]
+     * scores. Default true — calibrated scores compose better with MMR,
+     * threshold-based filtering, and score-weighted hybrid fusion. Pass
+     * `false` if you specifically want raw logits.
+     */
+    applySigmoid?: boolean;
+  } = {}) {
     this.model = opts.model ?? "Xenova/ms-marco-MiniLM-L-6-v2";
     this.batchSize = opts.batchSize ?? 16;
+    this.applySigmoid = opts.applySigmoid ?? true;
     this.name = `local-reranker:${this.model}`;
   }
 
@@ -74,7 +86,8 @@ export class LocalReranker implements Reranker {
       // logit. topk: 1 + function_to_apply: "none" returns the raw score.
       const out = await pipe(inputs, { topk: 1, function_to_apply: "none" });
       for (let b = 0; b < batch.length; b++) {
-        scores[i + b] = out[b]?.score ?? 0;
+        const raw = out[b]?.score ?? 0;
+        scores[i + b] = this.applySigmoid ? sigmoid(raw) : raw;
       }
     }
 
@@ -86,4 +99,14 @@ export class LocalReranker implements Reranker {
     rescored.sort((a, b) => b.score - a.score);
     return rescored.slice(0, topK);
   }
+}
+
+function sigmoid(x: number): number {
+  // Stable for both positive and negative inputs.
+  if (x >= 0) {
+    const z = Math.exp(-x);
+    return 1 / (1 + z);
+  }
+  const z = Math.exp(x);
+  return z / (1 + z);
 }

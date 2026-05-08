@@ -17,3 +17,8 @@ test("LocalReranker: custom model surfaces in name", () => {
   const r = new LocalReranker({ model: "Xenova/bge-reranker-base" });
   assert.equal(r.name, "local-reranker:Xenova/bge-reranker-base");
 });
+
+test("LocalReranker: applySigmoid option accepted", () => {
+  const r = new LocalReranker({ applySigmoid: false });
+  assert.ok(r.name.startsWith("local-reranker:"));
+});

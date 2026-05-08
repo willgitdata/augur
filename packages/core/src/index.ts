@@ -30,6 +30,7 @@ export {
   type AdapterCapabilities,
   BaseAdapter,
   InMemoryAdapter,
+  type InMemoryAdapterOptions,
   PineconeAdapter,
   TurbopufferAdapter,
   PgVectorAdapter,
@@ -73,6 +74,7 @@ export {
   CascadedReranker,
 } from "./reranking/reranker.js";
 export { LocalReranker } from "./reranking/local-reranker.js";
+export { MMRReranker } from "./reranking/mmr-reranker.js";
 
 // Question taxonomy from signals (re-exported for routers consuming the type).
 export type { QuestionType } from "./types.js";
