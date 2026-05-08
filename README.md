@@ -1,9 +1,7 @@
-<h1 align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./assets/wordmark-dark.svg">
-    <img alt="Augur — Seer of Signals" src="./assets/wordmark-light.svg" width="500">
-  </picture>
-</h1>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="augur-wordmark-dark.svg">
+  <img src="augur-wordmark-light.svg" alt="Augur">
+</picture>
 
 ###### Named after the ancient Roman augurs who interpreted signs to foresee the best path forward. To augur is to predict, and this package predicts the optimal retrieval method for your use case.
 
