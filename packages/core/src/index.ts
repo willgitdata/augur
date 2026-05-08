@@ -54,8 +54,6 @@ export {
   type Embedder,
   HashEmbedder,
   TfIdfEmbedder,
-  OpenAIEmbedder,
-  GeminiEmbedder,
   tokenize,
   tokenizeAdvanced,
   stem,
@@ -70,8 +68,6 @@ export { type Router, HeuristicRouter, computeSignals } from "./routing/index.js
 export {
   type Reranker,
   HeuristicReranker,
-  CohereReranker,
-  JinaReranker,
   CascadedReranker,
 } from "./reranking/reranker.js";
 export { LocalReranker } from "./reranking/local-reranker.js";
