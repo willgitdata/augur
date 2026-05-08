@@ -1,6 +1,6 @@
 import type { VectorAdapter } from "./adapters/adapter.js";
 import { InMemoryAdapter } from "./adapters/in-memory.js";
-import { type Chunker, FixedSizeChunker, SentenceChunker, SemanticChunker, chunkDocument } from "./chunking/chunker.js";
+import { type Chunker, SentenceChunker, SemanticChunker, chunkDocument } from "./chunking/chunker.js";
 import type { Embedder } from "./embeddings/embedder.js";
 import { Tracer, TraceStore } from "./observability/tracer.js";
 import { HeuristicReranker, type Reranker } from "./reranking/reranker.js";
@@ -8,6 +8,8 @@ import { HeuristicRouter, type Router } from "./routing/router.js";
 import type {
   Document,
   IndexResponse,
+  QuerySignals,
+  RoutingDecision,
   SearchRequest,
   SearchResponse,
   SearchResult,
@@ -39,23 +41,13 @@ export interface AugurOptions {
 }
 
 /**
- * Augur — the unified retrieval orchestration entry point.
- *
- *   import { Augur, LocalEmbedder } from "@augur/core";
+ * Augur — retrieval orchestration entry point. Every component is
+ * constructor-injected for swapability; `embedder` is the only required
+ * field. See EXAMPLES.md §5 for hosted-provider Embedder snippets.
  *
  *   const augr = new Augur({ embedder: new LocalEmbedder() });
  *   await augr.index([{ id: "1", content: "..." }]);
  *   const { results, trace } = await augr.search({ query: "hello" });
- *
- * `embedder` is required. Pick `LocalEmbedder` for fully on-device, or
- * implement the `Embedder` interface against your provider's SDK (OpenAI,
- * Cohere, Voyage, etc) — see EXAMPLES.md §5 for snippets.
- *
- * Why everything is constructor-injected:
- * - Testability: every component is mockable in isolation.
- * - Forward compatibility: when MLRouter ships, swap one constructor arg.
- * - Aligns with the philosophy: "augment, don't replace". Users keep their
- *   existing embedder/store/reranker; Augur is just the conductor.
  */
 export class Augur {
   readonly adapter: VectorAdapter;
@@ -138,28 +130,13 @@ export class Augur {
   }
 
   /**
-   * Search — the main entry point. Routes the query through the appropriate
-   * strategy and returns results plus a full execution trace.
-   *
-   * Two-stage pipeline (the production pattern from Turbopuffer / Vespa /
-   * Cohere Rerank):
-   *
-   *   1. **Candidate generation** — cheap, recall-oriented.
-   *      When reranking is enabled, we ignore the strategy decision for
-   *      retrieval purposes and pull a wide pool from BOTH vector and
-   *      keyword in parallel, then dedupe. The strategy decision still
-   *      drives whether we rerank at all (and is recorded in the trace
-   *      for explainability), but the candidate pool is multi-source so
-   *      the reranker has the right doc available regardless of which
-   *      retriever found it.
-   *      When reranking is disabled, the strategy decision drives a
-   *      single-retriever lookup directly — no point paying for a pool
-   *      we won't re-score.
-   *
-   *   2. **Reranking** — precision.
-   *      Cross-encoder reads (query, candidate) pairs end-to-end and
-   *      produces the final top-K. This is the source of truth for the
-   *      ordering, so we trust it with the wider pool.
+   * Search — two-stage pipeline (the Turbopuffer/Vespa/Cohere Rerank
+   * pattern):
+   *   1. Recall: when reranking is on, gather a wide pool from both vector
+   *      and keyword retrievers in parallel and RRF-fuse. When off, the
+   *      strategy decision drives a single retrieval call.
+   *   2. Precision: cross-encoder re-scores the top of the fused pool and
+   *      produces the final top-K.
    */
   async search(req: SearchRequest): Promise<SearchResponse> {
     const tracer = new Tracer(req.query);
@@ -236,30 +213,16 @@ export class Augur {
   }
 
   /**
-   * Stage-1 candidate generation when reranking is on.
-   *
-   * Pulls top-N from each available retriever in parallel, then RRF-fuses
-   * the lists into a single ranked candidate pool. The cross-encoder
-   * re-scores the top of this pool in stage 2.
-   *
-   * Why RRF before reranking (and not raw dedupe)?
-   *   - Raw dedupe gives the cross-encoder a wider pool but in arbitrary
-   *     order. On the bundled eval the local cross-encoder struggled to
-   *     re-order the noise — recall went up but NDCG slipped.
-   *   - RRF gives a *pre-ranked* pool where docs that scored well on
-   *     either side rise to the top. The cross-encoder then refines a
-   *     pre-curated list. Production stacks (Cohere, Vespa, Turbopuffer)
-   *     all use a fused retrieval pool followed by reranking for
-   *     precisely this reason.
-   *
-   * Pool sizing: 50 per side → up to ~100 unique fused, then we hand the
-   * top 30 to the cross-encoder. That's the production sweet spot — wide
-   * enough that the right doc is almost always present, narrow enough
-   * that the cross-encoder pays for precision, not noise filtering.
+   * Recall stage. Pulls top-N from each retriever in parallel, RRF-fuses
+   * the two lists with an adaptive weight (query-signal prior shifted by
+   * observed retrieval confidence), and hands the top of the fused pool
+   * to the cross-encoder. Pool sizing (50/side → top 30) is the
+   * production sweet spot — wide enough recall, narrow enough that the
+   * reranker is doing precision and not noise filtering.
    */
   private async gatherCandidatePool(
     req: SearchRequest,
-    decision: import("./types.js").RoutingDecision,
+    decision: RoutingDecision,
     activeAdapter: VectorAdapter,
     tracer: Tracer,
     filter: Record<string, unknown> | undefined
@@ -267,16 +230,9 @@ export class Augur {
     const POOL_PER_SIDE = 50;
     const RERANK_POOL_CAP = 30;
     const caps = activeAdapter.capabilities;
-
-    const embedding = caps.vector
-      ? await tracer.span("embed:query", async () => {
-          if (this.embedder.embedQuery) return this.embedder.embedQuery(req.query);
-          const [v] = await this.embedder.embed([req.query]);
-          return v!;
-        })
-      : null;
-
     const filt = filter ? { filter } : {};
+    const embedding = caps.vector ? await this.embedQuery(req.query, tracer) : null;
+
     const [vec, kw] = await Promise.all([
       caps.vector && embedding
         ? tracer.span("pool:vector", () =>
@@ -290,31 +246,15 @@ export class Augur {
         : Promise.resolve<SearchResult[]>([]),
     ]);
 
-    // Adaptive weight = query-signal prior shifted by retrieval-confidence
-    // evidence. Pure RRF treats both retrievers as equally reliable on every
-    // query; production-style fusion looks at whichever side is *more sure*
-    // (top-1 stands clearly above the rest of its list) and weights it up.
-    // The shift is bounded so retrieval confidence can't fully override the
-    // query-signal prior — they vote together.
     const baseWeight = pickVectorWeight(decision.signals);
     const adaptiveWeight = adaptWeightByConfidence(baseWeight, vec, kw);
-    const fused = weightedRrfFuse(vec, kw, adaptiveWeight).slice(0, RERANK_POOL_CAP);
-    tracer.span("fuse:adaptive", async () => fused, {
-      vectorWeight: adaptiveWeight,
-      baseVectorWeight: baseWeight,
-      vecCount: vec.length,
-      kwCount: kw.length,
-    });
-    return fused;
+    return weightedRrfFuse(vec, kw, adaptiveWeight).slice(0, RERANK_POOL_CAP);
   }
 
-  /**
-   * Stage-1 fast path when reranking is off. Strategy decision drives a
-   * single retrieval call — no point pulling a wide pool we won't re-score.
-   */
+  /** Single-retriever fast path when reranking is off. */
   private async runStrategy(
     req: SearchRequest,
-    decision: import("./types.js").RoutingDecision,
+    decision: RoutingDecision,
     activeAdapter: VectorAdapter,
     topK: number,
     tracer: Tracer,
@@ -326,53 +266,48 @@ export class Augur {
         activeAdapter.searchKeyword({ query: req.query, topK, ...filt })
       );
     }
-    const embedding = await tracer.span("embed:query", async () => {
-      if (this.embedder.embedQuery) return this.embedder.embedQuery(req.query);
-      const [v] = await this.embedder.embed([req.query]);
-      return v!;
-    });
+    const embedding = await this.embedQuery(req.query, tracer);
     if (decision.strategy === "vector" || decision.strategy === "rerank") {
       return tracer.span("search:vector", () =>
         activeAdapter.searchVector({ embedding, topK, ...filt })
       );
     }
-    // hybrid — query-aware vector weight, RRF fusion in BaseAdapter.
+    // hybrid: query-aware vector weight, RRF fusion in BaseAdapter (or
+    // the adapter's vector path when it doesn't extend BaseAdapter).
     const vectorWeight = pickVectorWeight(decision.signals);
-    return tracer.span("search:hybrid", () =>
-      (activeAdapter.searchHybrid ?? hybridFallback).call(activeAdapter, {
-        embedding,
-        query: req.query,
-        topK,
-        vectorWeight,
-        ...filt,
-      })
-    );
+    return tracer.span("search:hybrid", () => {
+      if (activeAdapter.searchHybrid) {
+        return activeAdapter.searchHybrid({
+          embedding,
+          query: req.query,
+          topK,
+          vectorWeight,
+          ...filt,
+        });
+      }
+      return activeAdapter.searchVector({ embedding, topK, ...filt });
+    });
+  }
+
+  /** One-shot query embedding with span tracing — used by both retrieval paths. */
+  private embedQuery(query: string, tracer: Tracer): Promise<number[]> {
+    return tracer.span("embed:query", async () => {
+      if (this.embedder.embedQuery) return this.embedder.embedQuery(query);
+      const [v] = await this.embedder.embed([query]);
+      return v!;
+    });
   }
 }
 
 /**
- * Map query signals to a hybrid vector/keyword weight. The output is the
- * fraction the vector side gets in RRF / score combination; (1 - weight)
- * goes to BM25.
- *
- * Heuristic, no learned weights — a tiny query-aware ramp:
- *
- *   - Quoted phrase or specific identifier present → BM25 carries (0.3).
- *     The user is asking for an exact match; vector tends to dilute.
- *   - Very short query (≤2 tokens) → BM25 leans (0.4). Bi-encoders embed
- *     single terms poorly.
- *   - Long natural-language question (≥6 tokens, no specific tokens) →
- *     vector leans (0.7). Semantic match dominates lexical at length.
- *   - Default → 0.5. Equal mix when the query gives no strong signal.
- *
- * Note: we tried lowering the weight further (0.2) for `hasNegation` queries
- * on the theory that bi-encoders can't read "not"/"without". On the bundled
- * eval it regressed negation NDCG (-0.014) — BM25 alone wasn't ranking the
- * right docs either. The fix probably has to come from a stronger reranker
- * (which is already enabled on negation per the router) rather than a weight
- * tweak. Leaving the slot for when we revisit.
+ * Static prior on the vector/BM25 mix from query signals. Returns the
+ * fraction of weight the vector side gets in fusion (BM25 gets 1 - x):
+ *   - quoted / specific-token / code-like → 0.3 (lexical wins)
+ *   - very short (≤2 tokens) → 0.4 (bi-encoders embed single terms poorly)
+ *   - long natural-language question (≥6 tokens) → 0.7 (semantic wins)
+ *   - otherwise → 0.5
  */
-function pickVectorWeight(signals: import("./types.js").QuerySignals): number {
+function pickVectorWeight(signals: QuerySignals): number {
   if (signals.hasQuotedPhrase || signals.hasSpecificTokens || signals.hasCodeLike) return 0.3;
   if (signals.tokens <= 2) return 0.4;
   if (signals.isQuestion && signals.tokens >= 6) return 0.7;
@@ -394,7 +329,7 @@ function weightedRrfFuse(
   vectorWeight: number,
   k: number = 60
 ): SearchResult[] {
-  const wV = clamp01(vectorWeight);
+  const wV = clamp(vectorWeight, 0, 1);
   const wK = 1 - wV;
   const fused = new Map<string, { result: SearchResult; score: number }>();
   vec.forEach((r, rank) => {
@@ -450,36 +385,13 @@ function topGapNormalized(results: SearchResult[]): number {
   if (results.length < 2) return 0;
   const top = results[0]!.score;
   const second = results[1]!.score;
-  // Use the bottom of the visible top-10 as the "noise floor" estimate.
+  // Bottom of visible top-10 is our "noise floor" estimate.
   const floor = results[Math.min(9, results.length - 1)]!.score;
   const range = top - floor;
   if (range <= 0) return 0;
-  return clamp01((top - second) / range);
+  return clamp((top - second) / range, 0, 1);
 }
 
 function clamp(x: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, x));
 }
-function clamp01(x: number): number {
-  return clamp(x, 0, 1);
-}
-
-/** Fallback hybrid for adapters that didn't override `searchHybrid`. */
-async function hybridFallback(
-  this: VectorAdapter,
-  opts: {
-    embedding: number[];
-    query: string;
-    topK: number;
-    vectorWeight: number;
-    filter?: Record<string, unknown>;
-  }
-): Promise<SearchResult[]> {
-  // BaseAdapter provides this. If we got here, the adapter doesn't extend
-  // BaseAdapter. The router should have steered away from hybrid in that
-  // case, but if it didn't, do the cheapest reasonable thing: vector only.
-  return this.searchVector({ embedding: opts.embedding, topK: opts.topK, ...(opts.filter ? { filter: opts.filter } : {}) });
-}
-
-/** Re-export for convenience: `import { FixedSizeChunker } from '@augur/core'`. */
-export { FixedSizeChunker, SentenceChunker, SemanticChunker };
