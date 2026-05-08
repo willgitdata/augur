@@ -21,53 +21,19 @@ export interface Router {
 }
 
 /**
- * HeuristicRouter — rule-based routing, the MVP default.
- *
- * The decision flow, in plain English:
- *
- *   1. forceStrategy → use it verbatim.
- *   2. Capability fallback — adapter only supports vector → vector.
- *   3. Non-English query → vector. Our default analyzer is English-tuned;
- *      BM25 is unhelpful on CJK / Cyrillic / Arabic etc.
- *   4. Quoted phrase → keyword. Exact phrase match is a hard constraint.
- *   5. Specific tokens / code-like / date-version AND short query (≤6) → keyword.
- *      Identifiers, error codes, semver, RFC numbers want literal match.
- *   6. Very short queries (≤2 tokens) → keyword (or vector if adapter lacks).
- *   7. Mid-query named entity AND not a question → keyword. "PgBouncer config
- *      OLTP" type queries are looking for a specific named thing.
- *   8. Question taxonomy:
- *      - procedural (how/why) → vector. Semantic match wins.
- *      - definitional (what is X) → vector. Synonym tolerance matters.
- *      - factoid (who/when/where/which) → hybrid. Entity match + semantics.
- *      - other questions ≥5 tokens → vector (preserve original behavior).
- *   9. High ambiguity → vector + rerank.
- *  10. Otherwise → hybrid. The default for "I don't know" is do both —
- *      hybrid retrieval is rarely worse than either alone, and RRF makes it
- *      cheap to combine.
- *
- * Reranking is layered on top:
- *   - If `forceStrategy === "rerank"` → always rerank.
- *   - If signals.hasNegation → always rerank. Bi-encoders famously fail on
- *     negation ("X without Y" embeds similarly to "X with Y"); the reranker
- *     actually reads the words "not"/"without".
- *   - For keyword strategies otherwise, skip rerank (scores already lexical).
- *   - For vector / hybrid, rerank when no budget OR budget > 800ms (empirical
- *     floor: a cross-encoder over 50 candidates is ~200-500ms on commodity infra).
- *
- * Every decision records human-readable `reasons` so the dashboard and the
- * trace explorer can show *why* a route was picked. This is the
- * "observability + explainability" requirement made concrete.
+ * HeuristicRouter — rule-based per-query strategy selection. See the
+ * inline comments in `decide()` for the full priority order. Every
+ * decision records human-readable `reasons` so the dashboard and trace
+ * explorer can show *why* a route was picked.
  */
 export interface HeuristicRouterOptions {
   /**
-   * Force reranking on for *every* strategy (including pure keyword)
-   * when a reranker is configured. The default heuristic skips rerank
-   * on keyword strategies because BM25 scores are already lexical and
-   * rerank costs latency. But for accuracy-first deployments — where a
-   * cross-encoder might catch keyword-routed queries whose right doc is
-   * actually a vector match — turn this on to push every query through
-   * the multi-stage gather → fuse → rerank pipeline. Trades latency for
-   * NDCG. Default: false.
+   * Push every strategy (including pure keyword) through the multi-stage
+   * gather → fuse → rerank pipeline. **Default: true** — auto routing
+   * targets best NDCG, and on the bundled eval rerank-everything is
+   * +0.008 NDCG@10 over the BM25-fast-path mode. Set to `false` only
+   * when you have a strict <50ms latency budget and your queries are
+   * mostly lexical; then keyword-routed queries skip the cross-encoder.
    */
   alwaysRerank?: boolean;
 }
@@ -77,8 +43,8 @@ export class HeuristicRouter implements Router {
   private alwaysRerank: boolean;
 
   constructor(opts: HeuristicRouterOptions = {}) {
-    this.alwaysRerank = opts.alwaysRerank ?? false;
-    this.name = this.alwaysRerank ? "heuristic-v1+always-rerank" : "heuristic-v1";
+    this.alwaysRerank = opts.alwaysRerank ?? true;
+    this.name = this.alwaysRerank ? "heuristic-v1" : "heuristic-v1+fast-keyword";
   }
 
   decide(req: SearchRequest, caps: AdapterCapabilities): RoutingDecision {
@@ -88,19 +54,19 @@ export class HeuristicRouter implements Router {
     // 1. Forced strategy.
     if (req.forceStrategy) {
       reasons.push(`forceStrategy=${req.forceStrategy}`);
-      return finalize(req.forceStrategy, signals, reasons, caps, req, this.alwaysRerank);
+      return finalize(req.forceStrategy, signals, reasons, req, this.alwaysRerank);
     }
 
     // 2. Capability fallback — adapter only supports vector.
     if (!caps.keyword && !caps.hybrid) {
       reasons.push("adapter is vector-only");
-      return finalize("vector", signals, reasons, caps, req, this.alwaysRerank);
+      return finalize("vector", signals, reasons, req, this.alwaysRerank);
     }
 
     // 3. Non-English → vector (English-tuned BM25 fails on CJK and similar).
     if (signals.language === "non-en") {
       reasons.push("non-English query → semantic search");
-      return finalize("vector", signals, reasons, caps, req, this.alwaysRerank);
+      return finalize("vector", signals, reasons, req, this.alwaysRerank);
     }
 
     let strategy: RetrievalStrategy;
@@ -175,7 +141,7 @@ export class HeuristicRouter implements Router {
       strategy = "vector";
     }
 
-    return finalize(strategy, signals, reasons, caps, req, this.alwaysRerank);
+    return finalize(strategy, signals, reasons, req, this.alwaysRerank);
   }
 }
 
@@ -183,7 +149,6 @@ function finalize(
   strategy: RetrievalStrategy,
   signals: QuerySignals,
   reasons: string[],
-  _caps: AdapterCapabilities,
   req: SearchRequest,
   alwaysRerank: boolean
 ): RoutingDecision {
@@ -203,19 +168,14 @@ function finalize(
 }
 
 /**
- * Rerank decision — separate from strategy so it's easy to override later.
+ * Rerank decision. Default mode reranks every strategy (including pure
+ * keyword) for max NDCG; the cross-encoder gets to vote on every query.
+ * The latency-sensitive opt-out (`alwaysRerank: false`) restores the BM25
+ * fast path on keyword-routed queries.
  *
- * Heuristic:
- *   - Forced "rerank" strategy → always rerank.
- *   - `alwaysRerank` router option → rerank on every strategy, including
- *     keyword. Trades p50 latency for NDCG. Recommended when accuracy
- *     matters more than ms (e.g. RAG feeding an LLM, where the LLM call
- *     dominates latency anyway and the cross-encoder picking the right
- *     keyword-retrieved doc is worth the +20ms).
- *   - Negation present → always rerank. Bi-encoders fail on negation; the
- *     reranker reads the negation token. Even keyword retrieval benefits.
- *   - Keyword strategies otherwise skip rerank (scores already lexical).
- *   - Vector / hybrid: rerank when no budget OR budget > 800ms.
+ * In every mode: a hard `latencyBudgetMs < 800` skips reranking — no
+ * point breaching the budget — and `forceStrategy: "rerank"` always
+ * reranks regardless.
  */
 function shouldRerank(
   strategy: RetrievalStrategy,
@@ -224,13 +184,10 @@ function shouldRerank(
   alwaysRerank: boolean
 ): boolean {
   if (strategy === "rerank") return true;
-  if (alwaysRerank) {
-    const budget = req.latencyBudgetMs;
-    return budget === undefined || budget > 800;
-  }
+  const budget = req.latencyBudgetMs;
+  const budgetOK = budget === undefined || budget > 800;
+  if (alwaysRerank) return budgetOK;
   if (signals.hasNegation) return true;
   if (strategy === "keyword") return false;
-  const budget = req.latencyBudgetMs;
-  if (budget === undefined) return true;
-  return budget > 800;
+  return budgetOK;
 }

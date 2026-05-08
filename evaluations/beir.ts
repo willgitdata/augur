@@ -55,7 +55,7 @@ const queryPrefix = readFlag("query-prefix");
 const docPrefix = readFlag("doc-prefix");
 const dtype = readFlag("dtype");
 const device = readFlag("device");
-const alwaysRerank = argv.includes("--always-rerank");
+const fastKeyword = argv.includes("--fast-keyword");
 
 const datasetName = root.split("/").filter(Boolean).pop()!;
 
@@ -65,7 +65,7 @@ if (queryPrefix) console.log(`  query prefix   : ${JSON.stringify(queryPrefix)}`
 if (docPrefix) console.log(`  doc prefix     : ${JSON.stringify(docPrefix)}`);
 if (dtype) console.log(`  dtype          : ${dtype}`);
 if (device) console.log(`  device         : ${device}`);
-if (alwaysRerank) console.log(`  always-rerank  : on`);
+if (fastKeyword) console.log(`  fast-keyword   : on (skip rerank on keyword strategy)`);
 
 // ---------- load ----------
 function readJsonl<T>(path: string): T[] {
@@ -119,7 +119,7 @@ const augr = new Augur({
   reranker: new LocalReranker(),
   chunker: new MetadataChunker({ base: new SentenceChunker() }),
   adapter: new InMemoryAdapter({ useStemming: true }),
-  ...(alwaysRerank ? { router: new HeuristicRouter({ alwaysRerank: true }) } : {}),
+  ...(fastKeyword ? { router: new HeuristicRouter({ alwaysRerank: false }) } : {}),
 });
 
 const docs = corpus.map((d) => ({

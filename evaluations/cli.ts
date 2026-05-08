@@ -52,7 +52,7 @@ interface Args {
   bm25Stem: boolean;
   mmr: boolean;
   mmrLambda: number;
-  alwaysRerank: boolean;
+  fastKeyword: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -64,7 +64,7 @@ function parseArgs(argv: string[]): Args {
     mmr: false,
     mmrLambda: 0.7,
     doc2query: false,
-    alwaysRerank: false,
+    fastKeyword: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -89,7 +89,7 @@ function parseArgs(argv: string[]): Args {
     else if (a === "--doc2query") out.doc2query = true;
     else if (a === "--doc2query-model") out.doc2queryModel = argv[++i];
     else if (a === "--doc2query-n") out.doc2queryNumQueries = parseInt(argv[++i]!, 10);
-    else if (a === "--always-rerank") out.alwaysRerank = true;
+    else if (a === "--fast-keyword") out.fastKeyword = true;
   }
   return out;
 }
@@ -173,11 +173,11 @@ async function main() {
   }
   const adapter = new InMemoryAdapter({ useStemming: args.bm25Stem });
 
-  const router = args.alwaysRerank ? new HeuristicRouter({ alwaysRerank: true }) : undefined;
+  const router = args.fastKeyword ? new HeuristicRouter({ alwaysRerank: false }) : undefined;
   console.log(
     `Config: embedder=${embedder.name}  chunker=${(chunker as { name: string }).name}  reranker=${reranker ? reranker.name : "none"}  bm25-stem=${args.bm25Stem}` +
       (args.metadataChunker ? "  (metadata-prepend ON)" : "") +
-      (args.alwaysRerank ? "  (always-rerank ON)" : "")
+      (args.fastKeyword ? "  (fast-keyword path ON, rerank skipped on keyword strategies)" : "")
   );
   console.log();
 
