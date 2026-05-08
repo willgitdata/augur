@@ -25,6 +25,26 @@ export interface Router {
  * inline comments in `decide()` for the full priority order. Every
  * decision records human-readable `reasons` so trace consumers (logs,
  * observability backends, your own UI) can show *why* a route was picked.
+ *
+ * **Magic-number provenance.** The numeric thresholds here (≤2 / ≤6 / ≥3
+ * / ≥5 word counts, 0.6 ambiguity floor, 800ms latency floor) are tuned
+ * on the same 504-query / 182-doc eval that drove fusion.ts (preserved
+ * in git history under `evaluations/`, removed from main in feffc73).
+ * The shape of the rules — short=keyword, long-question=vector,
+ * negation=rerank, low-budget=skip — is the load-bearing part. The exact
+ * cutoffs are negotiable; if you change them, run a regression eval first.
+ *   - `wordCount <= 2` (very short → keyword): bi-encoders embed single
+ *     terms poorly; below this length BM25 wins on the eval.
+ *   - `wordCount <= 6` for code/identifier rules: above this, the query
+ *     is wordy enough that semantic context matters too.
+ *   - `wordCount >= 5` for procedural questions: shorter "how to X"
+ *     sometimes routes better as hybrid; the eval marginally prefers
+ *     vector at ≥5 words.
+ *   - `ambiguity > 0.6`: above this the rule-based confidence in any
+ *     specific path is low enough that semantic+rerank wins on average.
+ *   - `latencyBudgetMs > 800` for rerank: cross-encoder forward passes
+ *     are ~5–15ms each; an 800ms budget leaves room for both retrieval
+ *     and the LLM call downstream.
  */
 export interface HeuristicRouterOptions {
   /**

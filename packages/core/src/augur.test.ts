@@ -81,3 +81,34 @@ test("constructor throws helpful error when embedder is missing", () => {
     /embedder.*required/
   );
 });
+
+test("ad-hoc cache: repeat searches over same docs reuse the scratch adapter", async () => {
+  const augr = new Augur({ embedder });
+  const docs = [
+    { id: "a", content: "Kubernetes pods restart based on liveness probes." },
+    { id: "b", content: "Cooking recipes for pasta." },
+  ];
+  const first = await augr.search({ query: "pod restart", documents: docs, topK: 1 });
+  const second = await augr.search({ query: "pasta recipe", documents: docs, topK: 1 });
+  assert.match(first.trace.adapter, /ad-hoc(?!,)/);
+  assert.match(second.trace.adapter, /ad-hoc, cached/);
+});
+
+test("ad-hoc cache: different documents produce a fresh scratch adapter (no false hits)", async () => {
+  const augr = new Augur({ embedder });
+  const docsA = [{ id: "a", content: "alpha content here" }];
+  const docsB = [{ id: "a", content: "beta content here" }]; // same id, diff content
+  const first = await augr.search({ query: "alpha", documents: docsA, topK: 1 });
+  const second = await augr.search({ query: "beta", documents: docsB, topK: 1 });
+  assert.match(first.trace.adapter, /ad-hoc(?!,)/);
+  assert.match(second.trace.adapter, /ad-hoc(?!,)/);
+});
+
+test("ad-hoc cache: adHocCacheSize=0 disables caching", async () => {
+  const augr = new Augur({ embedder, adHocCacheSize: 0 });
+  const docs = [{ id: "a", content: "alpha content here" }];
+  const first = await augr.search({ query: "alpha", documents: docs, topK: 1 });
+  const second = await augr.search({ query: "alpha", documents: docs, topK: 1 });
+  assert.match(first.trace.adapter, /ad-hoc(?!,)/);
+  assert.match(second.trace.adapter, /ad-hoc(?!,)/);
+});

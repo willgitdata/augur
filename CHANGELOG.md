@@ -23,6 +23,8 @@ called out under **BREAKING** in the entry.
 - **BREAKING** `signals.language` type widened from `"en" | "non-en"` to `string` (specific language code).
 - **BREAKING** `HeuristicRouter` defaults `alwaysRerank: true`. The cross-encoder votes on every query out of the box for best NDCG@10. Latency-sensitive callers opt out via `new HeuristicRouter({ alwaysRerank: false })`.
 - **BREAKING** `Augur` constructor requires `embedder`. The placeholder `HashEmbedder` / `TfIdfEmbedder` are removed — they produced near-random vectors that surfaced as product bugs. Use `LocalEmbedder` (zero-config, on-device ONNX) or implement the 3-method `Embedder` interface.
+- **BREAKING** `Augur` no longer defaults to `HeuristicReranker`. Default is now `null` — bare retrieval if `reranker` is omitted. The previous default did almost nothing and gave fake "yes I rerank" comfort in traces; pass `new LocalReranker()` (or any provider's reranker) explicitly to keep cross-encoder voting on. See [MIGRATING.md](MIGRATING.md).
+- Ad-hoc search with inline `documents` now caches the scratch adapter (LRU, fingerprint-keyed by id+content). Repeat searches over the same documents skip re-chunking + re-embedding. Tunable via `adHocCacheSize` (default 8; set 0 to disable).
 - `gatherCandidatePool` now uses adaptive weighted RRF (query-signal prior + retrieval-confidence shift) instead of symmetric RRF.
 - Multi-stage retrieval pipeline (gather → fuse → rerank) — production pattern from Turbopuffer / Vespa / Cohere Rerank.
 - HeuristicRouter rule split: code-like syntax stays on keyword; bare identifier / numeric / date-version queries route to hybrid for topical recall.
