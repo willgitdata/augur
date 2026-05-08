@@ -163,58 +163,37 @@ test("router preserves untyped question fallback (Can/Should/Is)", () => {
   assert.equal(d.strategy, "vector");
 });
 
-test("router forces rerank when negation token present, even on keyword", () => {
+test("default router reranks on every strategy (auto = best)", () => {
   const r = new HeuristicRouter();
-  // Quoted phrase routes to keyword; "without" triggers rerank override.
-  const d = r.decide(
-    { query: '"connection refused" without firewall', latencyBudgetMs: 100 },
-    fullCaps
-  );
-  assert.equal(d.strategy, "keyword");
-  assert.equal(d.reranked, true);
-  assert.ok(d.reasons.some((x) => x.includes("negation")));
-});
-
-test("router forces rerank under tight budget when negation present", () => {
-  const r = new HeuristicRouter();
-  // Mid-length query that would normally route hybrid; tight budget would
-  // skip rerank, but negation forces it on.
-  const d = r.decide(
-    {
-      query: "deploy production rollout without downtime",
-      latencyBudgetMs: 100,
-    },
-    fullCaps
-  );
-  assert.equal(d.reranked, true);
-});
-
-test("router default leaves keyword strategies un-reranked", () => {
-  const r = new HeuristicRouter();
-  // hasCodeLike → keyword strategy (rule 5a); no negation, no specific
-  // override → reranked stays false to keep the BM25 fast path cheap.
-  const d = r.decide({ query: "ssl: SSL_ERROR_SYSCALL" }, fullCaps);
-  assert.equal(d.strategy, "keyword");
-  assert.equal(d.reranked, false);
-});
-
-test("router with alwaysRerank=true reranks even on keyword strategy", () => {
-  const r = new HeuristicRouter({ alwaysRerank: true });
   const d = r.decide({ query: "ssl: SSL_ERROR_SYSCALL" }, fullCaps);
   assert.equal(d.strategy, "keyword");
   assert.equal(d.reranked, true);
   assert.ok(
     d.reasons.some((x) => x.includes("alwaysRerank")),
-    "should explain the routing decision in the trace"
+    "trace should explain the routing decision"
   );
 });
 
-test("router with alwaysRerank=true still respects tight latency budgets", () => {
-  const r = new HeuristicRouter({ alwaysRerank: true });
-  // Budget too tight for any reranker — even alwaysRerank should fold.
+test("default router still respects tight latency budgets", () => {
+  const r = new HeuristicRouter();
+  const d = r.decide({ query: "kubectl apply", latencyBudgetMs: 50 }, fullCaps);
+  assert.equal(d.reranked, false);
+});
+
+test("alwaysRerank=false restores fast keyword path", () => {
+  const r = new HeuristicRouter({ alwaysRerank: false });
+  const d = r.decide({ query: "ssl: SSL_ERROR_SYSCALL" }, fullCaps);
+  assert.equal(d.strategy, "keyword");
+  assert.equal(d.reranked, false);
+});
+
+test("alwaysRerank=false: negation still forces rerank on keyword", () => {
+  const r = new HeuristicRouter({ alwaysRerank: false });
   const d = r.decide(
-    { query: "kubectl apply", latencyBudgetMs: 50 },
+    { query: '"connection refused" without firewall' },
     fullCaps
   );
-  assert.equal(d.reranked, false);
+  assert.equal(d.strategy, "keyword");
+  assert.equal(d.reranked, true);
+  assert.ok(d.reasons.some((x) => x.includes("negation")));
 });
