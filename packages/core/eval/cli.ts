@@ -16,12 +16,15 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   Augur,
+  CascadedReranker,
   GeminiEmbedder,
   HashEmbedder,
   HeuristicReranker,
+  InMemoryAdapter,
   LocalEmbedder,
   LocalReranker,
   MetadataChunker,
+  MMRReranker,
   SentenceChunker,
   TfIdfEmbedder,
   type Embedder,
@@ -46,6 +49,9 @@ interface Args {
   geminiCacheDir?: string;
   limit?: number;
   metadataChunker: boolean;
+  bm25Stem: boolean;
+  mmr: boolean;
+  mmrLambda: number;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -54,6 +60,9 @@ function parseArgs(argv: string[]): Args {
     embedder: "hash",
     reranker: "heuristic",
     metadataChunker: false,
+    bm25Stem: false,
+    mmr: false,
+    mmrLambda: 0.7,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -81,6 +90,9 @@ function parseArgs(argv: string[]): Args {
     else if (a === "--gemini-cache-dir") out.geminiCacheDir = argv[++i];
     else if (a === "--limit") out.limit = parseInt(argv[++i]!, 10);
     else if (a === "--metadata-chunker") out.metadataChunker = true;
+    else if (a === "--bm25-stem") out.bm25Stem = true;
+    else if (a === "--mmr") out.mmr = true;
+    else if (a === "--mmr-lambda") out.mmrLambda = parseFloat(argv[++i]!);
   }
   return out;
 }
@@ -151,10 +163,24 @@ async function main() {
     ? new MetadataChunker({ base: baseChunker })
     : baseChunker;
   const embedder = buildEmbedder(args);
-  const reranker = buildReranker(args);
+  const baseReranker = buildReranker(args);
+  // If --mmr is set, cascade [base reranker → MMR] for diverse top-K. The
+  // base reranker narrows to a wider pool (50) on relevance; MMR diversifies
+  // the survivors down to the caller's topK.
+  let reranker: Reranker | null = baseReranker;
+  if (args.mmr) {
+    const mmr = new MMRReranker({ lambda: args.mmrLambda });
+    reranker = baseReranker
+      ? new CascadedReranker([
+          [baseReranker, 50],
+          [mmr, 10],
+        ])
+      : mmr;
+  }
+  const adapter = new InMemoryAdapter({ useStemming: args.bm25Stem });
 
   console.log(
-    `Config: embedder=${embedder.name}  chunker=${(chunker as { name: string }).name}  reranker=${reranker ? reranker.name : "none"}` +
+    `Config: embedder=${embedder.name}  chunker=${(chunker as { name: string }).name}  reranker=${reranker ? reranker.name : "none"}  bm25-stem=${args.bm25Stem}` +
       (args.metadataChunker ? "  (metadata-prepend ON)" : "")
   );
   console.log();
@@ -162,6 +188,7 @@ async function main() {
   const augur = new Augur({
     embedder,
     chunker,
+    adapter,
     ...(reranker ? { reranker } : {}),
   });
   const report = await runEval(augur, corpus, queries);

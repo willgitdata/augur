@@ -1,4 +1,5 @@
 import { tokenize } from "../embeddings/embedder.js";
+import { tokenizeAdvanced } from "../embeddings/text-utils.js";
 import type { Chunk, SearchResult } from "../types.js";
 import {
   BaseAdapter,
@@ -18,10 +19,25 @@ import {
  * Implementation notes:
  * - Vector search is brute-force cosine. Fine up to ~50k chunks; for more,
  *   plug in a real adapter.
- * - Keyword search is BM25 with standard parameters (k1=1.5, b=0.75).
- *   We rebuild the IDF table lazily on insert. For high-write workloads
- *   this is a known bottleneck — again, swap in a real adapter at scale.
+ * - Keyword search is BM25 with standard parameters (k1, b configurable;
+ *   defaults k1=1.5, b=0.75). We rebuild the IDF table lazily on insert.
+ *   For high-write workloads this is a known bottleneck — swap in a real
+ *   adapter at scale.
+ * - With `useStemming: true`, both indexing and query tokens go through
+ *   Porter stemming + English stopword removal. This is the standard
+ *   Lucene/Elasticsearch keyword pipeline and yields material recall
+ *   gains on natural-language queries (running ↔ runs, connection ↔
+ *   connections). Default is `false` for backwards compatibility.
  */
+export interface InMemoryAdapterOptions {
+  /** Stem indexed and query tokens (Porter) and drop stopwords. Default false. */
+  useStemming?: boolean;
+  /** BM25 k1. Default 1.5. */
+  k1?: number;
+  /** BM25 b. Default 0.75. */
+  b?: number;
+}
+
 export class InMemoryAdapter extends BaseAdapter {
   readonly name = "in-memory";
   readonly capabilities: AdapterCapabilities = {
@@ -33,20 +49,29 @@ export class InMemoryAdapter extends BaseAdapter {
   };
 
   private chunks = new Map<string, Chunk>();
-  // Inverted index: token -> set of chunk IDs.
   private invertedIndex = new Map<string, Set<string>>();
-  // Per-chunk token frequencies for BM25.
   private termFreq = new Map<string, Map<string, number>>();
-  // Per-chunk total length (tokens).
   private docLen = new Map<string, number>();
-  // Cached IDF values, invalidated on every upsert/delete.
   private idfCache: Map<string, number> | null = null;
   private avgDocLen = 0;
+
+  private k1: number;
+  private b: number;
+  private tokenizer: (text: string) => string[];
+
+  constructor(opts: InMemoryAdapterOptions = {}) {
+    super();
+    this.k1 = opts.k1 ?? 1.5;
+    this.b = opts.b ?? 0.75;
+    this.tokenizer = opts.useStemming
+      ? (text: string) => tokenizeAdvanced(text, { stem: true, dropStopwords: true })
+      : tokenize;
+  }
 
   async upsert(chunks: Chunk[]): Promise<void> {
     for (const chunk of chunks) {
       this.chunks.set(chunk.id, chunk);
-      const tokens = tokenize(chunk.content);
+      const tokens = this.tokenizer(chunk.content);
       this.docLen.set(chunk.id, tokens.length);
 
       // Reset previous postings for this chunk if it existed.
@@ -117,7 +142,7 @@ export class InMemoryAdapter extends BaseAdapter {
 
   async searchKeyword(opts: KeywordSearchOpts): Promise<SearchResult[]> {
     const { query, topK, filter } = opts;
-    const queryTokens = Array.from(new Set(tokenize(query)));
+    const queryTokens = Array.from(new Set(this.tokenizer(query)));
     if (queryTokens.length === 0) return [];
 
     if (!this.idfCache) this.recomputeIdf();
@@ -130,8 +155,7 @@ export class InMemoryAdapter extends BaseAdapter {
       if (postings) for (const id of postings) candidates.add(id);
     }
 
-    const k1 = 1.5;
-    const b = 0.75;
+    const { k1, b } = this;
     const results: SearchResult[] = [];
 
     for (const id of candidates) {

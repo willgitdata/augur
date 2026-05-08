@@ -6,7 +6,7 @@ export {
   type HybridSearchOpts,
   BaseAdapter,
 } from "./adapter.js";
-export { InMemoryAdapter } from "./in-memory.js";
+export { InMemoryAdapter, type InMemoryAdapterOptions } from "./in-memory.js";
 export { PineconeAdapter } from "./pinecone.js";
 export { TurbopufferAdapter } from "./turbopuffer.js";
 export { PgVectorAdapter, type PgClient } from "./pgvector.js";
