@@ -8,10 +8,10 @@
  *  - Run several queries that exercise the router's different paths
  *  - Inspect the trace for each result
  */
-import { Augur } from "@augur/core";
+import { Augur, LocalEmbedder } from "@augur/core";
 
 async function main() {
-  const augr = new Augur();
+  const augr = new Augur({ embedder: new LocalEmbedder() });
 
   await augr.index([
     {

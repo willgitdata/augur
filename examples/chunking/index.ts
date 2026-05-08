@@ -10,7 +10,7 @@ import {
   FixedSizeChunker,
   SentenceChunker,
   SemanticChunker,
-  HashEmbedder,
+  LocalEmbedder,
   chunkDocument,
 } from "@augur/core";
 
@@ -40,7 +40,7 @@ chunking requires embedding every sentence at chunk time.
 async function main() {
   const fixed = new FixedSizeChunker({ size: 200, overlap: 30 });
   const sentence = new SentenceChunker({ targetSize: 200, maxSize: 400 });
-  const semantic = new SemanticChunker({ embedder: new HashEmbedder(), threshold: 0.5 });
+  const semantic = new SemanticChunker({ embedder: new LocalEmbedder(), threshold: 0.5 });
 
   for (const chunker of [fixed, sentence, semantic] as const) {
     const chunks = await chunkDocument(chunker, doc);

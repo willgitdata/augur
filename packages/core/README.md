@@ -7,9 +7,9 @@ npm install @augur/core
 ```
 
 ```ts
-import { Augur } from "@augur/core";
+import { Augur, LocalEmbedder } from "@augur/core";
 
-const augr = new Augur();
+const augr = new Augur({ embedder: new LocalEmbedder() });
 
 await augr.index([
   { id: "1", content: "Postgres supports vector search via pgvector." },
@@ -25,4 +25,4 @@ console.log(trace.decision.strategy);  // "vector"
 console.log(trace.decision.reasons);   // ["natural-language question → semantic search", ...]
 ```
 
-Zero dependencies. The default embedder is deterministic and runs offline. Swap to OpenAI or any embedder by implementing the three-line `Embedder` interface. See the root [README](../../README.md) and [ARCHITECTURE.md](../../ARCHITECTURE.md) for the full story.
+`LocalEmbedder` is a fully on-device sentence-transformer (ONNX, ~22MB, no API keys). Swap to OpenAI or any hosted provider by implementing the three-method `Embedder` interface — see the root [README](../../README.md) and [ARCHITECTURE.md](../../ARCHITECTURE.md) for the full story.

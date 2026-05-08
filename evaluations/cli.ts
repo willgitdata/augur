@@ -18,7 +18,6 @@ import {
   Augur,
   CascadedReranker,
   Doc2QueryChunker,
-  HashEmbedder,
   HeuristicReranker,
   InMemoryAdapter,
   LocalEmbedder,
@@ -26,7 +25,6 @@ import {
   MetadataChunker,
   MMRReranker,
   SentenceChunker,
-  TfIdfEmbedder,
   type Chunker,
   type Embedder,
   type Reranker,
@@ -40,7 +38,6 @@ interface Args {
   verbose: boolean;
   save?: string;
   compare?: string;
-  embedder: "hash" | "tfidf" | "local";
   reranker: "none" | "heuristic" | "local";
   localEmbedderModel?: string;
   localEmbedderQueryPrefix?: string;
@@ -59,7 +56,6 @@ interface Args {
 function parseArgs(argv: string[]): Args {
   const out: Args = {
     verbose: false,
-    embedder: "hash",
     reranker: "heuristic",
     metadataChunker: false,
     bm25Stem: false,
@@ -72,13 +68,7 @@ function parseArgs(argv: string[]): Args {
     if (a === "--verbose" || a === "-v") out.verbose = true;
     else if (a === "--save") out.save = argv[++i];
     else if (a === "--compare") out.compare = argv[++i];
-    else if (a === "--embedder") {
-      const v = argv[++i];
-      if (v !== "hash" && v !== "tfidf" && v !== "local") {
-        throw new Error(`--embedder must be 'hash' | 'tfidf' | 'local', got ${v}`);
-      }
-      out.embedder = v;
-    } else if (a === "--reranker") {
+    else if (a === "--reranker") {
       const v = argv[++i];
       if (v !== "none" && v !== "heuristic" && v !== "local") {
         throw new Error(`--reranker must be 'none' | 'heuristic' | 'local', got ${v}`);
@@ -101,19 +91,15 @@ function parseArgs(argv: string[]): Args {
 }
 
 function buildEmbedder(args: Args): Embedder {
-  if (args.embedder === "tfidf") return new TfIdfEmbedder();
-  if (args.embedder === "local") {
-    return new LocalEmbedder({
-      ...(args.localEmbedderModel ? { model: args.localEmbedderModel } : {}),
-      ...(args.localEmbedderQueryPrefix !== undefined
-        ? { queryPrefix: args.localEmbedderQueryPrefix }
-        : {}),
-      ...(args.localEmbedderDocPrefix !== undefined
-        ? { docPrefix: args.localEmbedderDocPrefix }
-        : {}),
-    });
-  }
-  return new HashEmbedder();
+  return new LocalEmbedder({
+    ...(args.localEmbedderModel ? { model: args.localEmbedderModel } : {}),
+    ...(args.localEmbedderQueryPrefix !== undefined
+      ? { queryPrefix: args.localEmbedderQueryPrefix }
+      : {}),
+    ...(args.localEmbedderDocPrefix !== undefined
+      ? { docPrefix: args.localEmbedderDocPrefix }
+      : {}),
+  });
 }
 
 function buildReranker(args: Args): Reranker | null {

@@ -90,18 +90,25 @@ export class HeuristicRouter implements Router {
       reasons.push("query contains quoted phrase");
       strategy = "keyword";
     }
-    // 5. Specific / code-like / dated short query → keyword.
+    // 5a. Code-like syntax → keyword. camelCase / snake_case / function calls
+    // are unambiguously lexical — exact tokens, no synonyms to chase.
+    else if (signals.hasCodeLike && signals.tokens <= 6) {
+      reasons.push("short query with code-like syntax → keyword");
+      strategy = "keyword";
+    }
+    // 5b. Bare identifier / numeric / date-version (no code syntax) → hybrid.
+    // Eval traced cases like "503 Service Unavailable" → rfc-9110 where the
+    // target doc was topical (HTTP semantics) and didn't mention the literal
+    // tokens. Pure keyword can't reach those; vector + BM25 (RRF) does.
     else if (
-      (signals.hasSpecificTokens || signals.hasCodeLike || signals.hasDateOrVersion) &&
+      (signals.hasSpecificTokens || signals.hasDateOrVersion) &&
       signals.tokens <= 6
     ) {
       const why = signals.hasDateOrVersion
         ? "date/version/RFC token"
-        : signals.hasCodeLike
-          ? "code-like syntax"
-          : "specific identifiers/codes";
-      reasons.push(`short query with ${why} → keyword`);
-      strategy = "keyword";
+        : "specific identifiers without code syntax";
+      reasons.push(`short query with ${why} → hybrid (keyword precision + vector recall)`);
+      strategy = caps.hybrid || (caps.vector && caps.keyword) ? "hybrid" : "keyword";
     }
     // 6. Very short queries → keyword.
     else if (signals.tokens <= 2) {

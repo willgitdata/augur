@@ -28,7 +28,7 @@ export interface ServerOptions extends AugurOptions {
   bodyLimit?: number;
 }
 
-export function buildServer(options: ServerOptions = {}): FastifyInstance {
+export function buildServer(options: ServerOptions): FastifyInstance {
   const traceStore = options.traceStore ?? new TraceStore(2000);
   const augr = new Augur({ ...options, traceStore });
 
