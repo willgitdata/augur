@@ -140,6 +140,26 @@ export class Augur {
   /**
    * Search — the main entry point. Routes the query through the appropriate
    * strategy and returns results plus a full execution trace.
+   *
+   * Two-stage pipeline (the production pattern from Turbopuffer / Vespa /
+   * Cohere Rerank):
+   *
+   *   1. **Candidate generation** — cheap, recall-oriented.
+   *      When reranking is enabled, we ignore the strategy decision for
+   *      retrieval purposes and pull a wide pool from BOTH vector and
+   *      keyword in parallel, then dedupe. The strategy decision still
+   *      drives whether we rerank at all (and is recorded in the trace
+   *      for explainability), but the candidate pool is multi-source so
+   *      the reranker has the right doc available regardless of which
+   *      retriever found it.
+   *      When reranking is disabled, the strategy decision drives a
+   *      single-retriever lookup directly — no point paying for a pool
+   *      we won't re-score.
+   *
+   *   2. **Reranking** — precision.
+   *      Cross-encoder reads (query, candidate) pairs end-to-end and
+   *      produces the final top-K. This is the source of truth for the
+   *      ordering, so we trust it with the wider pool.
    */
   async search(req: SearchRequest): Promise<SearchResponse> {
     const tracer = new Tracer(req.query);
@@ -163,58 +183,25 @@ export class Augur {
     }
 
     const decision = this.router.decide(req, activeAdapter.capabilities);
+    const willRerank = decision.reranked;
+    const filter = req.filter;
 
     let candidates: SearchResult[] = [];
-    // Pull a wider net when reranking — precision is the reranker's job.
-    const expandedTopK = decision.reranked ? Math.max(topK * 3, 30) : topK;
 
-    if (decision.strategy === "vector") {
-      const embedding = await tracer.span("embed:query", async () => {
-        if (this.embedder.embedQuery) return this.embedder.embedQuery(req.query);
-        const [v] = await this.embedder.embed([req.query]);
-        return v!;
-      });
-      candidates = await tracer.span("search:vector", () =>
-        activeAdapter.searchVector({ embedding, topK: expandedTopK, ...(req.filter ? { filter: req.filter } : {}) })
-      );
-    } else if (decision.strategy === "keyword") {
-      candidates = await tracer.span("search:keyword", () =>
-        activeAdapter.searchKeyword({ query: req.query, topK: expandedTopK, ...(req.filter ? { filter: req.filter } : {}) })
-      );
-    } else if (decision.strategy === "hybrid") {
-      const embedding = await tracer.span("embed:query", async () => {
-        if (this.embedder.embedQuery) return this.embedder.embedQuery(req.query);
-        const [v] = await this.embedder.embed([req.query]);
-        return v!;
-      });
-      // Query-aware hybrid weight: short / specific queries lean BM25; long
-      // natural-language queries lean vector. Production hybrid systems (Vespa,
-      // Pinecone hybrid) all do some version of this — a fixed 0.5/0.5 mix
-      // under-weights whichever side is wrong for the current query shape.
-      const vectorWeight = pickVectorWeight(decision.signals);
-      candidates = await tracer.span("search:hybrid", () =>
-        (activeAdapter.searchHybrid ?? hybridFallback).call(activeAdapter, {
-          embedding,
-          query: req.query,
-          topK: expandedTopK,
-          vectorWeight,
-          ...(req.filter ? { filter: req.filter } : {}),
-        })
-      );
-    } else if (decision.strategy === "rerank") {
-      // "rerank" as a top-level strategy means "do vector then rerank, period".
-      const embedding = await tracer.span("embed:query", async () => {
-        if (this.embedder.embedQuery) return this.embedder.embedQuery(req.query);
-        const [v] = await this.embedder.embed([req.query]);
-        return v!;
-      });
-      candidates = await tracer.span("search:vector", () =>
-        activeAdapter.searchVector({ embedding, topK: expandedTopK, ...(req.filter ? { filter: req.filter } : {}) })
-      );
+    if (willRerank) {
+      // Stage 1: pull a wide multi-source pool. Cap at POOL_PER_SIDE per
+      // backend so the cross-encoder doesn't have to score thousands of
+      // pairs. 50 each → up to ~100 unique candidates after dedupe.
+      candidates = await this.gatherCandidatePool(req, activeAdapter, tracer, filter);
+    } else {
+      // Stage 1 fast path: no rerank → strategy decision drives a single
+      // retrieval call directly to topK.
+      candidates = await this.runStrategy(req, decision, activeAdapter, topK, tracer, filter);
     }
 
     let results = candidates;
-    if (decision.reranked && candidates.length > 0) {
+    if (willRerank && candidates.length > 0) {
+      // Stage 2: cross-encoder picks the final top-K from the wide pool.
       results = await tracer.span(
         "rerank",
         () => this.reranker.rerank(req.query, candidates, topK),
@@ -247,6 +234,104 @@ export class Augur {
   async clear(): Promise<void> {
     await this.adapter.clear();
   }
+
+  /**
+   * Stage-1 candidate generation when reranking is on.
+   *
+   * Pulls top-N from each available retriever in parallel, then RRF-fuses
+   * the lists into a single ranked candidate pool. The cross-encoder
+   * re-scores the top of this pool in stage 2.
+   *
+   * Why RRF before reranking (and not raw dedupe)?
+   *   - Raw dedupe gives the cross-encoder a wider pool but in arbitrary
+   *     order. On the bundled eval the local cross-encoder struggled to
+   *     re-order the noise — recall went up but NDCG slipped.
+   *   - RRF gives a *pre-ranked* pool where docs that scored well on
+   *     either side rise to the top. The cross-encoder then refines a
+   *     pre-curated list. Production stacks (Cohere, Vespa, Turbopuffer)
+   *     all use a fused retrieval pool followed by reranking for
+   *     precisely this reason.
+   *
+   * Pool sizing: 50 per side → up to ~100 unique fused, then we hand the
+   * top 30 to the cross-encoder. That's the production sweet spot — wide
+   * enough that the right doc is almost always present, narrow enough
+   * that the cross-encoder pays for precision, not noise filtering.
+   */
+  private async gatherCandidatePool(
+    req: SearchRequest,
+    activeAdapter: VectorAdapter,
+    tracer: Tracer,
+    filter: Record<string, unknown> | undefined
+  ): Promise<SearchResult[]> {
+    const POOL_PER_SIDE = 50;
+    const RERANK_POOL_CAP = 30;
+    const caps = activeAdapter.capabilities;
+
+    const embedding = caps.vector
+      ? await tracer.span("embed:query", async () => {
+          if (this.embedder.embedQuery) return this.embedder.embedQuery(req.query);
+          const [v] = await this.embedder.embed([req.query]);
+          return v!;
+        })
+      : null;
+
+    const filt = filter ? { filter } : {};
+    const [vec, kw] = await Promise.all([
+      caps.vector && embedding
+        ? tracer.span("pool:vector", () =>
+            activeAdapter.searchVector({ embedding, topK: POOL_PER_SIDE, ...filt })
+          )
+        : Promise.resolve<SearchResult[]>([]),
+      caps.keyword
+        ? tracer.span("pool:keyword", () =>
+            activeAdapter.searchKeyword({ query: req.query, topK: POOL_PER_SIDE, ...filt })
+          )
+        : Promise.resolve<SearchResult[]>([]),
+    ]);
+
+    return rrfFuse(vec, kw).slice(0, RERANK_POOL_CAP);
+  }
+
+  /**
+   * Stage-1 fast path when reranking is off. Strategy decision drives a
+   * single retrieval call — no point pulling a wide pool we won't re-score.
+   */
+  private async runStrategy(
+    req: SearchRequest,
+    decision: import("./types.js").RoutingDecision,
+    activeAdapter: VectorAdapter,
+    topK: number,
+    tracer: Tracer,
+    filter: Record<string, unknown> | undefined
+  ): Promise<SearchResult[]> {
+    const filt = filter ? { filter } : {};
+    if (decision.strategy === "keyword") {
+      return tracer.span("search:keyword", () =>
+        activeAdapter.searchKeyword({ query: req.query, topK, ...filt })
+      );
+    }
+    const embedding = await tracer.span("embed:query", async () => {
+      if (this.embedder.embedQuery) return this.embedder.embedQuery(req.query);
+      const [v] = await this.embedder.embed([req.query]);
+      return v!;
+    });
+    if (decision.strategy === "vector" || decision.strategy === "rerank") {
+      return tracer.span("search:vector", () =>
+        activeAdapter.searchVector({ embedding, topK, ...filt })
+      );
+    }
+    // hybrid — query-aware vector weight, RRF fusion in BaseAdapter.
+    const vectorWeight = pickVectorWeight(decision.signals);
+    return tracer.span("search:hybrid", () =>
+      (activeAdapter.searchHybrid ?? hybridFallback).call(activeAdapter, {
+        embedding,
+        query: req.query,
+        topK,
+        vectorWeight,
+        ...filt,
+      })
+    );
+  }
 }
 
 /**
@@ -276,6 +361,32 @@ function pickVectorWeight(signals: import("./types.js").QuerySignals): number {
   if (signals.tokens <= 2) return 0.4;
   if (signals.isQuestion && signals.tokens >= 6) return 0.7;
   return 0.5;
+}
+
+/**
+ * Reciprocal Rank Fusion of two ranked lists into one. The de-facto
+ * standard fusion method for hybrid retrieval — k=60 is the canonical
+ * value (Cormack 2009). Each side contributes equally; if you want a
+ * skew, weight the term inside the loop.
+ */
+function rrfFuse(
+  a: SearchResult[],
+  b: SearchResult[],
+  k: number = 60
+): SearchResult[] {
+  const fused = new Map<string, { result: SearchResult; score: number }>();
+  a.forEach((r, rank) => {
+    fused.set(r.chunk.id, { result: r, score: 1 / (k + rank + 1) });
+  });
+  b.forEach((r, rank) => {
+    const score = 1 / (k + rank + 1);
+    const existing = fused.get(r.chunk.id);
+    if (existing) existing.score += score;
+    else fused.set(r.chunk.id, { result: r, score });
+  });
+  return Array.from(fused.values())
+    .sort((x, y) => y.score - x.score)
+    .map(({ result, score }) => ({ ...result, score }));
 }
 
 /** Fallback hybrid for adapters that didn't override `searchHybrid`. */
