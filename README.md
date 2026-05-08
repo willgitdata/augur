@@ -38,7 +38,7 @@ Modern RAG pipelines fail in three predictable ways. Augur addresses all three:
 
 ## Performance — auto method, no tuning
 
-The numbers below all use **`new Augur({ embedder, reranker, chunker, adapter })` with default routing** — same configuration across every dataset.
+The numbers below all use **the same recommended local stack** — `LocalEmbedder` + `LocalReranker` + `MetadataChunker(SentenceChunker)` + `InMemoryAdapter({ useStemming: true })` + the default `HeuristicRouter` — across every dataset. No per-corpus tuning.
 
 **Bundled eval** (504 queries, 182 docs, 12 query archetypes, 12 languages):
 
