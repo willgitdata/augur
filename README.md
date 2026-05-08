@@ -133,7 +133,8 @@ pnpm eval -- --save baseline.json                                # snapshot metr
 pnpm eval -- --compare baseline.json                             # diff vs snapshot
 pnpm eval -- --reranker local                                    # + cross-encoder reranker (~22MB)
 pnpm eval -- --reranker local --metadata-chunker                 # + metadata-prepended chunks
-pnpm eval -- --reranker local --metadata-chunker --bm25-stem     # best (0.912 NDCG@10)
+pnpm eval -- --reranker local --metadata-chunker --bm25-stem                  # 0.912 NDCG@10
+pnpm eval -- --reranker local --metadata-chunker --bm25-stem --always-rerank  # accuracy mode: 0.920 NDCG@10
 pnpm eval -- --reranker local --mmr --mmr-lambda 0.7             # diversity-aware top-K
 ```
 
@@ -147,29 +148,57 @@ real, locally reproducible runs** — no remote APIs touched.
 | `LocalEmbedder` (Xenova/all-MiniLM-L6-v2)                                                       | 0.845   | 0.835  | 0.924     |
 | `LocalEmbedder` + `LocalReranker` (ms-marco-MiniLM cross-encoder)                               | 0.877   | 0.871  | 0.932     |
 | `LocalEmbedder` + `LocalReranker` + `MetadataChunker`                                           | 0.899   | 0.896  | 0.943     |
-| `LocalEmbedder` + `LocalReranker` + `MetadataChunker` + stemmed BM25 + multi-stage gather       | **0.912** | **0.910** | **0.954** |
+| `LocalEmbedder` + `LocalReranker` + `MetadataChunker` + stemmed BM25 + multi-stage gather       |   0.912   |   0.910   |   0.954   |
+| `+` adaptive weighted fusion + `HeuristicRouter({ alwaysRerank: true })` (accuracy mode)        | **0.920** | **0.918** | **0.962** |
 
-The best row uses ~44MB of on-device ONNX models, no network at query
-time. Vector-strategy NDCG reaches **0.926** and keyword reaches **0.920**.
-End-to-end query latency at this config: **p50 12 ms, p95 16 ms, p99 22 ms,
-~111 QPS** single-threaded.
+The accuracy-mode row uses ~44MB of on-device ONNX models, no network
+at query time. Per-strategy NDCG: keyword **0.938**, vector **0.931**,
+hybrid **0.900**. With `alwaysRerank: true`, every query — even pure
+BM25 — passes through the multi-stage gather → fuse → cross-encoder
+rerank pipeline, so a query that BM25 retrieved but should rank
+differently gets corrected by the cross-encoder.
+
+End-to-end latency in accuracy mode: **p50 ~25 ms, p95 ~35 ms, ~40 QPS**
+single-threaded. The default (no alwaysRerank) keeps a fast keyword
+path with **p50 ~1 ms / 150+ QPS** for queries the router routes to
+keyword. Pick based on whether the LLM call after retrieval dominates
+your latency budget — usually it does, in which case accuracy mode is
+the right default.
 
 Hosted production embedders (Cohere v3, OpenAI text-embedding-3, Voyage)
 typically lift another 5-10% on top of all-MiniLM-L6-v2. The harness is
 a pure function of the `Augur` instance, so swap the embedder, adapter,
 router, or reranker between runs to measure the impact of any change.
 
+### Smarter fusion: adaptive weighted RRF
+
+The default candidate-pool fusion runs vector + keyword in parallel,
+takes the top 50 from each, and blends the two ranked lists with
+**weighted RRF**. The weight is computed in two steps:
+
+1. **Static prior** from query signals (`pickVectorWeight`) — quoted
+   phrases and code-like queries lean BM25, long natural-language
+   questions lean vector.
+2. **Adaptive shift** from retrieval evidence — when one side has a
+   top-1 that clearly stands out from the rest of its list (large
+   normalized score gap to #2), shift up to ±0.20 toward that side.
+
+The fused pool then goes to the cross-encoder reranker for final
+ordering. On the 504-query bundled eval this lifts NDCG@10 from
+0.910 (symmetric RRF) to 0.914 (weighted, adaptive); combined with
+`alwaysRerank: true` it reaches 0.920.
+
 ### On public BEIR benchmarks
 
 Same auto-routing pipeline, run against [BEIR](https://github.com/beir-cellar/beir) — the standard cross-domain retrieval benchmark used by published research. Apples-to-apples NDCG@10 with our 22MB local stack vs. baselines reported in the BEIR paper, the BGE / E5 / ColBERTv2 papers, and the MTEB leaderboard:
 
-**With the default 22MB MiniLM-L6 embedder:**
+**With the default 22MB MiniLM-L6 embedder, accuracy mode (`alwaysRerank: true`):**
 
 | Dataset                            | **Augur (auto, 44MB total)** | BM25  | BM25 + cross-encoder | Contriever | ColBERTv2 | BGE-large (1.3GB) | E5-large (1.3GB) |
 | ---------------------------------- | ---------------------------: | ----: | -------------------: | ---------: | --------: | ----------------: | ---------------: |
-| **SciFact** (scientific claims)    |                    **0.709** | 0.665 |                0.688 |      0.677 |     0.694 |             0.745 |            0.736 |
+| **SciFact** (scientific claims)    |                    **0.707** | 0.665 |                0.688 |      0.677 |     0.694 |             0.745 |            0.736 |
 | **FiQA** (finance Q&A, 57K docs)   |                    **0.338** | 0.236 |                0.347 |      0.329 |     0.356 |             0.450 |            0.424 |
-| **NFCorpus** (medical literature)  |                    **0.312** | 0.325 |                0.350 |      0.328 |     0.339 |             0.380 |            0.371 |
+| **NFCorpus** (medical literature)  |                    **0.324** | 0.325 |                0.350 |      0.328 |     0.339 |             0.380 |            0.371 |
 
 On SciFact our pipeline **beats BM25+rerank by +0.021, Contriever by +0.032, and ColBERTv2 by +0.015** — using a 22MB embedder. On FiQA we beat BM25 by +0.102, Contriever by +0.009, and land within ~0.02 of ColBERTv2 and BM25+rerank. We trail BGE-large and E5-large by 0.05–0.11 — those are 1.3GB models. On NFCorpus (medical, where exact-term BM25 has historically dominated) we score around BM25 baseline — the small embedder is the limiting factor, not the architecture.
 
