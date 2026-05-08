@@ -7,7 +7,7 @@
  * between runs and compare. That's how we'll measure whether changes to
  * signals.ts or the reranker actually help.
  */
-import type { Augur, Document, RetrievalStrategy } from "../src/index.js";
+import type { Augur, Document, RetrievalStrategy } from "@augur/core";
 import { mean, ndcgAt, reciprocalRank, recallAt } from "./metrics.js";
 
 export interface EvalDoc extends Document {

@@ -29,7 +29,7 @@ import {
   TfIdfEmbedder,
   type Embedder,
   type Reranker,
-} from "../src/index.js";
+} from "@augur/core";
 import { formatReport, runEval, type EvalDoc, type EvalQuery, type EvalReport } from "./runner.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
