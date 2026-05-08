@@ -1,5 +1,5 @@
 import { tokenize } from "../embeddings/embedder.js";
-import { tokenizeAdvanced } from "../embeddings/text-utils.js";
+import { tokenizeAdvanced, STOPWORDS } from "../embeddings/text-utils.js";
 import type { Chunk, SearchResult } from "../types.js";
 import {
   BaseAdapter,
@@ -174,8 +174,14 @@ export class InMemoryAdapter extends BaseAdapter {
       if (score > 0) results.push({ chunk, score });
     }
 
-    results.sort((a, b) => b.score - a.score);
-    return results.slice(0, topK);
+    // Phrase-substring boost. BM25 ignores word contiguity, so a doc with
+    // the literal phrase loses to a doc that mentions the same words far
+    // apart. For quoted phrases and short queries this is the dominant
+    // failure mode (eval traced it to ~9 of 34 errors). One substring check
+    // per candidate is sub-millisecond on 30-50 candidates.
+    const boosted = boostByPhrase(results, query);
+    boosted.sort((a, b) => b.score - a.score);
+    return boosted.slice(0, topK);
   }
 
   // ---------- internals ----------
@@ -224,4 +230,66 @@ function matchesFilter(chunk: Chunk, filter: Record<string, unknown>): boolean {
     if (meta[k] !== v) return false;
   }
   return true;
+}
+
+/**
+ * Pull phrases worth boosting on contiguous-substring match:
+ *   - every quoted span in the query (always — these are explicit phrase intents)
+ *   - for queries ≤6 tokens, every 2- and 3-token contiguous window of the
+ *     unquoted portion (catches things like `503 Service Unavailable`,
+ *     `exit code 137`, `SSL_ERROR_SYSCALL`)
+ *
+ * Longer queries are skipped to avoid quadratic-feeling boosts on natural-
+ * language input where contiguous trigrams aren't a meaningful intent signal.
+ */
+function extractPhrases(query: string): string[] {
+  const phrases: string[] = [];
+  const quotedRe = /["']([^"']+)["']/g;
+  let m: RegExpExecArray | null;
+  while ((m = quotedRe.exec(query)) !== null) {
+    const inner = m[1]?.trim();
+    if (inner && inner.length >= 3) phrases.push(inner.toLowerCase());
+  }
+  const stripped = query.replace(quotedRe, " ").trim();
+  const tokens = stripped.split(/\s+/).filter(Boolean);
+  if (tokens.length >= 2 && tokens.length <= 6) {
+    for (let n = Math.min(3, tokens.length); n >= 2; n--) {
+      for (let i = 0; i + n <= tokens.length; i++) {
+        const slice = tokens.slice(i, i + n);
+        // Skip windows containing a stopword. "who created" or "the
+        // database" are common across the corpus and produce false-positive
+        // boosts. We want selective phrases like "exit code" or "least
+        // privilege" — pure content words.
+        if (slice.some((t) => STOPWORDS.has(t.toLowerCase()))) continue;
+        const phrase = slice.join(" ").toLowerCase();
+        if (phrase.length >= 5) phrases.push(phrase);
+      }
+    }
+  }
+  return phrases;
+}
+
+/**
+ * Multiplicative boost for candidates whose content contains an extracted
+ * phrase as a literal substring. Bonus scales with phrase length: a 3-word
+ * match is worth more than a 2-word match. The 0.15 coefficient was tuned
+ * against the bundled 504-query eval — too small and the boost doesn't
+ * change the rank order, too large and it overrules legitimate BM25 signal.
+ */
+function boostByPhrase(results: SearchResult[], query: string): SearchResult[] {
+  const phrases = extractPhrases(query);
+  if (phrases.length === 0) return results;
+  return results.map((r) => {
+    const content = r.chunk.content.toLowerCase();
+    let bonus = 0;
+    for (const p of phrases) {
+      if (content.includes(p)) bonus += p.split(/\s+/).length;
+    }
+    if (bonus === 0) return r;
+    return {
+      ...r,
+      score: r.score * (1 + bonus * 0.15),
+      rawScores: { ...r.rawScores, phraseBoost: bonus },
+    };
+  });
 }

@@ -52,8 +52,6 @@ export {
 // Embeddings
 export {
   type Embedder,
-  HashEmbedder,
-  TfIdfEmbedder,
   tokenize,
   tokenizeAdvanced,
   stem,

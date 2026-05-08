@@ -96,16 +96,28 @@ test("router treats code-like syntax as keyword on short queries", () => {
   assert.ok(d.reasons.some((x) => x.includes("code-like")));
 });
 
-test("router treats date/version tokens as keyword on short queries", () => {
+test("router routes date/version tokens (no code syntax) to hybrid", () => {
   const r = new HeuristicRouter();
+  // Identifier-only short queries get hybrid: BM25 carries the literal
+  // match, vector adds topical recall when the relevant doc discusses the
+  // concept without naming the specific RFC/CVE. See router rule 5b.
   const d = r.decide({ query: "RFC 7519 JWT" }, fullCaps);
-  assert.equal(d.strategy, "keyword");
+  assert.equal(d.strategy, "hybrid");
+  assert.ok(d.reasons.some((x) => x.includes("date/version")));
 });
 
-test("router treats CVE token as keyword", () => {
+test("router routes a CVE token to hybrid", () => {
   const r = new HeuristicRouter();
   const d = r.decide({ query: "CVE-2024-3094" }, fullCaps);
+  assert.equal(d.strategy, "hybrid");
+});
+
+test("router keeps code-like specific tokens on keyword", () => {
+  const r = new HeuristicRouter();
+  // hasCodeLike fires (snake_case) → rule 5a wins over 5b.
+  const d = r.decide({ query: "ssl: SSL_ERROR_SYSCALL" }, fullCaps);
   assert.equal(d.strategy, "keyword");
+  assert.ok(d.reasons.some((x) => x.includes("code-like")));
 });
 
 test("router routes mid-query named entity to keyword (not a question)", () => {

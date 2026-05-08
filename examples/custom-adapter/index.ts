@@ -7,7 +7,7 @@
  *
  * Run:  pnpm --filter example-custom-adapter start
  */
-import { Augur, BaseAdapter } from "@augur/core";
+import { Augur, BaseAdapter, LocalEmbedder } from "@augur/core";
 import type {
   AdapterCapabilities,
   Chunk,
@@ -91,7 +91,7 @@ function cosine(a: number[], b: number[]) {
 async function main() {
   const adapter = new JsonFileAdapter("./store.json");
   await adapter.load();
-  const augr = new Augur({ adapter });
+  const augr = new Augur({ adapter, embedder: new LocalEmbedder() });
 
   await augr.index([
     { id: "1", content: "Augur is an adaptive retrieval orchestration layer." },

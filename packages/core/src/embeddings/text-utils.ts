@@ -45,9 +45,8 @@ export const STOPWORDS: ReadonlySet<string> = new Set([
 /**
  * Tokenize + optional stopword removal + optional Porter stemming.
  *
- * Use this for BM25 keyword search and TF-IDF embeddings. The basic
- * `tokenize` from embedder.ts is preserved for backward compatibility
- * with HashEmbedder and the original keyword scoring.
+ * Use this for BM25 keyword search. The basic `tokenize` from embedder.ts
+ * stays the cheaper option when stopwords / stemming aren't needed.
  */
 export function tokenizeAdvanced(
   text: string,

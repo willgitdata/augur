@@ -13,7 +13,7 @@ import { Augur } from "@augur/core";
 
 const augr = new Augur({
   adapter,        // VectorAdapter        — default: InMemoryAdapter
-  embedder,       // Embedder             — default: HashEmbedder
+  embedder,       // Embedder             — REQUIRED (e.g. new LocalEmbedder())
   chunker,        // Chunker              — default: SentenceChunker
   router,         // Router               — default: HeuristicRouter
   reranker,       // Reranker             — default: HeuristicReranker
@@ -22,7 +22,9 @@ const augr = new Augur({
 });
 ```
 
-All options are optional; with none, you get a fully functional in-memory pipeline.
+`embedder` is required. Everything else is optional; with the
+`LocalEmbedder` default and no other args, you get a fully functional
+in-memory pipeline.
 
 ### `augr.index(documents)`
 
@@ -222,7 +224,7 @@ A budget under 800ms disables reranking automatically. The trace will say "reran
 await augr.search({ query: "...", filter: { source: "wiki", lang: "en" } });
 ```
 
-Adapters that report `capabilities.filtering = true` (all of ours except HashEmbedder-mode) honor this. Filters are AND-combined.
+Adapters that report `capabilities.filtering = true` (all of ours) honor this. Filters are AND-combined.
 
 ### Custom router with logging
 

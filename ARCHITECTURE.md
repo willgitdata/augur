@@ -104,7 +104,7 @@ interface Embedder {
 
 Three lines. Caching, rate limiting, batching are wrapper concerns — keeping the core interface small means *anyone* can add a provider in five minutes.
 
-We ship offline-only embedders: `HashEmbedder` (deterministic placeholder, useless for semantics), `TfIdfEmbedder` (real IR baseline, no deps), and `LocalEmbedder` (real semantic embeddings via on-device ONNX). The reason `HashEmbedder` is the default is dev-experience: `new Augur()` should not require an install of `@huggingface/transformers` or a network call. Hosted providers (OpenAI, Cohere, Voyage) are a 30-line `Embedder` interface implementation against the provider's official SDK — see EXAMPLES.md §5.
+We ship one offline embedder: `LocalEmbedder` (real semantic embeddings via on-device ONNX, default `Xenova/all-MiniLM-L6-v2`, ~22MB). `embedder` is a required `Augur` constructor argument — there is no placeholder default, since placeholder vectors produce results that look like product bugs ("why does my pg-pooling query return Go code?"). Hosted providers (OpenAI, Cohere, Voyage) are a 30-line `Embedder` interface implementation against the provider's official SDK — see EXAMPLES.md §5.
 
 ### `Router` — query → decision
 
@@ -145,6 +145,20 @@ The `HeuristicRouter` is a small decision tree on three inputs: query signals, a
 4. Reranking decision — separately, on top of the chosen strategy. Disabled if the latency budget is < 800ms or the strategy is keyword-only.
 
 Each step records a human-readable reason in the trace. When you see "default → hybrid (no strong signal either way)" in the dashboard, that's the router telling you it's flying blind. That's the cue to either tune the heuristics, write a domain-specific router, or train an ML router.
+
+## How retrieval actually executes
+
+The router *picks a strategy*; the actual retrieval pipeline is two-stage and works the same way Turbopuffer / Vespa / Cohere Rerank do it in production:
+
+**Stage 1 — Candidate generation (recall-oriented).**
+When the router decided to rerank, we ignore the strategy decision *for retrieval purposes* and pull top-50 from BOTH vector and keyword retrievers in parallel. The two ranked lists are then RRF-fused into a single pre-ranked candidate pool. This is the "ANN first, exact rank later" pattern — except the keyword side is BM25, not ANN. The point is the same: don't ask the slow precise scorer to look at every doc; ask the cheap recall-oriented scorers to find candidates first.
+
+When the router decided NOT to rerank, the strategy decision drives a single retrieval call directly to topK — no point paying for a wider pool we won't re-score.
+
+**Stage 2 — Reranking (precision-oriented).**
+The cross-encoder scores the top-30 of the fused pool end-to-end (reading both query and doc together). Its output is the final ordering. Trusting the cross-encoder over the original retriever scores is the whole reason production stacks have a separate rerank stage.
+
+Why fuse before reranking instead of dedupe-and-pass-everything? Eval showed the local cross-encoder couldn't reliably re-order a noisy raw union — recall went up but NDCG slipped. RRF fusion gives the cross-encoder a pre-ranked pool where docs that scored well on either side have already risen to the top. The cross-encoder then refines a curated list rather than fighting noise. (`packages/core/src/augur.ts:gatherCandidatePool`).
 
 ## How chunking is decided
 

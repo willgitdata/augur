@@ -108,7 +108,7 @@ Writing a new adapter is implementing five methods. See [`examples/custom-adapte
 | You bring                         | Augur provides                              |
 |-----------------------------------|--------------------------------------------------|
 | Documents                         | Chunking (3 strategies + `MetadataChunker`, `Doc2QueryChunker` wrappers) |
-| (optional) An embedder + API key  | Offline only: `HashEmbedder`, `TfIdfEmbedder`, `LocalEmbedder` (ONNX). For hosted providers, implement the 3-method `Embedder` interface in ~30 lines — see [EXAMPLES.md](EXAMPLES.md) for OpenAI / Cohere / Gemini snippets. |
+| (optional) An embedder + API key  | Offline only: `LocalEmbedder` (ONNX, ~22MB). For hosted providers, implement the 3-method `Embedder` interface in ~30 lines — see [EXAMPLES.md](EXAMPLES.md) for OpenAI / Cohere / Gemini snippets. |
 | (optional) A vector DB            | A default `InMemoryAdapter` (BM25 + brute-force vector + RRF hybrid) |
 | (optional) A reranker             | Offline only: `HeuristicReranker`, `LocalReranker` (cross-encoder ONNX), `MMRReranker` (diversity). Plus `CascadedReranker` for staged pipelines. Hosted rerankers are a 4-method `Reranker` interface — see [EXAMPLES.md](EXAMPLES.md). |
 | Nothing                           | Routing, hybrid fusion, traces, dashboard, HTTP API |
@@ -129,12 +129,10 @@ pnpm eval                                                        # default confi
 pnpm eval -- --verbose                                           # per-query lines
 pnpm eval -- --save baseline.json                                # snapshot metrics
 pnpm eval -- --compare baseline.json                             # diff vs snapshot
-pnpm eval -- --embedder tfidf                                    # swap to TfIdfEmbedder (offline, no deps)
-pnpm eval -- --embedder local                                    # offline ONNX (Xenova/all-MiniLM-L6-v2, ~22MB)
-pnpm eval -- --embedder local --reranker local                   # + cross-encoder reranker (~22MB)
-pnpm eval -- --embedder local --reranker local --metadata-chunker # full local stack
-pnpm eval -- --embedder local --reranker local --metadata-chunker --bm25-stem  # best (0.910 NDCG@10)
-pnpm eval -- --embedder local --reranker local --mmr --mmr-lambda 0.7          # diversity-aware top-K
+pnpm eval -- --reranker local                                    # + cross-encoder reranker (~22MB)
+pnpm eval -- --reranker local --metadata-chunker                 # + metadata-prepended chunks
+pnpm eval -- --reranker local --metadata-chunker --bm25-stem     # best (0.912 NDCG@10)
+pnpm eval -- --reranker local --mmr --mmr-lambda 0.7             # diversity-aware top-K
 ```
 
 ### Reference numbers (no API keys, no network)
@@ -144,23 +142,41 @@ real, locally reproducible runs** — no remote APIs touched.
 
 | Config                                                                                          | NDCG@10 | MRR    | Recall@10 |
 | ----------------------------------------------------------------------------------------------- | ------: | -----: | --------: |
-| `HashEmbedder` (default placeholder, not semantic)                                              | 0.786   | 0.782  | 0.857     |
-| `TfIdfEmbedder`                                                                                 | 0.825   | 0.816  | 0.906     |
-| `TfIdfEmbedder` + `MetadataChunker`                                                             | 0.848   | 0.839  | 0.923     |
 | `LocalEmbedder` (Xenova/all-MiniLM-L6-v2)                                                       | 0.845   | 0.835  | 0.924     |
 | `LocalEmbedder` + `LocalReranker` (ms-marco-MiniLM cross-encoder)                               | 0.877   | 0.871  | 0.932     |
 | `LocalEmbedder` + `LocalReranker` + `MetadataChunker`                                           | 0.899   | 0.896  | 0.943     |
-| `LocalEmbedder` + `LocalReranker` + `MetadataChunker` + stemmed BM25 (`useStemming`)            | **0.910** | **0.907** | **0.956** |
+| `LocalEmbedder` + `LocalReranker` + `MetadataChunker` + stemmed BM25 + multi-stage gather       | **0.912** | **0.910** | **0.954** |
 
 The best row uses ~44MB of on-device ONNX models, no network at query
-time, and beats the HashEmbedder default by **+12.4% NDCG@10**, with
-vector-strategy NDCG going from **0.638 → 0.922 (+28.4%)** and keyword
-from 0.874 → 0.925 (+5.1%, almost entirely from Porter stemming).
+time. Vector-strategy NDCG reaches **0.926** and keyword reaches **0.920**.
+End-to-end query latency at this config: **p50 12 ms, p95 16 ms, p99 22 ms,
+~111 QPS** single-threaded.
 
 Hosted production embedders (Cohere v3, OpenAI text-embedding-3, Voyage)
 typically lift another 5-10% on top of all-MiniLM-L6-v2. The harness is
 a pure function of the `Augur` instance, so swap the embedder, adapter,
 router, or reranker between runs to measure the impact of any change.
+
+### On public BEIR benchmarks
+
+Same auto-routing pipeline, run against [BEIR](https://github.com/beir-cellar/beir) — the standard cross-domain retrieval benchmark used by published research. Apples-to-apples NDCG@10 with our 22MB local stack vs. baselines reported in the BEIR paper, the BGE / E5 / ColBERTv2 papers, and the MTEB leaderboard:
+
+| Dataset                            | **Augur (auto, 44MB total)** | BM25  | BM25 + cross-encoder | Contriever | ColBERTv2 | BGE-large (1.3GB) | E5-large (1.3GB) |
+| ---------------------------------- | ---------------------------: | ----: | -------------------: | ---------: | --------: | ----------------: | ---------------: |
+| **SciFact** (scientific claims)    |                    **0.709** | 0.665 |                0.688 |      0.677 |     0.694 |             0.745 |            0.736 |
+| **NFCorpus** (medical literature)  |                    **0.312** | 0.325 |                0.350 |      0.328 |     0.339 |             0.380 |            0.371 |
+
+On SciFact our pipeline **beats BM25+rerank by +0.021, Contriever by +0.032, and ColBERTv2 by +0.015** — using a 22MB embedder. We trail BGE-large (-0.036) and E5-large (-0.027), but those are 1.3GB models. On NFCorpus (medical, where exact-term BM25 has historically dominated) we score around BM25 baseline — the small embedder is the limiting factor, not the architecture. Swap `LocalEmbedder` for a hosted provider or a 1GB-class model and the same pipeline picks up the gap on every row.
+
+The router adapts to the corpus shape with **no per-dataset tuning**: 76% keyword on NFCorpus (precise medical terminology), 98% hybrid on SciFact (claims need both signals), 45% hybrid on the internal eval. Same code, same configuration.
+
+Reproduce:
+```bash
+mkdir -p /tmp/beir && cd /tmp/beir
+curl -sLo scifact.zip https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/scifact.zip
+unzip -q scifact.zip
+cd /path/to/augur && pnpm exec tsx evaluations/beir.ts /tmp/beir/scifact
+```
 
 ### MMR for diverse top-K (opt-in)
 

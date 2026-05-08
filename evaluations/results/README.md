@@ -8,8 +8,8 @@ or regresses retrieval quality:
 # Diff your local run against the default-config baseline
 pnpm eval -- --compare evaluations/results/baseline-default.json
 
-# Diff against the best-known config (Local + LocalReranker + MetadataChunker + BM25-stem)
-pnpm eval -- --embedder local --reranker local --metadata-chunker --bm25-stem \
+# Diff against the best-known config (LocalEmbedder + LocalReranker + MetadataChunker + BM25-stem)
+pnpm eval -- --reranker local --metadata-chunker --bm25-stem \
   --compare evaluations/results/baseline-best.json
 ```
 
@@ -17,7 +17,7 @@ pnpm eval -- --embedder local --reranker local --metadata-chunker --bm25-stem \
 
 | File                      | Config                                                                | NDCG@10 |
 | ------------------------- | --------------------------------------------------------------------- | ------: |
-| `baseline-default.json`   | `HashEmbedder` + `SentenceChunker` + `HeuristicReranker`              |   0.786 |
+| `baseline-default.json`   | `LocalEmbedder` + `SentenceChunker` + `HeuristicReranker`             |   0.845 |
 | `baseline-best.json`      | `LocalEmbedder` + `LocalReranker` + `MetadataChunker` + stemmed BM25  |   0.910 |
 
 ## Refreshing
@@ -31,7 +31,7 @@ When that happens, regenerate:
 
 ```bash
 pnpm eval -- --save evaluations/results/baseline-default.json
-pnpm eval -- --embedder local --reranker local --metadata-chunker --bm25-stem \
+pnpm eval -- --reranker local --metadata-chunker --bm25-stem \
   --save evaluations/results/baseline-best.json
 ```
 

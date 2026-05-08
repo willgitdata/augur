@@ -7,12 +7,10 @@
  * twelve-factor, and matches the "Vercel-feel" goal.
  */
 import {
-  HashEmbedder,
   InMemoryAdapter,
   LocalEmbedder,
   PgVectorAdapter,
   PineconeAdapter,
-  TfIdfEmbedder,
   TurbopufferAdapter,
   type Embedder,
   type VectorAdapter,
@@ -45,14 +43,12 @@ async function main() {
 }
 
 function pickEmbedder(): Embedder {
-  const kind = process.env.AUGUR_EMBEDDER ?? "hash";
-  if (kind === "tfidf") return new TfIdfEmbedder();
-  if (kind === "local") {
-    const opts: { model?: string } = {};
-    if (process.env.AUGUR_LOCAL_MODEL) opts.model = process.env.AUGUR_LOCAL_MODEL;
-    return new LocalEmbedder(opts);
-  }
-  return new HashEmbedder();
+  // Local ONNX sentence-transformer is the only built-in embedder. For hosted
+  // providers (OpenAI, Cohere, Voyage, etc) implement the Embedder interface
+  // and run your own server build that wires it in — see EXAMPLES.md §5.
+  const opts: { model?: string } = {};
+  if (process.env.AUGUR_LOCAL_MODEL) opts.model = process.env.AUGUR_LOCAL_MODEL;
+  return new LocalEmbedder(opts);
 }
 
 async function pickAdapter(): Promise<VectorAdapter> {

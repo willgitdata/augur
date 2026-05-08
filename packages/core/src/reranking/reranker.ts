@@ -1,4 +1,5 @@
 import { tokenize } from "../embeddings/embedder.js";
+import { STOPWORDS } from "../embeddings/text-utils.js";
 import type { SearchResult } from "../types.js";
 
 /**
@@ -35,7 +36,12 @@ export class HeuristicReranker implements Reranker {
     results: SearchResult[],
     topK: number
   ): Promise<SearchResult[]> {
-    const qTokens = new Set(tokenize(query));
+    // Drop stopwords + short tokens from the query side. Without this,
+    // single-letter tokens like "i" in "How do I configure …" match every
+    // for-loop variable in code chunks and inflate proximity / overlap.
+    const qTokens = new Set(
+      tokenize(query).filter((t) => t.length >= 3 && !STOPWORDS.has(t))
+    );
     if (qTokens.size === 0) return results.slice(0, topK);
 
     const rescored = results.map((r) => {
