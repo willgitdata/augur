@@ -45,10 +45,10 @@ Augur addresses all three:
 
 ## Product principles
 
-- **Drop-in, not rip-and-replace.** Your existing Pinecone/pgvector/OpenAI stack is exactly the input. Augur wraps it.
-- **Composable like Stripe.** Every component (router, chunker, adapter, reranker, embedder) is constructor-injected and replaceable.
-- **Observable like Datadog.** The trace is a first-class API output, not a side effect.
-- **Simple like Vercel.** `npm install @augur/core`, `new Augur()`, done.
+- **Drop-in.** Your existing Pinecone/pgvector/OpenAI stack is exactly the input. Augur wraps it.
+- **Composable.** Every component (router, chunker, adapter, reranker, embedder) is constructor-injected and replaceable.
+- **Observable.** The trace is a first-class API output, not a side effect.
+- **Simple.** `npm install @augur/core`, `new Augur()`, done.
 
 ## Repository layout
 
