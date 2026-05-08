@@ -18,7 +18,6 @@ import {
   Augur,
   CascadedReranker,
   Doc2QueryChunker,
-  GeminiEmbedder,
   HashEmbedder,
   HeuristicReranker,
   InMemoryAdapter,
@@ -41,15 +40,12 @@ interface Args {
   verbose: boolean;
   save?: string;
   compare?: string;
-  embedder: "hash" | "tfidf" | "gemini" | "local";
+  embedder: "hash" | "tfidf" | "local";
   reranker: "none" | "heuristic" | "local";
   localEmbedderModel?: string;
   localEmbedderQueryPrefix?: string;
   localEmbedderDocPrefix?: string;
   localRerankerModel?: string;
-  geminiModel?: string;
-  geminiThrottleMs?: number;
-  geminiCacheDir?: string;
   limit?: number;
   metadataChunker: boolean;
   doc2query: boolean;
@@ -78,8 +74,8 @@ function parseArgs(argv: string[]): Args {
     else if (a === "--compare") out.compare = argv[++i];
     else if (a === "--embedder") {
       const v = argv[++i];
-      if (v !== "hash" && v !== "tfidf" && v !== "gemini" && v !== "local") {
-        throw new Error(`--embedder must be 'hash' | 'tfidf' | 'gemini' | 'local', got ${v}`);
+      if (v !== "hash" && v !== "tfidf" && v !== "local") {
+        throw new Error(`--embedder must be 'hash' | 'tfidf' | 'local', got ${v}`);
       }
       out.embedder = v;
     } else if (a === "--reranker") {
@@ -92,9 +88,6 @@ function parseArgs(argv: string[]): Args {
     else if (a === "--local-embedder-query-prefix") out.localEmbedderQueryPrefix = argv[++i];
     else if (a === "--local-embedder-doc-prefix") out.localEmbedderDocPrefix = argv[++i];
     else if (a === "--local-reranker-model") out.localRerankerModel = argv[++i];
-    else if (a === "--gemini-model") out.geminiModel = argv[++i];
-    else if (a === "--gemini-throttle") out.geminiThrottleMs = parseInt(argv[++i]!, 10);
-    else if (a === "--gemini-cache-dir") out.geminiCacheDir = argv[++i];
     else if (a === "--limit") out.limit = parseInt(argv[++i]!, 10);
     else if (a === "--metadata-chunker") out.metadataChunker = true;
     else if (a === "--bm25-stem") out.bm25Stem = true;
@@ -109,13 +102,6 @@ function parseArgs(argv: string[]): Args {
 
 function buildEmbedder(args: Args): Embedder {
   if (args.embedder === "tfidf") return new TfIdfEmbedder();
-  if (args.embedder === "gemini") {
-    return new GeminiEmbedder({
-      ...(args.geminiModel ? { model: args.geminiModel } : {}),
-      ...(args.geminiThrottleMs !== undefined ? { throttleMs: args.geminiThrottleMs } : {}),
-      ...(args.geminiCacheDir ? { cacheDir: args.geminiCacheDir } : {}),
-    });
-  }
   if (args.embedder === "local") {
     return new LocalEmbedder({
       ...(args.localEmbedderModel ? { model: args.localEmbedderModel } : {}),

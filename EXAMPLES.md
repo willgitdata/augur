@@ -109,17 +109,45 @@ Pick based on content type, not on intuition. When in doubt, `SentenceChunker` i
 
 ---
 
-## 5. Switching to OpenAI + Pinecone
+## 5. Switching to a hosted embedder + reranker
 
-When you outgrow the in-memory adapter:
+`@augur/core` ships only offline embedders and rerankers (HashEmbedder,
+TfIdfEmbedder, LocalEmbedder, HeuristicReranker, LocalReranker, MMRReranker).
+Hosted providers are intentionally not in core — the `Embedder` interface is
+three methods, the `Reranker` is one. Implement against your provider's
+official SDK and pass it in:
 
 ```ts
-import {
-  Augur,
-  OpenAIEmbedder,
-  PineconeAdapter,
-  CohereReranker,
-} from "@augur/core";
+import { Augur, PineconeAdapter, type Embedder, type Reranker } from "@augur/core";
+import OpenAI from "openai";
+import { CohereClient } from "cohere-ai";
+
+class OpenAIEmbedder implements Embedder {
+  readonly name = "openai:text-embedding-3-small";
+  readonly dimension = 1536;
+  private client = new OpenAI();
+  async embed(texts: string[]): Promise<number[][]> {
+    const r = await this.client.embeddings.create({
+      model: "text-embedding-3-small",
+      input: texts,
+    });
+    return r.data.map((d) => d.embedding);
+  }
+}
+
+class CohereReranker implements Reranker {
+  readonly name = "cohere:rerank-english-v3.0";
+  private client = new CohereClient({ token: process.env.COHERE_API_KEY! });
+  async rerank(query: string, results, topK) {
+    const r = await this.client.rerank({
+      model: "rerank-english-v3.0",
+      query,
+      documents: results.map((x) => x.chunk.content),
+      topN: topK,
+    });
+    return r.results.map((x) => ({ ...results[x.index]!, score: x.relevanceScore }));
+  }
+}
 
 const augr = new Augur({
   adapter: new PineconeAdapter({
@@ -127,12 +155,13 @@ const augr = new Augur({
     apiKey: process.env.PINECONE_API_KEY!,
     namespace: "prod",
   }),
-  embedder: new OpenAIEmbedder({ model: "text-embedding-3-small" }),
-  reranker: new CohereReranker({ model: "rerank-english-v3.0" }),
+  embedder: new OpenAIEmbedder(),
+  reranker: new CohereReranker(),
 });
 ```
 
-Three constructor args. No code changes elsewhere. The router automatically adapts to Pinecone's keyword-incapable status (it stops picking keyword and lets the reranker carry precision).
+The router adapts to Pinecone's keyword-incapable status automatically (stops
+picking keyword, lets the reranker carry precision).
 
 ### Picking a better default embedder (no API key needed)
 
@@ -302,14 +331,13 @@ where the LLM benefits from non-redundant context.
 
 ### Picking a reranker
 
-The `Reranker` interface has five ready implementations:
+`@augur/core` ships four offline rerankers:
 
 ```ts
 import {
-  HeuristicReranker,   // zero-dep, sub-ms; weak baseline
-  LocalReranker,        // local ONNX cross-encoder (~22MB)
-  CohereReranker,       // hosted cross-encoder, multilingual v3
-  JinaReranker,         // hosted cross-encoder, multilingual v2
+  HeuristicReranker,    // zero-dep, sub-ms; weak baseline (token overlap + proximity)
+  LocalReranker,        // local ONNX cross-encoder (~22MB, ms-marco-MiniLM-L-6-v2)
+  MMRReranker,          // diversity-aware reranking (no model)
   CascadedReranker,     // chain rerankers: cheap-broad → expensive-narrow
 } from "@augur/core";
 
@@ -320,12 +348,11 @@ const cascade = new CascadedReranker([
 ]);
 ```
 
-For any other cross-encoder hosted behind HTTP, implement the four-method
-`Reranker` interface directly — it's about 30 lines. `HeuristicReranker`
-is fine for a smoke test; cross-encoder rerankers are typically the
-single biggest accuracy lever once embeddings are decent. Cascaded
-reranking gives you both: cheap narrowing on a wide first pass,
-expensive scoring only on the survivors.
+For Cohere, Jina, Voyage, or any hosted cross-encoder, implement the
+four-method `Reranker` interface directly against the provider's SDK —
+see §5 above for a Cohere snippet. `HeuristicReranker` is fine for a
+smoke test; cross-encoder rerankers are typically the single biggest
+accuracy lever once embeddings are decent.
 
 ---
 
@@ -351,7 +378,7 @@ CREATE INDEX ON chunks (document_id);
 
 ```ts
 import pg from "pg";
-import { Augur, PgVectorAdapter, OpenAIEmbedder } from "@augur/core";
+import { Augur, PgVectorAdapter, LocalEmbedder } from "@augur/core";
 
 const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await client.connect();
@@ -360,9 +387,9 @@ const augr = new Augur({
   adapter: new PgVectorAdapter({
     client: { query: (sql, params) => client.query(sql, params).then((r) => ({ rows: r.rows })) },
     table: "chunks",
-    dimension: 1536,
+    dimension: 384,
   }),
-  embedder: new OpenAIEmbedder(),
+  embedder: new LocalEmbedder(),  // or your hosted embedder per §5
 });
 ```
 

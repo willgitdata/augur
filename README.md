@@ -105,9 +105,9 @@ Writing a new adapter is implementing five methods. See [`examples/custom-adapte
 | You bring                         | Augur provides                              |
 |-----------------------------------|--------------------------------------------------|
 | Documents                         | Chunking (3 strategies + `MetadataChunker`, `Doc2QueryChunker` wrappers) |
-| (optional) An embedder + API key  | Offline: `HashEmbedder`, `TfIdfEmbedder`, `LocalEmbedder` (ONNX, no network). Hosted: `OpenAIEmbedder`, `GeminiEmbedder` |
+| (optional) An embedder + API key  | Offline only: `HashEmbedder`, `TfIdfEmbedder`, `LocalEmbedder` (ONNX). For hosted providers, implement the 3-method `Embedder` interface in ~30 lines — see [EXAMPLES.md](EXAMPLES.md) for OpenAI / Cohere / Gemini snippets. |
 | (optional) A vector DB            | A default `InMemoryAdapter` (BM25 + brute-force vector + RRF hybrid) |
-| (optional) A reranker             | Offline: `HeuristicReranker`, `LocalReranker` (cross-encoder ONNX), `MMRReranker` (diversity). Hosted: `CohereReranker`, `JinaReranker`. Plus `CascadedReranker` for staged pipelines. |
+| (optional) A reranker             | Offline only: `HeuristicReranker`, `LocalReranker` (cross-encoder ONNX), `MMRReranker` (diversity). Plus `CascadedReranker` for staged pipelines. Hosted rerankers are a 4-method `Reranker` interface — see [EXAMPLES.md](EXAMPLES.md). |
 | Nothing                           | Routing, hybrid fusion, traces, dashboard, HTTP API |
 
 ## Evaluation
@@ -132,7 +132,6 @@ pnpm eval -- --embedder local --reranker local                   # + cross-encod
 pnpm eval -- --embedder local --reranker local --metadata-chunker # full local stack
 pnpm eval -- --embedder local --reranker local --metadata-chunker --bm25-stem  # best (0.910 NDCG@10)
 pnpm eval -- --embedder local --reranker local --mmr --mmr-lambda 0.7          # diversity-aware top-K
-pnpm eval -- --embedder gemini --gemini-cache-dir .cache/gemini  # Gemini API w/ disk cache
 ```
 
 ### Reference numbers (no API keys, no network)

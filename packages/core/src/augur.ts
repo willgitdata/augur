@@ -44,8 +44,8 @@ export interface AugurOptions {
  *   const { results, trace } = await augr.search({ query: "hello" });
  *
  * No config files, no SDKs, no API keys. The defaults are real defaults that
- * produce real answers. Swapping in production-grade pieces (OpenAIEmbedder,
- * PineconeAdapter, CohereReranker) is a constructor argument away.
+ * produce real answers. Swapping in production-grade pieces (LocalEmbedder,
+ * PineconeAdapter, LocalReranker) is a constructor argument away.
  *
  * Why everything is constructor-injected:
  * - Testability: every component is mockable in isolation.

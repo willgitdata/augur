@@ -104,7 +104,7 @@ interface Embedder {
 
 Three lines. Caching, rate limiting, batching are wrapper concerns — keeping the core interface small means *anyone* can add a provider in five minutes.
 
-We ship `HashEmbedder` (deterministic, offline, useless for semantics) and `OpenAIEmbedder` (real). The reason we ship `HashEmbedder` at all is dev-experience: `new Augur()` should not require an API key.
+We ship offline-only embedders: `HashEmbedder` (deterministic placeholder, useless for semantics), `TfIdfEmbedder` (real IR baseline, no deps), and `LocalEmbedder` (real semantic embeddings via on-device ONNX). The reason `HashEmbedder` is the default is dev-experience: `new Augur()` should not require an install of `@huggingface/transformers` or a network call. Hosted providers (OpenAI, Cohere, Voyage) are a 30-line `Embedder` interface implementation against the provider's official SDK — see EXAMPLES.md §5.
 
 ### `Router` — query → decision
 
@@ -128,7 +128,7 @@ interface Reranker {
 }
 ```
 
-We ship `HeuristicReranker` (token overlap + proximity) and `CohereReranker`. Both implement the same interface; users can wire in any cross-encoder by writing 20 lines.
+We ship `HeuristicReranker` (token overlap + proximity), `LocalReranker` (on-device cross-encoder ONNX), `MMRReranker` (diversity), and `CascadedReranker` (chain rerankers). All implement a one-method interface; users wire in Cohere / Voyage / Jina by writing ~20 lines against the provider's SDK.
 
 ## How routing actually works
 
