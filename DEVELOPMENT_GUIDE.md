@@ -151,7 +151,7 @@ Two principles:
 ### A new reranker
 
 Implement `Reranker.rerank(query, results, topK)`. Examples:
-- A cross-encoder (BGE, etc.) over HTTP: see `CohereReranker`.
+- A cross-encoder (BGE, etc.) over HTTP: implement the `Reranker` interface directly against the provider's SDK (see EXAMPLES.md §5).
 - A local ONNX model via `onnxruntime-node`: same shape, different transport.
 
 ## Project conventions

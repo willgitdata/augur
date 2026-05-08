@@ -9,9 +9,10 @@
 import {
   HashEmbedder,
   InMemoryAdapter,
-  OpenAIEmbedder,
+  LocalEmbedder,
   PgVectorAdapter,
   PineconeAdapter,
+  TfIdfEmbedder,
   TurbopufferAdapter,
   type Embedder,
   type VectorAdapter,
@@ -45,11 +46,11 @@ async function main() {
 
 function pickEmbedder(): Embedder {
   const kind = process.env.AUGUR_EMBEDDER ?? "hash";
-  if (kind === "openai") {
-    return new OpenAIEmbedder({
-      apiKey: process.env.OPENAI_API_KEY,
-      model: process.env.OPENAI_EMBED_MODEL,
-    });
+  if (kind === "tfidf") return new TfIdfEmbedder();
+  if (kind === "local") {
+    const opts: { model?: string } = {};
+    if (process.env.AUGUR_LOCAL_MODEL) opts.model = process.env.AUGUR_LOCAL_MODEL;
+    return new LocalEmbedder(opts);
   }
   return new HashEmbedder();
 }

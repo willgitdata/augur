@@ -24,8 +24,8 @@ export interface Reranker {
  *     for embedding-only "missed the keyword" failures)
  *   - down-weights results where the query terms appear far apart in the chunk
  *
- * For real production use, plug in `CohereReranker`, `JinaReranker`, or
- * a self-hosted cross-encoder by implementing the `Reranker` interface.
+ * For real production use, plug in `LocalReranker` (on-device ONNX) or
+ * implement the `Reranker` interface against any hosted cross-encoder.
  */
 export class HeuristicReranker implements Reranker {
   readonly name = "heuristic-reranker";
@@ -67,112 +67,6 @@ export class HeuristicReranker implements Reranker {
   }
 }
 
-/**
- * CohereReranker — uses Cohere's rerank API.
- *
- * Implemented with fetch directly. Users provide an API key explicitly or
- * via COHERE_API_KEY. Defaults to the v3 model.
- */
-export class CohereReranker implements Reranker {
-  readonly name: string;
-  private apiKey: string;
-  private model: string;
-
-  constructor(opts: { apiKey?: string; model?: string } = {}) {
-    this.apiKey = opts.apiKey ?? process.env.COHERE_API_KEY ?? "";
-    this.model = opts.model ?? "rerank-english-v3.0";
-    this.name = `cohere:${this.model}`;
-    if (!this.apiKey) {
-      throw new Error("CohereReranker: apiKey not provided and COHERE_API_KEY is not set");
-    }
-  }
-
-  async rerank(query: string, results: SearchResult[], topK: number): Promise<SearchResult[]> {
-    if (results.length === 0) return [];
-    const res = await fetch("https://api.cohere.com/v1/rerank", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: this.model,
-        query,
-        documents: results.map((r) => r.chunk.content),
-        top_n: topK,
-      }),
-    });
-    if (!res.ok) {
-      throw new Error(`Cohere rerank failed (${res.status}): ${await res.text()}`);
-    }
-    const json = (await res.json()) as {
-      results: Array<{ index: number; relevance_score: number }>;
-    };
-    return json.results.map((r) => {
-      const original = results[r.index]!;
-      return {
-        ...original,
-        score: r.relevance_score,
-        rawScores: { ...original.rawScores, original: original.score },
-      };
-    });
-  }
-}
-
-/**
- * JinaReranker — uses Jina AI's rerank API.
- *
- * Jina's rerank-v2-base-multilingual handles non-English well, which is the
- * single biggest weakness of the default heuristic + hash-embedder pipeline.
- * Set JINA_API_KEY in the environment or pass `apiKey` directly.
- */
-export class JinaReranker implements Reranker {
-  readonly name: string;
-  private apiKey: string;
-  private model: string;
-  private endpoint: string;
-
-  constructor(opts: { apiKey?: string; model?: string; endpoint?: string } = {}) {
-    this.apiKey = opts.apiKey ?? process.env.JINA_API_KEY ?? "";
-    this.model = opts.model ?? "jina-reranker-v2-base-multilingual";
-    this.endpoint = opts.endpoint ?? "https://api.jina.ai/v1/rerank";
-    this.name = `jina:${this.model}`;
-    if (!this.apiKey) {
-      throw new Error("JinaReranker: apiKey not provided and JINA_API_KEY is not set");
-    }
-  }
-
-  async rerank(query: string, results: SearchResult[], topK: number): Promise<SearchResult[]> {
-    if (results.length === 0) return [];
-    const res = await fetch(this.endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: this.model,
-        query,
-        documents: results.map((r) => r.chunk.content),
-        top_n: topK,
-      }),
-    });
-    if (!res.ok) {
-      throw new Error(`Jina rerank failed (${res.status}): ${await res.text()}`);
-    }
-    const json = (await res.json()) as {
-      results: Array<{ index: number; relevance_score: number }>;
-    };
-    return json.results.map((r) => {
-      const original = results[r.index]!;
-      return {
-        ...original,
-        score: r.relevance_score,
-        rawScores: { ...original.rawScores, original: original.score },
-      };
-    });
-  }
-}
 
 /**
  * CascadedReranker — chain N rerankers, each narrowing the candidate set.
@@ -184,7 +78,7 @@ export class JinaReranker implements Reranker {
  * Usage:
  *   const reranker = new CascadedReranker([
  *     [new HeuristicReranker(), 100],   // cheap, broad
- *     [new CohereReranker(), 10],       // expensive, narrow
+ *     [new LocalReranker(), 10],       // expensive, narrow
  *   ]);
  *
  * Each tuple is [reranker, topK_for_that_stage]. The final stage's topK
