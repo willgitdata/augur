@@ -44,6 +44,8 @@ export {
   SentenceChunker,
   SemanticChunker,
   MetadataChunker,
+  Doc2QueryChunker,
+  type Doc2QueryChunkerOptions,
   chunkDocument,
 } from "./chunking/index.js";
 

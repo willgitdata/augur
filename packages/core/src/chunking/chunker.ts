@@ -207,12 +207,19 @@ export class SemanticChunker implements Chunker {
   }
 }
 
-/** Compatibility helper: any Chunker, sync or async. */
+/**
+ * Compatibility helper: any Chunker, sync or async.
+ *
+ * Async chunkers (SemanticChunker, Doc2QueryChunker, MetadataChunker over
+ * an async base) implement `chunkAsync(doc)`. Detected by feature, not by
+ * class — keeps third-party async chunkers working without subclassing.
+ */
 export async function chunkDocument(
   chunker: Chunker | SemanticChunker,
   doc: Document
 ): Promise<Chunk[]> {
-  if (chunker instanceof SemanticChunker) return chunker.chunkAsync(doc);
+  const c = chunker as { chunkAsync?: (doc: Document) => Promise<Chunk[]> };
+  if (typeof c.chunkAsync === "function") return c.chunkAsync(doc);
   return chunker.chunk(doc);
 }
 
