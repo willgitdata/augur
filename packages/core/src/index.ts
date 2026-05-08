@@ -46,6 +46,12 @@ export {
   MetadataChunker,
   Doc2QueryChunker,
   type Doc2QueryChunkerOptions,
+  ContextualChunker,
+  type ContextualChunkerOptions,
+  type ContextProvider,
+  type ContextCache,
+  MemoryContextCache,
+  ANTHROPIC_CONTEXTUAL_PROMPT,
   chunkDocument,
 } from "./chunking/index.js";
 

@@ -36,14 +36,33 @@ interface BeirQuery {
   text: string;
 }
 
-const root = process.argv[2];
-if (!root) {
-  console.error("Usage: tsx evaluations/beir.ts <beir-dataset-dir>");
+// Argv: <dataset-dir> [--model NAME] [--query-prefix STR] [--doc-prefix STR]
+const argv = process.argv.slice(2);
+const root = argv[0];
+if (!root || root.startsWith("--")) {
+  console.error(
+    "Usage: tsx evaluations/beir.ts <beir-dataset-dir> [--model NAME] [--query-prefix STR] [--doc-prefix STR]"
+  );
   process.exit(1);
 }
+function readFlag(name: string): string | undefined {
+  const i = argv.indexOf(`--${name}`);
+  return i >= 0 ? argv[i + 1] : undefined;
+}
+const modelOverride = readFlag("model");
+const queryPrefix = readFlag("query-prefix");
+const docPrefix = readFlag("doc-prefix");
+const dtype = readFlag("dtype");
+const device = readFlag("device");
+
 const datasetName = root.split("/").filter(Boolean).pop()!;
 
 console.log(`BEIR runner — ${datasetName}`);
+if (modelOverride) console.log(`  embedder model : ${modelOverride}`);
+if (queryPrefix) console.log(`  query prefix   : ${JSON.stringify(queryPrefix)}`);
+if (docPrefix) console.log(`  doc prefix     : ${JSON.stringify(docPrefix)}`);
+if (dtype) console.log(`  dtype          : ${dtype}`);
+if (device) console.log(`  device         : ${device}`);
 
 // ---------- load ----------
 function readJsonl<T>(path: string): T[] {
@@ -85,8 +104,15 @@ console.log(
 console.log(`load: ${(performance.now() - t0).toFixed(0)}ms\n`);
 
 // ---------- index ----------
+const embedderOpts: ConstructorParameters<typeof LocalEmbedder>[0] = {};
+if (modelOverride) embedderOpts.model = modelOverride;
+if (queryPrefix !== undefined) embedderOpts.queryPrefix = queryPrefix;
+if (docPrefix !== undefined) embedderOpts.docPrefix = docPrefix;
+if (dtype) embedderOpts.dtype = dtype as "fp32" | "fp16" | "q8" | "q4";
+if (device) embedderOpts.device = device as "wasm" | "webgpu" | "cpu";
+
 const augr = new Augur({
-  embedder: new LocalEmbedder(),
+  embedder: new LocalEmbedder(embedderOpts),
   reranker: new LocalReranker(),
   chunker: new MetadataChunker({ base: new SentenceChunker() }),
   adapter: new InMemoryAdapter({ useStemming: true }),
