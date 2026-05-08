@@ -136,9 +136,7 @@ export class SentenceChunker implements Chunker {
  * Tradeoff:
  * - Higher quality on long-form content (essays, long docs).
  * - Costs N embedding calls per document at chunking time.
- * - We use the same Embedder that the rest of the system uses, so callers
- *   can opt to use a cheap one (HashEmbedder) for chunking and a real one
- *   for indexing — that's a sound default.
+ * - Reuses the system Embedder, so the model is consistent end-to-end.
  *
  * This is intentionally simple: a 1-pass scan with a similarity threshold.
  * More elaborate variants (sliding-window outliers, double-pass) are easy to

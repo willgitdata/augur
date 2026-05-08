@@ -1,7 +1,7 @@
 import type { VectorAdapter } from "./adapters/adapter.js";
 import { InMemoryAdapter } from "./adapters/in-memory.js";
 import { type Chunker, FixedSizeChunker, SentenceChunker, SemanticChunker, chunkDocument } from "./chunking/chunker.js";
-import { type Embedder, HashEmbedder } from "./embeddings/embedder.js";
+import type { Embedder } from "./embeddings/embedder.js";
 import { Tracer, TraceStore } from "./observability/tracer.js";
 import { HeuristicReranker, type Reranker } from "./reranking/reranker.js";
 import { HeuristicRouter, type Router } from "./routing/router.js";
@@ -14,10 +14,14 @@ import type {
 } from "./types.js";
 
 export interface AugurOptions {
-  /** Storage adapter. Defaults to InMemoryAdapter (zero deps). */
+  /**
+   * Embedder used for both indexing and querying. **Required**. Use
+   * `LocalEmbedder` for a fully on-device default, or implement the
+   * `Embedder` interface against your provider's SDK (see EXAMPLES.md §5).
+   */
+  embedder: Embedder;
+  /** Storage adapter. Defaults to InMemoryAdapter. */
   adapter?: VectorAdapter;
-  /** Embedder used for both indexing and querying. Defaults to HashEmbedder. */
-  embedder?: Embedder;
   /** Chunker used during `index()`. Defaults to SentenceChunker. */
   chunker?: Chunker | SemanticChunker;
   /** Routing engine. Defaults to HeuristicRouter. */
@@ -37,20 +41,19 @@ export interface AugurOptions {
 /**
  * Augur — the unified retrieval orchestration entry point.
  *
- * The "Stripe-feel" design constraint shows up here:
+ *   import { Augur, LocalEmbedder } from "@augur/core";
  *
- *   const augr = new Augur();              // works
+ *   const augr = new Augur({ embedder: new LocalEmbedder() });
  *   await augr.index([{ id: "1", content: "..." }]);
  *   const { results, trace } = await augr.search({ query: "hello" });
  *
- * No config files, no SDKs, no API keys. The defaults are real defaults that
- * produce real answers. Swapping in production-grade pieces (LocalEmbedder,
- * PineconeAdapter, LocalReranker) is a constructor argument away.
+ * `embedder` is required. Pick `LocalEmbedder` for fully on-device, or
+ * implement the `Embedder` interface against your provider's SDK (OpenAI,
+ * Cohere, Voyage, etc) — see EXAMPLES.md §5 for snippets.
  *
  * Why everything is constructor-injected:
  * - Testability: every component is mockable in isolation.
- * - Forward compatibility: when MLRouter ships, `new Augur({ router: new MLRouter(...) })`
- *   is the entire migration path.
+ * - Forward compatibility: when MLRouter ships, swap one constructor arg.
  * - Aligns with the philosophy: "augment, don't replace". Users keep their
  *   existing embedder/store/reranker; Augur is just the conductor.
  */
@@ -63,9 +66,16 @@ export class Augur {
   readonly traceStore?: TraceStore;
   private autoIndex: boolean;
 
-  constructor(opts: AugurOptions = {}) {
+  constructor(opts: AugurOptions) {
+    if (!opts || !opts.embedder) {
+      throw new Error(
+        "Augur: `embedder` is required. Use `new LocalEmbedder()` for an on-device " +
+          "default, or implement the Embedder interface against your provider " +
+          "(see EXAMPLES.md §5)."
+      );
+    }
+    this.embedder = opts.embedder;
     this.adapter = opts.adapter ?? new InMemoryAdapter();
-    this.embedder = opts.embedder ?? new HashEmbedder();
     this.chunker = opts.chunker ?? new SentenceChunker();
     this.router = opts.router ?? new HeuristicRouter();
     this.reranker = opts.reranker ?? new HeuristicReranker();
@@ -93,8 +103,8 @@ export class Augur {
     if (!this.adapter.capabilities.computesEmbeddings && allChunks.length > 0) {
       const e0 = performance.now();
       const texts = allChunks.map((c) => c.content);
-      // Let stateful embedders (TfIdfEmbedder etc) ingest the corpus before
-      // embedding, so query-time IDFs reflect indexed content.
+      // Let stateful embedders ingest the corpus before embedding, so
+      // query-time vocabulary / IDFs reflect indexed content.
       this.embedder.fit?.(texts);
       // Prefer embedDocuments() — embedders that distinguish doc vs query
       // task types (Gemini, Cohere v3) score noticeably higher when the

@@ -104,7 +104,7 @@ interface Embedder {
 
 Three lines. Caching, rate limiting, batching are wrapper concerns — keeping the core interface small means *anyone* can add a provider in five minutes.
 
-We ship offline-only embedders: `HashEmbedder` (deterministic placeholder, useless for semantics), `TfIdfEmbedder` (real IR baseline, no deps), and `LocalEmbedder` (real semantic embeddings via on-device ONNX). The reason `HashEmbedder` is the default is dev-experience: `new Augur()` should not require an install of `@huggingface/transformers` or a network call. Hosted providers (OpenAI, Cohere, Voyage) are a 30-line `Embedder` interface implementation against the provider's official SDK — see EXAMPLES.md §5.
+We ship one offline embedder: `LocalEmbedder` (real semantic embeddings via on-device ONNX, default `Xenova/all-MiniLM-L6-v2`, ~22MB). `embedder` is a required `Augur` constructor argument — there is no placeholder default, since placeholder vectors produce results that look like product bugs ("why does my pg-pooling query return Go code?"). Hosted providers (OpenAI, Cohere, Voyage) are a 30-line `Embedder` interface implementation against the provider's official SDK — see EXAMPLES.md §5.
 
 ### `Router` — query → decision
 

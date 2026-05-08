@@ -92,11 +92,11 @@ The takeaway: hybrid retrieval (RRF) and the routing engine come for free as soo
 ## 4. Comparing chunkers
 
 ```ts
-import { FixedSizeChunker, SentenceChunker, SemanticChunker, HashEmbedder } from "@augur/core";
+import { FixedSizeChunker, SentenceChunker, SemanticChunker, LocalEmbedder } from "@augur/core";
 
 const fixed    = new FixedSizeChunker({ size: 200, overlap: 30 });
 const sentence = new SentenceChunker({ targetSize: 200 });
-const semantic = new SemanticChunker({ embedder: new HashEmbedder(), threshold: 0.5 });
+const semantic = new SemanticChunker({ embedder: new LocalEmbedder(), threshold: 0.5 });
 ```
 
 Run on the same document, you'll see:
@@ -111,10 +111,10 @@ Pick based on content type, not on intuition. When in doubt, `SentenceChunker` i
 
 ## 5. Switching to a hosted embedder + reranker
 
-`@augur/core` ships only offline embedders and rerankers (HashEmbedder,
-TfIdfEmbedder, LocalEmbedder, HeuristicReranker, LocalReranker, MMRReranker).
-Hosted providers are intentionally not in core — the `Embedder` interface is
-three methods, the `Reranker` is one. Implement against your provider's
+`@augur/core` ships one built-in embedder (`LocalEmbedder`, on-device ONNX)
+and three rerankers (`HeuristicReranker`, `LocalReranker`, `MMRReranker`).
+Hosted providers are intentionally not in core — the `Embedder` interface
+is three methods, the `Reranker` is one. Implement against your provider's
 official SDK and pass it in:
 
 ```ts
@@ -163,27 +163,11 @@ const augr = new Augur({
 The router adapts to Pinecone's keyword-incapable status automatically (stops
 picking keyword, lets the reranker carry precision).
 
-### Picking a better default embedder (no API key needed)
+### Picking the built-in offline embedder (no API key needed)
 
-The default `HashEmbedder` is a feature-hashed bag-of-tokens — useful as
-a deterministic placeholder, but its vectors are not semantically
-meaningful. Three offline upgrade paths:
-
-**TF-IDF (no extra deps).** Feature-hashed TF-IDF with Porter stemming and
-stopword removal — the classical IR baseline:
-
-```ts
-import { Augur, TfIdfEmbedder, MetadataChunker, SentenceChunker } from "@augur/core";
-
-const augr = new Augur({
-  embedder: new TfIdfEmbedder(),
-  chunker: new MetadataChunker({ base: new SentenceChunker() }),
-});
-```
-
-**Local sentence-transformer (recommended for production-grade local).**
-`LocalEmbedder` runs a real sentence-transformer model entirely on-device
-via `@huggingface/transformers` (ONNX Runtime). Default model is
+`LocalEmbedder` is the only embedder shipped in core. It runs a real
+sentence-transformer model entirely on-device via
+`@huggingface/transformers` (ONNX Runtime). Default model is
 `Xenova/all-MiniLM-L6-v2` (~22MB, 384d). First run downloads the model
 to `~/.cache/huggingface/hub`; subsequent runs are instant.
 
@@ -242,17 +226,14 @@ new LocalEmbedder({
 **Measured impact on the bundled 504-query eval (no API keys):**
 
 ```
-HashEmbedder (default)                                                NDCG@10 = 0.786
-TfIdfEmbedder                                                         NDCG@10 = 0.825 (+0.039)
-TfIdfEmbedder + MetadataChunker                                       NDCG@10 = 0.848 (+0.062)
-LocalEmbedder (all-MiniLM-L6-v2)                                      NDCG@10 = 0.845 (+0.059)
-LocalEmbedder + LocalReranker                                         NDCG@10 = 0.877 (+0.091)
-LocalEmbedder + LocalReranker + MetadataChunker                       NDCG@10 = 0.899 (+0.113)
-LocalEmbedder + LocalReranker + MetadataChunker + stemmed BM25        NDCG@10 = 0.910 (+0.124)
+LocalEmbedder (all-MiniLM-L6-v2)                                      NDCG@10 = 0.845
+LocalEmbedder + LocalReranker                                         NDCG@10 = 0.877 (+0.032)
+LocalEmbedder + LocalReranker + MetadataChunker                       NDCG@10 = 0.899 (+0.054)
+LocalEmbedder + LocalReranker + MetadataChunker + stemmed BM25        NDCG@10 = 0.910 (+0.065)
 ```
 
-Vector-strategy NDCG goes from 0.638 (HashEmbedder) to **0.922** with the
-full local stack — the kind of jump you typically need a hosted API for.
+Vector-strategy NDCG reaches **0.922** with the full local stack — the
+kind of quality you typically need a hosted API for.
 
 ### Doc2Query — synthetic-question expansion at index time
 

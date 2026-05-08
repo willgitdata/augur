@@ -43,18 +43,17 @@ pnpm dev:server
 # → http://localhost:3001/health  (config dump)
 ```
 
-The server runs with the `InMemoryAdapter` and `HashEmbedder` by default. To use real services:
+The server runs with the `InMemoryAdapter` and `LocalEmbedder` (Xenova/all-MiniLM-L6-v2, ~22MB) by default. To swap the storage adapter or embedder model:
 
 ```bash
 AUGUR_ADAPTER=pgvector \
 DATABASE_URL=postgres://localhost/qb \
-AUGUR_EMBEDDER=openai \
-OPENAI_API_KEY=sk-... \
+AUGUR_LOCAL_MODEL=Xenova/bge-small-en-v1.5 \
 pnpm dev:server
 ```
 
 Supported adapter env values: `in-memory` (default) | `pinecone` | `turbopuffer` | `pgvector`.
-Supported embedder env values: `hash` (default) | `openai`.
+For hosted embedders, implement the `Embedder` interface and import a custom `buildServer({ embedder })` — see EXAMPLES.md §5.
 
 ### Run the dashboard
 
@@ -181,7 +180,7 @@ When this is more than once a month, switch to changesets.
 
 **The server returns 500 on `/search`** — check `/health`. The `capabilities` block tells you what the configured adapter supports. If you forced a strategy the adapter can't do, that's the cause.
 
-**`HashEmbedder` results look random** — they kind of are. It's a feature-hash, not a semantic embedder. For real semantics, set `AUGUR_EMBEDDER=openai`.
+**`LocalEmbedder` first request is slow (~5-10s)** — that's the one-time ONNX model download to `~/.cache/huggingface/hub`. Subsequent requests use the cached model and are sub-second.
 
 ## Deployment
 
