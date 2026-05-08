@@ -66,7 +66,12 @@ export {
 export { LocalEmbedder } from "./embeddings/local-embedder.js";
 
 // Routing
-export { type Router, HeuristicRouter, computeSignals } from "./routing/index.js";
+export {
+  type Router,
+  HeuristicRouter,
+  type HeuristicRouterOptions,
+  computeSignals,
+} from "./routing/index.js";
 
 // Reranking
 export {

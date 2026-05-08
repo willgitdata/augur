@@ -188,3 +188,33 @@ test("router forces rerank under tight budget when negation present", () => {
   );
   assert.equal(d.reranked, true);
 });
+
+test("router default leaves keyword strategies un-reranked", () => {
+  const r = new HeuristicRouter();
+  // hasCodeLike → keyword strategy (rule 5a); no negation, no specific
+  // override → reranked stays false to keep the BM25 fast path cheap.
+  const d = r.decide({ query: "ssl: SSL_ERROR_SYSCALL" }, fullCaps);
+  assert.equal(d.strategy, "keyword");
+  assert.equal(d.reranked, false);
+});
+
+test("router with alwaysRerank=true reranks even on keyword strategy", () => {
+  const r = new HeuristicRouter({ alwaysRerank: true });
+  const d = r.decide({ query: "ssl: SSL_ERROR_SYSCALL" }, fullCaps);
+  assert.equal(d.strategy, "keyword");
+  assert.equal(d.reranked, true);
+  assert.ok(
+    d.reasons.some((x) => x.includes("alwaysRerank")),
+    "should explain the routing decision in the trace"
+  );
+});
+
+test("router with alwaysRerank=true still respects tight latency budgets", () => {
+  const r = new HeuristicRouter({ alwaysRerank: true });
+  // Budget too tight for any reranker — even alwaysRerank should fold.
+  const d = r.decide(
+    { query: "kubectl apply", latencyBudgetMs: 50 },
+    fullCaps
+  );
+  assert.equal(d.reranked, false);
+});
