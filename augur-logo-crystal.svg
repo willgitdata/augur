@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges" width="512" height="512">
+  <!-- Wizard with crystal ball - "Augur" means seer/diviner -->
+
+  <!-- Hat tip -->
+  <rect x="14" y="2" width="2" height="2" fill="#3B1E5E"/>
+  <rect x="13" y="4" width="4" height="1" fill="#3B1E5E"/>
+  <rect x="13" y="5" width="4" height="1" fill="#5B2C8A"/>
+
+  <!-- Hat body -->
+  <rect x="12" y="6" width="6" height="1" fill="#5B2C8A"/>
+  <rect x="12" y="7" width="6" height="1" fill="#6B3AA0"/>
+  <rect x="11" y="8" width="8" height="1" fill="#5B2C8A"/>
+  <rect x="11" y="9" width="8" height="1" fill="#6B3AA0"/>
+
+  <!-- Hat star -->
+  <rect x="14" y="7" width="1" height="1" fill="#FFD93D"/>
+  <rect x="13" y="8" width="3" height="1" fill="#FFD93D"/>
+  <rect x="14" y="9" width="1" height="1" fill="#FFD93D"/>
+
+  <!-- Hat brim -->
+  <rect x="9" y="10" width="12" height="1" fill="#3B1E5E"/>
+  <rect x="9" y="11" width="12" height="1" fill="#3B1E5E"/>
+
+  <!-- Face shadow under hat -->
+  <rect x="11" y="12" width="8" height="1" fill="#2A1545"/>
+
+  <!-- Eyes - glowing cyan (augur sees the future) -->
+  <rect x="12" y="13" width="2" height="1" fill="#00D9FF"/>
+  <rect x="16" y="13" width="2" height="1" fill="#00D9FF"/>
+
+  <!-- Beard -->
+  <rect x="10" y="14" width="10" height="1" fill="#FFFFFF"/>
+  <rect x="10" y="15" width="10" height="1" fill="#E8E8E8"/>
+  <rect x="11" y="16" width="8" height="1" fill="#FFFFFF"/>
+  <rect x="11" y="17" width="8" height="1" fill="#E8E8E8"/>
+  <rect x="12" y="18" width="6" height="1" fill="#FFFFFF"/>
+  <rect x="13" y="19" width="4" height="1" fill="#E8E8E8"/>
+
+  <!-- Robe shoulders -->
+  <rect x="8" y="17" width="2" height="2" fill="#5B2C8A"/>
+  <rect x="20" y="17" width="2" height="2" fill="#5B2C8A"/>
+
+  <!-- Arms holding crystal ball -->
+  <rect x="7" y="19" width="3" height="1" fill="#5B2C8A"/>
+  <rect x="20" y="19" width="3" height="1" fill="#5B2C8A"/>
+  <rect x="7" y="20" width="3" height="1" fill="#6B3AA0"/>
+  <rect x="20" y="20" width="3" height="1" fill="#6B3AA0"/>
+
+  <!-- Hands -->
+  <rect x="9" y="21" width="2" height="1" fill="#F4C7A1"/>
+  <rect x="19" y="21" width="2" height="1" fill="#F4C7A1"/>
+
+  <!-- Crystal Ball - glowing with prediction -->
+  <rect x="13" y="20" width="6" height="1" fill="#7DDFFF"/>
+  <rect x="12" y="21" width="8" height="1" fill="#A8E9FF"/>
+  <rect x="11" y="22" width="10" height="1" fill="#7DDFFF"/>
+  <rect x="11" y="23" width="10" height="1" fill="#4FC3F7"/>
+  <rect x="12" y="24" width="8" height="1" fill="#29B6F6"/>
+  <rect x="13" y="25" width="6" height="1" fill="#0288D1"/>
+
+  <!-- Crystal ball highlight -->
+  <rect x="13" y="21" width="2" height="1" fill="#FFFFFF"/>
+  <rect x="13" y="22" width="1" height="1" fill="#FFFFFF"/>
+
+  <!-- Crystal ball stand -->
+  <rect x="14" y="26" width="4" height="1" fill="#3B1E5E"/>
+  <rect x="13" y="27" width="6" height="1" fill="#FFD93D"/>
+
+  <!-- Robe body below -->
+  <rect x="10" y="22" width="2" height="6" fill="#5B2C8A"/>
+  <rect x="20" y="22" width="2" height="6" fill="#5B2C8A"/>
+  <rect x="9" y="28" width="14" height="1" fill="#3B1E5E"/>
+  <rect x="9" y="29" width="14" height="1" fill="#3B1E5E"/>
+
+  <!-- Magical sparkles -->
+  <rect x="4" y="8" width="1" height="1" fill="#FFD93D"/>
+  <rect x="3" y="14" width="1" height="1" fill="#00D9FF"/>
+  <rect x="27" y="6" width="1" height="1" fill="#FFD93D"/>
+  <rect x="28" y="14" width="1" height="1" fill="#00D9FF"/>
+  <rect x="2" y="22" width="1" height="1" fill="#FFD93D"/>
+  <rect x="29" y="22" width="1" height="1" fill="#00D9FF"/>
+  <rect x="6" y="4" width="1" height="1" fill="#FFD93D"/>
+  <rect x="25" y="11" width="1" height="1" fill="#FFD93D"/>
+
+  <!-- Crystal ball energy emanation -->
+  <rect x="9" y="20" width="1" height="1" fill="#7DDFFF" opacity="0.6"/>
+  <rect x="22" y="20" width="1" height="1" fill="#7DDFFF" opacity="0.6"/>
+  <rect x="15" y="19" width="1" height="1" fill="#A8E9FF"/>
+  <rect x="16" y="19" width="1" height="1" fill="#A8E9FF"/>
+</svg>

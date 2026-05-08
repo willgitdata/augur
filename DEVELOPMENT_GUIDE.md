@@ -22,7 +22,7 @@ pnpm install
 pnpm build           # builds packages/core then packages/server
 ```
 
-That's it. Two publishable packages, three runnable examples. The dashboard (Next.js trace explorer) and the eval harness (BEIR runner) live in separate sister repos so this one stays focused on the SDK.
+That's it. Two publishable packages, three runnable examples. A trace-explorer dashboard (Next.js) and the eval harness (BEIR runner) used to live in this repo and are kept out of tree now to keep the install lean — both remain available in git history.
 
 ## Common workflows
 

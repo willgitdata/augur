@@ -31,7 +31,7 @@ The repo ships **two publishable packages**:
 - `@augur/core` — the SDK. `npm install @augur/core` and that's it. Zero runtime dependencies (`@huggingface/transformers` is an optional peer for `LocalEmbedder`).
 - `@augur/server` — a thin Fastify HTTP wrapper. Many users will skip it and embed the SDK in their own app; it's a separate package so they can.
 
-A trace-explorer dashboard (Next.js) and an eval harness (BEIR runner + bundled corpus) live in separate sister repos — they're development tools, not production dependencies. Stripping them keeps the install lean and the maintenance scope honest.
+A trace-explorer dashboard (Next.js) and an eval harness (BEIR runner + bundled corpus) used to live in this repo and are kept out of tree now — they were development tools, not production dependencies. Both remain in git history and may be re-published as standalone sister repos in the future. Stripping them keeps the install lean and the maintenance scope honest.
 
 Within `core`, code is grouped by **role**, not by feature:
 

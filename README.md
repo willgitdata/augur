@@ -88,7 +88,7 @@ augur/
 └── DEVELOPMENT_GUIDE.md   # contributor + local-dev guide
 ```
 
-The dashboard (Next.js trace explorer) and the eval harness (BEIR runner + bundled corpus) live in separate sister repos so the main repo stays lean — they're development tools, not production dependencies. See the README link section at the bottom.
+The repo intentionally ships only the SDK and the optional HTTP wrapper. A trace-explorer dashboard and the BEIR-eval harness used to produce the numbers above are kept out of tree as development tools — both remain available in git history if you need them, and may be re-published as standalone sister repos in the future.
 
 ## Quick start
 

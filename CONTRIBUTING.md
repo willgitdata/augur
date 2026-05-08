@@ -24,7 +24,7 @@ This is a pnpm workspace.
 - `packages/server` — `@augur/server`, a Fastify HTTP wrapper around the SDK with `/index`, `/search`, `/traces`, `/health`, `/docs` endpoints.
 - `examples/` — runnable examples covering the SDK's main paths (basic search, chunking strategies, custom adapters).
 
-The dashboard (Next.js trace explorer) and eval harness (BEIR runner + bundled corpus) live in separate sister repos so this one stays focused on the SDK.
+The dashboard (Next.js trace explorer) and eval harness (BEIR runner + bundled corpus) used to live in this repo. They're kept out of tree now to keep the install lean — both remain available in git history.
 
 ## Running things
 

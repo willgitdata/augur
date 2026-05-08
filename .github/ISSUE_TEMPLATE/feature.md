@@ -10,7 +10,7 @@ labels: enhancement
 
 ## Proposal
 
-<!-- What change to the SDK / server / dashboard would solve it? Be specific about the public API surface if you have one in mind. -->
+<!-- What change to the SDK or HTTP server would solve it? Be specific about the public API surface if you have one in mind. -->
 
 ## Alternatives considered
 

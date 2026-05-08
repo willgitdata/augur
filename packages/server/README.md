@@ -25,7 +25,7 @@ await app.listen({ port: 3001 });
 
 - `POST /search` — runs the auto-routing pipeline, returns `{ results, trace }`
 - `POST /index` — indexes documents in batch
-- `GET /traces` — recent search traces (for the dashboard)
+- `GET /traces` — recent search traces (for trace explorers / observability backends)
 - `GET /health` — capability dump
 - `GET /docs` — interactive Swagger UI
 - `GET /openapi.json` — OpenAPI 3 spec

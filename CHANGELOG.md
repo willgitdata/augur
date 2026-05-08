@@ -32,7 +32,7 @@ called out under **BREAKING** in the entry.
 
 - `HashEmbedder`, `TfIdfEmbedder` — placeholder embedders no longer ship; `LocalEmbedder` is the only built-in.
 - Hosted-provider embedder/reranker classes from core (`GeminiEmbedder`, etc.) — moved to user-implemented `Embedder` / `Reranker` instances per the EXAMPLES.md §5 pattern.
-- `apps/dashboard` (Next.js trace explorer) and `evaluations/` (BEIR runner + bundled 182-doc corpus) — both moved to separate sister repos so the main repo stays focused on the SDK. The dashboard was a development tool; the eval harness was for benchmarking the maintainers' own routing changes. Neither was a runtime dependency. Performance numbers in this CHANGELOG and the README still apply — they were measured against the eval harness, which is reproducible from the sister repo.
+- `apps/dashboard` (Next.js trace explorer) and `evaluations/` (BEIR runner + bundled 182-doc corpus) — both removed from the main repo so it stays focused on the SDK. The dashboard was a development tool; the eval harness was for benchmarking the maintainers' own routing changes. Neither was a runtime dependency. Both remain in git history and may be re-published as standalone sister repos in the future. Performance numbers in this CHANGELOG and the README still apply — they were measured with the published `@augur/core` + `@augur/server` packages against the eval corpus that's now in git history.
 - `AUGUR_SEED_DEMO` env var — required the bundled corpus that's now removed.
 
 ### Performance
