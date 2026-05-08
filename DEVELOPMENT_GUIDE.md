@@ -22,7 +22,7 @@ pnpm install
 pnpm build           # builds packages/core then packages/server
 ```
 
-That's it. The dashboard doesn't need a build for dev — `pnpm dev:dashboard` runs Next.js in dev mode.
+That's it. Two publishable packages, three runnable examples. A trace-explorer dashboard (Next.js) and the eval harness (BEIR runner) used to live in this repo and are kept out of tree now to keep the install lean — both remain available in git history.
 
 ## Common workflows
 
@@ -55,17 +55,6 @@ pnpm dev:server
 Supported adapter env values: `in-memory` (default) | `pinecone` | `turbopuffer` | `pgvector`.
 For hosted embedders, implement the `Embedder` interface and import a custom `buildServer({ embedder })` — see EXAMPLES.md §5.
 
-### Run the dashboard
-
-In a second terminal, with the server running:
-
-```bash
-pnpm dev:dashboard
-# → http://localhost:3000
-```
-
-The dashboard expects the server at `http://localhost:3001`. Override with `AUGUR_URL=...`.
-
 ### Run tests
 
 ```bash
@@ -82,25 +71,6 @@ pnpm typecheck
 ```
 
 Useful in CI as a fast gate before the slower `build`.
-
-### Run the eval harness
-
-```bash
-pnpm eval                              # 32-doc corpus, 50 queries
-pnpm eval -- --verbose                 # per-query lines
-pnpm eval -- --save baseline.json      # snapshot
-pnpm eval -- --compare baseline.json   # diff vs snapshot
-```
-
-Reports NDCG@10 / MRR / Recall@10 — overall, per category, per
-router-chosen strategy. The harness instantiates a default `Augur`,
-indexes the corpus, runs every query, and grades the retrieved chunks
-against the labeled relevant docs. Because the runner is a pure function
-of an `Augur` instance, swap the embedder, adapter, router, or reranker
-between runs to measure the real impact of any change.
-
-Corpus and queries live at `evaluations/{corpus,queries}.json` —
-add domain-specific labeled pairs there to evaluate on your own data.
 
 ### Format
 
@@ -144,7 +114,7 @@ const augr = new Augur({ router: new MyRouter() });
 ```
 
 Two principles:
-- **Always populate `reasons`.** If the dashboard can't show *why*, you're hiding bugs.
+- **Always populate `reasons`.** If a trace consumer can't see *why*, you're hiding bugs.
 - **Respect `caps`.** Don't return `keyword` if `caps.keyword === false` — degrade gracefully.
 
 ### A new reranker
@@ -195,19 +165,9 @@ docker run -p 3001:3001 \
   augur-server
 ```
 
-### Dashboard
-
-The dashboard is a standard Next.js app. `pnpm --filter dashboard build && pnpm --filter dashboard start` deploys anywhere Next.js does (Vercel, Fly, Railway, your laptop).
-
 ### Behind a reverse proxy
 
-Most teams will want:
-
-- `/api/qb/*` → `@augur/server`
-- `/qb/*` → dashboard
-- All HTTPS / auth / rate limits handled at the proxy
-
-The server has an optional `AUGUR_API_KEY` for shared-secret auth. For anything more sophisticated (per-user keys, OAuth) use your reverse proxy or wrap the Fastify app.
+Most teams will route `/api/augur/*` (or whatever prefix) at `@augur/server` and handle HTTPS / auth / rate limits at the proxy. The server has an optional `AUGUR_API_KEY` for shared-secret auth. For anything more sophisticated (per-user keys, OAuth) use your reverse proxy or wrap the Fastify app.
 
 ## Contributing
 

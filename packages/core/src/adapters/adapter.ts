@@ -17,12 +17,12 @@ import type { Chunk, SearchResult } from "../types.js";
  *    routing engine handles fallbacks. Adapters that natively support
  *    hybrid (e.g. some pgvector setups) can override `searchHybrid`.
  *
- * 3) `delete` and `count` are minimal but enable the dashboard to show
+ * 3) `delete` and `count` are minimal but enable observability to show
  *    real numbers. We deliberately do NOT mandate transactions, schemas,
  *    or migrations — those belong to the underlying store.
  */
 export interface VectorAdapter {
-  /** Stable name surfaced in traces and the dashboard. */
+  /** Stable name surfaced in traces and observability output. */
   readonly name: string;
   /** Whether this adapter natively supports keyword search. */
   readonly capabilities: AdapterCapabilities;
@@ -42,7 +42,7 @@ export interface VectorAdapter {
   /** Delete chunks by ID. */
   delete(ids: string[]): Promise<void>;
 
-  /** Total chunk count — used by the dashboard. */
+  /** Total chunk count — surfaced via the `/health` endpoint and traces. */
   count(): Promise<number>;
 
   /** Clear all data. */

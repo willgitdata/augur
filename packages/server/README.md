@@ -25,7 +25,7 @@ await app.listen({ port: 3001 });
 
 - `POST /search` — runs the auto-routing pipeline, returns `{ results, trace }`
 - `POST /index` — indexes documents in batch
-- `GET /traces` — recent search traces (for the dashboard)
+- `GET /traces` — recent search traces (for trace explorers / observability backends)
 - `GET /health` — capability dump
 - `GET /docs` — interactive Swagger UI
 - `GET /openapi.json` — OpenAPI 3 spec
@@ -40,7 +40,6 @@ await app.listen({ port: 3001 });
 | `AUGUR_API_KEY` | *(unset)* | If set, requests must include `x-api-key: <key>` |
 | `AUGUR_LOCAL_MODEL` | `Xenova/all-MiniLM-L6-v2` | Override the default `LocalEmbedder` model |
 | `AUGUR_AUTO_LANGUAGE_FILTER` | `0` | Set `1` to filter results to the query's detected language (with soft fallback) |
-| `AUGUR_SEED_DEMO` | `0` | Set `1` to seed the bundled 182-doc eval corpus on boot — useful for dev / dashboard demos |
 | `PINECONE_INDEX_HOST` / `PINECONE_API_KEY` / `PINECONE_NAMESPACE` | — | When `AUGUR_ADAPTER=pinecone` |
 | `TURBOPUFFER_API_KEY` / `TURBOPUFFER_NAMESPACE` | — | When `AUGUR_ADAPTER=turbopuffer` |
 | `DATABASE_URL` / `PGVECTOR_TABLE` / `PGVECTOR_DIMENSION` | — | When `AUGUR_ADAPTER=pgvector` (also `npm i pg` in your project) |

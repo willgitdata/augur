@@ -6,7 +6,7 @@ This document describes how Augur is organized, why each piece exists, and how t
 
 ```
                  ┌──────────────────────────────────────────────┐
-                 │                 Augur                   │
+                 │                 Augur                        │
                  │     (orchestrator — packages/core)           │
                  │                                              │
    index() ──►   │  Chunker → Embedder → Adapter.upsert()       │
@@ -17,21 +17,21 @@ This document describes how Augur is organized, why each piece exists, and how t
                  │  Tracer wraps every step → SearchTrace       │
                  └────────────────┬─────────────────────────────┘
                                   │
-                       ┌──────────┴──────────┐
-                       ▼                     ▼
-              @augur/server       Dashboard (Next.js)
-              (Fastify HTTP API)       (trace explorer + playground)
+                                  ▼
+                         @augur/server (optional)
+                         Fastify HTTP API + OpenAPI
 ```
 
 Five components, one orchestrator. Each component is a single TypeScript interface; each shipping implementation is one file.
 
 ## Why this layout
 
-We picked a **monorepo with three deployable units** (`core`, `server`, `dashboard`) because:
+The repo ships **two publishable packages**:
 
-- The SDK has to work standalone — `npm install @augur/core` and that's it. So `core` is its own package with zero runtime dependencies.
-- The HTTP server is a thin wrapper. Many users will skip it entirely (embed the SDK in their own app). It's a separate package so they can.
-- The dashboard is a separate Next.js app because it's a frontend concern; coupling it to the server would force everyone to ship Next.js to production.
+- `@augur/core` — the SDK. `npm install @augur/core` and that's it. Zero runtime dependencies (`@huggingface/transformers` is an optional peer for `LocalEmbedder`).
+- `@augur/server` — a thin Fastify HTTP wrapper. Many users will skip it and embed the SDK in their own app; it's a separate package so they can.
+
+A trace-explorer dashboard (Next.js) and an eval harness (BEIR runner + bundled corpus) used to live in this repo and are kept out of tree now — they were development tools, not production dependencies. Both remain in git history and may be re-published as standalone sister repos in the future. Stripping them keeps the install lean and the maintenance scope honest.
 
 Within `core`, code is grouped by **role**, not by feature:
 
@@ -115,7 +115,7 @@ interface Router {
 }
 ```
 
-The `RoutingDecision` carries the strategy *and the reasons*. This is the explainability requirement made concrete. The dashboard shows the reasons; the API returns them; tests assert on them.
+The `RoutingDecision` carries the strategy *and the reasons*. This is the explainability requirement made concrete. Trace consumers (logs, dashboards, your own UI) display the reasons; the API returns them; tests assert on them.
 
 Today: `HeuristicRouter`. Tomorrow: `MLRouter` trained on click data. They share the same interface — adoption is `new Augur({ router: new MLRouter(...) })`.
 
@@ -144,7 +144,7 @@ The `HeuristicRouter` is a small decision tree on three inputs: query signals, a
     - otherwise → **hybrid**
 4. Reranking decision — separately, on top of the chosen strategy. Disabled if the latency budget is < 800ms or the strategy is keyword-only.
 
-Each step records a human-readable reason in the trace. When you see "default → hybrid (no strong signal either way)" in the dashboard, that's the router telling you it's flying blind. That's the cue to either tune the heuristics, write a domain-specific router, or train an ML router.
+Each step records a human-readable reason in the trace. When you see "default → hybrid (no strong signal either way)" in your trace logs, that's the router telling you it's flying blind. That's the cue to either tune the heuristics, write a domain-specific router, or train an ML router.
 
 ## How retrieval actually executes
 
@@ -167,7 +167,7 @@ Augur doesn't auto-pick a chunker — chunking is set at construction time, appl
 - Chunking decisions are about *content type* (code vs prose vs transcripts), not query type.
 - Mixing chunkers within a single index breaks score comparability.
 
-What Augur *does* do is make swapping chunkers cheap: change the constructor argument, re-index. The chunker name is captured in the index trace, so the dashboard can show "this index was built with `sentence`".
+What Augur *does* do is make swapping chunkers cheap: change the constructor argument, re-index. The chunker name is captured in the index trace, so observability can show "this index was built with `sentence`".
 
 ## How adapters work
 
@@ -187,7 +187,7 @@ The `Tracer` is a tiny class that:
 - Collects them.
 - Returns a `SearchTrace` at the end with the routing decision, query signals, candidates, adapter name, and spans.
 
-Every search returns its trace. The HTTP server stores recent traces in a bounded `TraceStore` (default 2000) so the dashboard can show them.
+Every search returns its trace. The HTTP server stores recent traces in a bounded `TraceStore` (default 2000) so a trace-consuming UI can show them.
 
 We deliberately did **not** build OpenTelemetry into core. OTel is a fine ecosystem but it's fire-and-forget — it's *not* designed to put structured trace data into the response payload. We want the trace as data, not a Jaeger UI side-effect. Users who want OTel export wrap our tracer; the wrapper is ~30 lines.
 
@@ -226,4 +226,4 @@ If a user needs HA, they run multiple instances behind a load balancer. If they 
 5. `packages/core/src/observability/tracer.ts` — observability
 6. `packages/server/src/server.ts` — HTTP wrapper
 
-That's the system. Everything else (other adapters, other rerankers, the dashboard) is variation on these themes.
+That's the system. Everything else (other adapters, other rerankers, trace UIs) is variation on these themes.

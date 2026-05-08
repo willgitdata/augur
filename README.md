@@ -79,9 +79,8 @@ Custom adapter is five methods — see [`examples/custom-adapter`](./examples/cu
 
 ```
 augur/
-├── packages/core/         # @augur/core — the SDK
-├── packages/server/       # @augur/server — Fastify HTTP API + OpenAPI
-├── apps/dashboard/        # Next.js trace explorer + query playground
+├── packages/core/         # @augur/core — the SDK (this is what most users install)
+├── packages/server/       # @augur/server — optional Fastify wrapper for standalone deploy
 ├── examples/              # basic-search, custom-adapter, chunking
 ├── ARCHITECTURE.md        # how the system is organized + why
 ├── EXAMPLES.md            # extended walkthroughs (hosted embedders, contextual retrieval, BGE-large, MMR, ...)
@@ -89,29 +88,17 @@ augur/
 └── DEVELOPMENT_GUIDE.md   # contributor + local-dev guide
 ```
 
+The repo intentionally ships only the SDK and the optional HTTP wrapper. A trace-explorer dashboard and the BEIR-eval harness used to produce the numbers above are kept out of tree as development tools — both remain available in git history if you need them, and may be re-published as standalone sister repos in the future.
+
 ## Quick start
 
 ```bash
 pnpm install && pnpm build
 pnpm --filter example-basic-search start
 
-# Or the full stack (API + dashboard):
+# Or run the HTTP server:
 docker compose up
-# dashboard → http://localhost:3000
-# API docs  → http://localhost:3001/docs
-```
-
-## Reproduce the numbers
-
-```bash
-# Bundled eval
-pnpm eval -- --reranker local --metadata-chunker --bm25-stem
-
-# BEIR — example: SciFact
-mkdir -p /tmp/beir && cd /tmp/beir
-curl -sLo scifact.zip https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/scifact.zip
-unzip -q scifact.zip
-cd - && pnpm exec tsx evaluations/beir.ts /tmp/beir/scifact
+# API docs → http://localhost:3001/docs
 ```
 
 ## Status

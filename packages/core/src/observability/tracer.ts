@@ -71,7 +71,8 @@ export class Tracer {
 }
 
 /**
- * In-memory trace store. The HTTP server uses this to power the dashboard.
+ * In-memory trace store. The HTTP server exposes its contents via the
+ * `/traces` endpoint for trace explorers and observability backends.
  * Bounded — drops oldest when capacity is exceeded.
  */
 export class TraceStore {
