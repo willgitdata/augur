@@ -129,6 +129,8 @@ pnpm eval -- --embedder tfidf                                    # swap to TfIdf
 pnpm eval -- --embedder local                                    # offline ONNX (Xenova/all-MiniLM-L6-v2, ~22MB)
 pnpm eval -- --embedder local --reranker local                   # + cross-encoder reranker (~22MB)
 pnpm eval -- --embedder local --reranker local --metadata-chunker # full local stack
+pnpm eval -- --embedder local --reranker local --metadata-chunker --bm25-stem  # best (0.910 NDCG@10)
+pnpm eval -- --embedder local --reranker local --mmr --mmr-lambda 0.7          # diversity-aware top-K
 pnpm eval -- --embedder gemini --gemini-cache-dir .cache/gemini  # Gemini API w/ disk cache
 ```
 
@@ -137,23 +139,35 @@ pnpm eval -- --embedder gemini --gemini-cache-dir .cache/gemini  # Gemini API w/
 Measured on the bundled 504-query / 182-doc eval. **All numbers below are
 real, locally reproducible runs** — no remote APIs touched.
 
-| Config                                                                       | NDCG@10 | MRR    | Recall@10 |
-| ---------------------------------------------------------------------------- | ------: | -----: | --------: |
-| `HashEmbedder` (default placeholder, not semantic)                           | 0.786   | 0.782  | 0.857     |
-| `TfIdfEmbedder`                                                              | 0.825   | 0.816  | 0.906     |
-| `TfIdfEmbedder` + `MetadataChunker`                                          | 0.848   | 0.839  | 0.923     |
-| `LocalEmbedder` (Xenova/all-MiniLM-L6-v2)                                    | 0.845   | 0.835  | 0.924     |
-| `LocalEmbedder` + `LocalReranker` (ms-marco-MiniLM-L-6-v2 cross-encoder)     | 0.877   | 0.871  | 0.932     |
-| `LocalEmbedder` + `LocalReranker` + `MetadataChunker`                        | **0.899** | **0.896** | **0.943** |
+| Config                                                                                          | NDCG@10 | MRR    | Recall@10 |
+| ----------------------------------------------------------------------------------------------- | ------: | -----: | --------: |
+| `HashEmbedder` (default placeholder, not semantic)                                              | 0.786   | 0.782  | 0.857     |
+| `TfIdfEmbedder`                                                                                 | 0.825   | 0.816  | 0.906     |
+| `TfIdfEmbedder` + `MetadataChunker`                                                             | 0.848   | 0.839  | 0.923     |
+| `LocalEmbedder` (Xenova/all-MiniLM-L6-v2)                                                       | 0.845   | 0.835  | 0.924     |
+| `LocalEmbedder` + `LocalReranker` (ms-marco-MiniLM cross-encoder)                               | 0.877   | 0.871  | 0.932     |
+| `LocalEmbedder` + `LocalReranker` + `MetadataChunker`                                           | 0.899   | 0.896  | 0.943     |
+| `LocalEmbedder` + `LocalReranker` + `MetadataChunker` + stemmed BM25 (`useStemming`)            | **0.910** | **0.907** | **0.956** |
 
-The bottom row uses ~44MB of on-device ONNX models, no network at query
-time, and beats the HashEmbedder default by **+11.3% NDCG@10**, with
-vector-strategy NDCG going from **0.638 → 0.922 (+28.4%)**.
+The best row uses ~44MB of on-device ONNX models, no network at query
+time, and beats the HashEmbedder default by **+12.4% NDCG@10**, with
+vector-strategy NDCG going from **0.638 → 0.922 (+28.4%)** and keyword
+from 0.874 → 0.925 (+5.1%, almost entirely from Porter stemming).
 
 Hosted production embedders (Cohere v3, OpenAI text-embedding-3, Voyage)
 typically lift another 5-10% on top of all-MiniLM-L6-v2. The harness is
 a pure function of the `Augur` instance, so swap the embedder, adapter,
 router, or reranker between runs to measure the impact of any change.
+
+### MMR for diverse top-K (opt-in)
+
+`MMRReranker` implements Maximal Marginal Relevance — useful when queries
+have multiple distinct relevant docs and you want the top-K to span them
+rather than concentrate on near-duplicates. **Not on by default**: on the
+bundled QA-style eval where most queries have 1 relevant doc, MMR pushes
+hits out of top-10 in favor of diversity (NDCG drops ~0.04). Reach for it
+on multi-aspect queries, recommendation feeds, and RAG pipelines where
+the LLM benefits from non-redundant context. See [EXAMPLES §5](EXAMPLES.md#5-switching-to-openai--pinecone) for wiring.
 
 ## Status
 

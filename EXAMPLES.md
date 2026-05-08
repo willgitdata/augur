@@ -213,16 +213,58 @@ new LocalEmbedder({
 **Measured impact on the bundled 504-query eval (no API keys):**
 
 ```
-HashEmbedder (default)                                    NDCG@10 = 0.786
-TfIdfEmbedder                                             NDCG@10 = 0.825 (+0.039)
-TfIdfEmbedder + MetadataChunker                           NDCG@10 = 0.848 (+0.062)
-LocalEmbedder (all-MiniLM-L6-v2)                          NDCG@10 = 0.845 (+0.059)
-LocalEmbedder + LocalReranker (cross-encoder cascade)     NDCG@10 = 0.877 (+0.091)
-LocalEmbedder + LocalReranker + MetadataChunker           NDCG@10 = 0.899 (+0.113)
+HashEmbedder (default)                                                NDCG@10 = 0.786
+TfIdfEmbedder                                                         NDCG@10 = 0.825 (+0.039)
+TfIdfEmbedder + MetadataChunker                                       NDCG@10 = 0.848 (+0.062)
+LocalEmbedder (all-MiniLM-L6-v2)                                      NDCG@10 = 0.845 (+0.059)
+LocalEmbedder + LocalReranker                                         NDCG@10 = 0.877 (+0.091)
+LocalEmbedder + LocalReranker + MetadataChunker                       NDCG@10 = 0.899 (+0.113)
+LocalEmbedder + LocalReranker + MetadataChunker + stemmed BM25        NDCG@10 = 0.910 (+0.124)
 ```
 
 Vector-strategy NDCG goes from 0.638 (HashEmbedder) to **0.922** with the
 full local stack — the kind of jump you typically need a hosted API for.
+
+### Stemmed BM25 (`InMemoryAdapter({ useStemming: true })`)
+
+Turns on Porter stemming + English stopword filtering for the keyword
+path. Same pipeline Lucene/Elasticsearch use by default. On the bundled
+eval this single flag adds ~+0.022 NDCG@10 to *any* config and is the
+biggest cheap win on quoted / named-entity / short keyword queries
+(running ↔ runs, connection ↔ connections all collapse to one stem).
+
+```ts
+import { Augur, InMemoryAdapter, LocalEmbedder, LocalReranker } from "@augur/core";
+
+const augr = new Augur({
+  adapter: new InMemoryAdapter({ useStemming: true }),
+  embedder: new LocalEmbedder(),
+  reranker: new LocalReranker(),
+});
+```
+
+### MMR (Maximal Marginal Relevance) for diverse top-K
+
+For ambiguous queries with multiple relevant docs, pure-relevance reranking
+concentrates on near-duplicates. `MMRReranker` rebalances toward novelty:
+
+```ts
+import { CascadedReranker, LocalReranker, MMRReranker, Augur } from "@augur/core";
+
+// Cross-encoder narrows by relevance; MMR diversifies the survivors.
+const reranker = new CascadedReranker([
+  [new LocalReranker(), 50],
+  [new MMRReranker({ lambda: 0.7 }), 10],
+]);
+
+const augr = new Augur({ reranker, /* ... */ });
+```
+
+`λ = 1.0` is pure relevance; `λ = 0.7` is the standard "relevance with
+diversity boost". Not enabled by default — on QA-style queries (one
+relevant doc) MMR pushes hits out in favor of variety, which hurts. Reach
+for it on multi-aspect queries, search-results pages, and RAG pipelines
+where the LLM benefits from non-redundant context.
 
 ### Picking a reranker
 
