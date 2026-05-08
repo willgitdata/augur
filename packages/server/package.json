@@ -1,21 +1,52 @@
 {
   "name": "@augur/server",
   "version": "0.1.0",
-  "description": "Augur HTTP API server",
+  "description": "Augur HTTP API server. Drop-in Fastify wrapper around @augur/core with OpenAPI docs and trace explorer compatibility.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "bin": {
     "augur-server": "./dist/cli.js"
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "augur",
+    "rag",
+    "retrieval",
+    "fastify",
+    "http-api",
+    "openapi"
+  ],
+  "homepage": "https://github.com/willgitdata/augur#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/willgitdata/augur.git",
+    "directory": "packages/server"
+  },
+  "bugs": {
+    "url": "https://github.com/willgitdata/augur/issues"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/cli.ts",
     "start": "node dist/cli.js",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm clean && pnpm build"
   },
   "dependencies": {
     "@augur/core": "workspace:*",

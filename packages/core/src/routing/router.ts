@@ -64,8 +64,8 @@ export class HeuristicRouter implements Router {
     }
 
     // 3. Non-English → vector (English-tuned BM25 fails on CJK and similar).
-    if (signals.language === "non-en") {
-      reasons.push("non-English query → semantic search");
+    if (signals.language !== "en") {
+      reasons.push(`${signals.language} query → semantic search`);
       return finalize("vector", signals, reasons, req, this.alwaysRerank);
     }
 
@@ -78,7 +78,7 @@ export class HeuristicRouter implements Router {
     }
     // 5a. Code-like syntax → keyword. camelCase / snake_case / function calls
     // are unambiguously lexical — exact tokens, no synonyms to chase.
-    else if (signals.hasCodeLike && signals.tokens <= 6) {
+    else if (signals.hasCodeLike && signals.wordCount <= 6) {
       reasons.push("short query with code-like syntax → keyword");
       strategy = "keyword";
     }
@@ -88,7 +88,7 @@ export class HeuristicRouter implements Router {
     // tokens. Pure keyword can't reach those; vector + BM25 (RRF) does.
     else if (
       (signals.hasSpecificTokens || signals.hasDateOrVersion) &&
-      signals.tokens <= 6
+      signals.wordCount <= 6
     ) {
       const why = signals.hasDateOrVersion
         ? "date/version/RFC token"
@@ -97,26 +97,26 @@ export class HeuristicRouter implements Router {
       strategy = caps.hybrid || (caps.vector && caps.keyword) ? "hybrid" : "keyword";
     }
     // 6. Very short queries → keyword.
-    else if (signals.tokens <= 2) {
+    else if (signals.wordCount <= 2) {
       reasons.push("very short query (≤2 tokens) → prefer keyword");
       strategy = caps.keyword ? "keyword" : "vector";
     }
     // 7. Mid-query named entity, not a question → keyword.
-    else if (signals.hasNamedEntity && signals.tokens <= 6 && !signals.isQuestion) {
+    else if (signals.hasNamedEntity && signals.wordCount <= 6 && !signals.isQuestion) {
       reasons.push("named entity detected → keyword");
       strategy = "keyword";
     }
     // 8. Question taxonomy.
-    else if (signals.questionType === "procedural" && signals.tokens >= 5) {
+    else if (signals.questionType === "procedural" && signals.wordCount >= 5) {
       reasons.push("procedural question (how/why) → semantic search");
       strategy = "vector";
-    } else if (signals.questionType === "definitional" && signals.tokens >= 3) {
+    } else if (signals.questionType === "definitional" && signals.wordCount >= 3) {
       reasons.push("definitional question (what is X) → semantic search");
       strategy = "vector";
-    } else if (signals.questionType === "factoid" && signals.tokens >= 3) {
+    } else if (signals.questionType === "factoid" && signals.wordCount >= 3) {
       reasons.push("factoid question (who/when/where/which) → hybrid");
       strategy = "hybrid";
-    } else if (signals.isQuestion && signals.tokens >= 5) {
+    } else if (signals.isQuestion && signals.wordCount >= 5) {
       reasons.push("natural-language question → semantic search");
       strategy = "vector";
     }

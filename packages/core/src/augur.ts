@@ -5,6 +5,7 @@ import type { Embedder } from "./embeddings/embedder.js";
 import { Tracer, TraceStore } from "./observability/tracer.js";
 import { HeuristicReranker, type Reranker } from "./reranking/reranker.js";
 import { HeuristicRouter, type Router } from "./routing/router.js";
+import { detectLanguage } from "./routing/signals.js";
 import type {
   Document,
   IndexResponse,
@@ -38,6 +39,28 @@ export interface AugurOptions {
    * Defaults to true. Set false to require explicit `index()` calls.
    */
   autoIndexAdHocDocuments?: boolean;
+  /**
+   * When the query's detected language is non-English, automatically
+   * filter the candidate pool to chunks tagged with that language.
+   * Chunks are auto-tagged at index time from `metadata.lang` if present,
+   * otherwise via Unicode-script detection on content. Soft fallback:
+   * if the filter empties the pool, search retries without it so users
+   * with monolingual corpora still get answers.
+   *
+   * **Default: false** — opt-in. The right default depends on your
+   * corpus shape:
+   *   - Turn ON when you have language-localized canonical answers
+   *     (e.g. one Japanese doc and one English doc per topic). Japanese
+   *     queries should get Japanese results, English queries English.
+   *   - Leave OFF when canonical answers may be cross-language (e.g. a
+   *     primarily-English knowledge base queried in many languages).
+   *     Hard-filtering Japanese queries would exclude the English
+   *     canonical answer even when it's the most relevant document.
+   *
+   * Always opt-in is the safer default; production users who know their
+   * corpus has localized content turn it on once.
+   */
+  autoLanguageFilter?: boolean;
 }
 
 /**
@@ -57,6 +80,7 @@ export class Augur {
   readonly reranker: Reranker;
   readonly traceStore?: TraceStore;
   private autoIndex: boolean;
+  private autoLanguageFilter: boolean;
 
   constructor(opts: AugurOptions) {
     if (!opts || !opts.embedder) {
@@ -73,6 +97,7 @@ export class Augur {
     this.reranker = opts.reranker ?? new HeuristicReranker();
     if (opts.traceStore) this.traceStore = opts.traceStore;
     this.autoIndex = opts.autoIndexAdHocDocuments ?? true;
+    this.autoLanguageFilter = opts.autoLanguageFilter ?? false;
   }
 
   /**
@@ -84,11 +109,22 @@ export class Augur {
     let embeddingMs = 0;
     let upsertMs = 0;
 
-    // 1. Chunk
+    // 1. Chunk + auto-tag with language. The lang tag drives the
+    //    language-aware filter at search time. Honor user-supplied
+    //    metadata.lang on the source doc; otherwise detect from content.
     const c0 = performance.now();
-    const allChunks = (
-      await Promise.all(documents.map((d) => chunkDocument(this.chunker, d)))
-    ).flat();
+    const perDoc = await Promise.all(
+      documents.map(async (d) => {
+        const chunks = await chunkDocument(this.chunker, d);
+        const lang =
+          (d.metadata?.lang as string | undefined) ?? detectLanguage(d.content);
+        for (const ch of chunks) {
+          ch.metadata = { ...ch.metadata, lang };
+        }
+        return chunks;
+      })
+    );
+    const allChunks = perDoc.flat();
     chunkingMs = performance.now() - c0;
 
     // 2. Embed (skip if adapter computes embeddings itself)
@@ -161,24 +197,36 @@ export class Augur {
 
     const decision = this.router.decide(req, activeAdapter.capabilities);
     const willRerank = decision.reranked;
-    const filter = req.filter;
+    const userFilter = req.filter;
 
-    let candidates: SearchResult[] = [];
+    // Compose the active filter from user-supplied filter + the
+    // auto-language filter. The auto-language filter only applies when
+    // (a) it's enabled, (b) the query is non-English, and (c) the user
+    // didn't already pin `lang` themselves.
+    const autoLang =
+      this.autoLanguageFilter &&
+      decision.signals.language !== "en" &&
+      !(userFilter && "lang" in userFilter)
+        ? decision.signals.language
+        : null;
+    const filter = composeFilter(userFilter, autoLang);
 
-    if (willRerank) {
-      // Stage 1: pull a wide multi-source pool. Cap at POOL_PER_SIDE per
-      // backend so the cross-encoder doesn't have to score thousands of
-      // pairs. 50 each → up to ~100 unique candidates after dedupe.
-      candidates = await this.gatherCandidatePool(req, decision, activeAdapter, tracer, filter);
-    } else {
-      // Stage 1 fast path: no rerank → strategy decision drives a single
-      // retrieval call directly to topK.
-      candidates = await this.runStrategy(req, decision, activeAdapter, topK, tracer, filter);
+    let candidates = await this.retrieve(
+      req, decision, activeAdapter, topK, tracer, filter, willRerank
+    );
+    let langFilterDropped = false;
+    // Soft fallback: if the language filter emptied the result, retry
+    // without it. Better to surface the closest match in another
+    // language than to return nothing at all.
+    if (autoLang && candidates.length === 0) {
+      langFilterDropped = true;
+      candidates = await this.retrieve(
+        req, decision, activeAdapter, topK, tracer, userFilter, willRerank
+      );
     }
 
     let results = candidates;
     if (willRerank && candidates.length > 0) {
-      // Stage 2: cross-encoder picks the final top-K from the wide pool.
       results = await tracer.span(
         "rerank",
         () => this.reranker.rerank(req.query, candidates, topK),
@@ -188,8 +236,13 @@ export class Augur {
       results = candidates.slice(0, topK);
     }
 
-    // Strip embeddings from results — they're an internal detail and bloat
-    // the response payload. Users who need them can re-fetch chunks by ID.
+    // Optional confidence floor: drop results below `req.minScore`. Useful
+    // when "no answer" is a better signal to the LLM than "noisy answer".
+    if (typeof req.minScore === "number") {
+      results = results.filter((r) => r.score >= req.minScore!);
+    }
+
+    // Strip embeddings from results — internal detail, bloats the payload.
     results = results.map((r) => {
       if (!r.chunk.embedding) return r;
       const { embedding: _embedding, ...rest } = r.chunk;
@@ -201,10 +254,27 @@ export class Augur {
       candidates: candidates.length,
       adapter: scratchUsed ? `${activeAdapter.name} (ad-hoc)` : activeAdapter.name,
       embeddingModel: this.embedder.name,
+      ...(autoLang ? { autoLanguageFilter: autoLang } : {}),
+      ...(langFilterDropped ? { autoLanguageFilterDropped: true } : {}),
     });
     this.traceStore?.push(trace);
 
     return { results, trace };
+  }
+
+  /** Single internal helper — picks the right stage-1 path based on willRerank. */
+  private retrieve(
+    req: SearchRequest,
+    decision: RoutingDecision,
+    activeAdapter: VectorAdapter,
+    topK: number,
+    tracer: Tracer,
+    filter: Record<string, unknown> | undefined,
+    willRerank: boolean
+  ): Promise<SearchResult[]> {
+    return willRerank
+      ? this.gatherCandidatePool(req, decision, activeAdapter, tracer, filter)
+      : this.runStrategy(req, decision, activeAdapter, topK, tracer, filter);
   }
 
   /** Convenience helper to wipe the underlying adapter. */
@@ -300,6 +370,19 @@ export class Augur {
 }
 
 /**
+ * Merge user-supplied filter with the auto-language tag (if any) into a
+ * single AND-style filter. User-supplied keys win on conflict; we don't
+ * silently override an explicit `lang` if the caller pinned one.
+ */
+function composeFilter(
+  userFilter: Record<string, unknown> | undefined,
+  autoLang: string | null
+): Record<string, unknown> | undefined {
+  if (!autoLang) return userFilter;
+  return userFilter ? { lang: autoLang, ...userFilter } : { lang: autoLang };
+}
+
+/**
  * Static prior on the vector/BM25 mix from query signals. Returns the
  * fraction of weight the vector side gets in fusion (BM25 gets 1 - x):
  *   - quoted / specific-token / code-like → 0.3 (lexical wins)
@@ -309,8 +392,8 @@ export class Augur {
  */
 function pickVectorWeight(signals: QuerySignals): number {
   if (signals.hasQuotedPhrase || signals.hasSpecificTokens || signals.hasCodeLike) return 0.3;
-  if (signals.tokens <= 2) return 0.4;
-  if (signals.isQuestion && signals.tokens >= 6) return 0.7;
+  if (signals.wordCount <= 2) return 0.4;
+  if (signals.isQuestion && signals.wordCount >= 6) return 0.7;
   return 0.5;
 }
 

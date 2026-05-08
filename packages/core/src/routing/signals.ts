@@ -8,7 +8,7 @@ import type { QuerySignals, QuestionType } from "../types.js";
  * routing later, these become the input feature vector.
  *
  * Why these specific signals:
- * - tokens / avgTokenLen: short queries with long tokens (e.g. UUIDs, error
+ * - wordCount / avgWordLen: short queries with long words (e.g. UUIDs, error
  *   codes) are keyword-flavored; long natural-language queries are vector-flavored.
  * - hasQuotedPhrase: "exact phrase match" is a hard constraint — that's keyword.
  * - hasSpecificTokens: identifiers, numbers, hex codes — keyword wins.
@@ -20,7 +20,10 @@ import type { QuerySignals, QuestionType } from "../types.js";
  * - hasDateOrVersion: years, semver, RFC, CVE — specific terms users want literal.
  * - hasNegation: "not", "without", "vs" — bi-encoders fail on negation, so we
  *   force the reranker on regardless of base strategy.
- * - language: non-Latin script → BM25 won't help (English-tuned), prefer vector.
+ * - language: BCP-47-style code from Unicode-script analysis ("en" by default,
+ *   "ja"/"zh"/"ko"/"ru"/"ar"/"hi"/"th"/"he"/"el" for non-Latin scripts). Drives
+ *   both the router (non-en → vector) and the language-aware filter Augur
+ *   applies at search time.
  * - ambiguity: low lexical signal + many short stopwords = vector or rerank.
  *
  * All thresholds are intentionally explicit constants here, not config —
@@ -43,16 +46,56 @@ function stripPunct(token: string): string {
   return token.replace(/^["'(\[`]+|["')\].,?!:`]+$/g, "");
 }
 
+/**
+ * Detect a query/document language code from Unicode script ranges.
+ *
+ * Returns one of: "en" (Latin script — default), "ja", "zh", "ko", "ru",
+ * "ar", "hi", "th", "he", "el". Latin-script European languages (Spanish,
+ * French, German, Italian, Portuguese, Vietnamese) collapse to "en"
+ * because BM25 with a Latin tokenizer handles them passably and we'd
+ * rather not aggressively partition the corpus on weak signal.
+ *
+ * Heuristic by design — no n-gram model, no dependencies. Trades the
+ * ability to distinguish Spanish from English for predictable, sub-µs
+ * decisions and zero install footprint.
+ */
+export function detectLanguage(text: string): string {
+  if (!text) return "en";
+  // Hiragana / Katakana → Japanese (must come before generic CJK
+  // because Japanese also contains Han ideographs).
+  if (/[぀-ゟ゠-ヿ]/.test(text)) return "ja";
+  // Hangul Syllables / Jamo → Korean
+  if (/[가-힯ᄀ-ᇿ]/.test(text)) return "ko";
+  // Han ideographs without hiragana/hangul → Chinese
+  if (/[一-鿿]/.test(text)) return "zh";
+  // Cyrillic → ru (simplification; Ukrainian / Bulgarian / Serbian
+  // also use Cyrillic but for retrieval-routing purposes they cluster).
+  if (/[Ѐ-ӿ]/.test(text)) return "ru";
+  // Arabic
+  if (/[؀-ۿݐ-ݿ]/.test(text)) return "ar";
+  // Devanagari → Hindi
+  if (/[ऀ-ॿ]/.test(text)) return "hi";
+  // Thai
+  if (/[฀-๿]/.test(text)) return "th";
+  // Hebrew
+  if (/[֐-׿]/.test(text)) return "he";
+  // Greek
+  if (/[Ͱ-Ͽ]/.test(text)) return "el";
+  return "en";
+}
+
 export function computeSignals(query: string): QuerySignals {
   const trimmed = query.trim();
-  const tokens = trimmed.split(/\s+/).filter(Boolean);
-  const tokensLower = tokens.map((t) => t.toLowerCase());
+  // Whitespace-split words. These drive routing rules; the embedder has its
+  // own subword tokenization (WordPiece for MiniLM-L6 etc) and is unrelated.
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  const wordsLower = words.map((t) => t.toLowerCase());
 
-  const tokenCount = tokens.length;
-  const avgTokenLen = tokenCount === 0 ? 0 : tokens.reduce((s, t) => s + t.length, 0) / tokenCount;
+  const wordCount = words.length;
+  const avgWordLen = wordCount === 0 ? 0 : words.reduce((s, t) => s + t.length, 0) / wordCount;
   const hasQuotedPhrase = /["'][^"']{2,}["']/.test(trimmed);
 
-  const hasSpecificTokens = tokens.some((t) => {
+  const hasSpecificTokens = words.some((t) => {
     if (/^\d+$/.test(t)) return true;
     if (/^[A-Z0-9]{3,}$/.test(t)) return true;
     if (/[_\-./]/.test(t) && /[a-zA-Z]/.test(t) && /\d/.test(t)) return true;
@@ -61,7 +104,7 @@ export function computeSignals(query: string): QuerySignals {
   });
 
   // Code-like patterns. Each matched token suggests a programming-context query.
-  const hasCodeLike = tokens.some((t) => {
+  const hasCodeLike = words.some((t) => {
     const bare = stripPunct(t);
     if (/[a-z][A-Z]/.test(bare)) return true;                // camelCase: useState, kubectl
     if (/^[a-z]+(_[a-z0-9]+)+$/i.test(bare)) return true;    // snake_case: pool_mode, pg_repack
@@ -96,7 +139,7 @@ export function computeSignals(query: string): QuerySignals {
   // Named entity heuristic: capitalized non-stopword token NOT at position 0.
   // Sentence-initial capitalization is too noisy (every "How do I..." starts
   // capital). Mid-query caps are a much stronger entity signal.
-  const hasNamedEntity = tokens.slice(1).some((t) => {
+  const hasNamedEntity = words.slice(1).some((t) => {
     const bare = stripPunct(t);
     if (bare.length < 2) return false;
     if (!/^[A-Z]/.test(bare)) return false;
@@ -108,27 +151,21 @@ export function computeSignals(query: string): QuerySignals {
     return true;
   });
 
-  const hasNegation = tokensLower.some((t) => NEGATION_TOKENS.has(t));
+  const hasNegation = wordsLower.some((t) => NEGATION_TOKENS.has(t));
 
-  // Language detection (heuristic): non-Latin chars (CJK, Arabic, Cyrillic, etc).
-  // Spanish/French still pass as "en" since they're Latin script and BM25 +
-  // a Latin-tokenizer handle them passably; CJK is the hard case for BM25.
-  const nonLatinCount = (trimmed.match(/[^\u0020-\u024F\s\p{P}]/gu) ?? []).length;
-  const totalNonSpace = trimmed.replace(/\s+/g, "").length;
-  const language: "en" | "non-en" =
-    totalNonSpace > 0 && nonLatinCount / totalNonSpace > 0.3 ? "non-en" : "en";
+  const language = detectLanguage(trimmed);
 
   // Ambiguity proxy: high stopword ratio + low lexical specificity.
   const stopRatio =
-    tokenCount === 0 ? 0 : tokensLower.filter((t) => STOPWORDS.has(t)).length / tokenCount;
-  const lengthPenalty = tokenCount < 3 ? 0.4 : 0;
+    wordCount === 0 ? 0 : wordsLower.filter((t) => STOPWORDS.has(t)).length / wordCount;
+  const lengthPenalty = wordCount < 3 ? 0.4 : 0;
   const specificityReward = hasSpecificTokens || hasCodeLike || hasDateOrVersion ? -0.3 : 0;
   let ambiguity = stopRatio + lengthPenalty + specificityReward;
   ambiguity = Math.max(0, Math.min(1, ambiguity));
 
   return {
-    tokens: tokenCount,
-    avgTokenLen,
+    wordCount,
+    avgWordLen,
     hasQuotedPhrase,
     hasSpecificTokens,
     isQuestion,

@@ -82,11 +82,13 @@ test("forceStrategy is honored", () => {
 
 // ---------- new signal-driven branches ----------
 
-test("router routes non-English queries to vector", () => {
+test("router routes non-English queries to vector with detected lang code", () => {
   const r = new HeuristicRouter();
-  const d = r.decide({ query: "重複行 削除 PostgreSQL" }, fullCaps);
+  // Japanese with hiragana — distinguishes from Chinese (Han only).
+  const d = r.decide({ query: "PostgreSQL の重複行を削除する方法" }, fullCaps);
   assert.equal(d.strategy, "vector");
-  assert.ok(d.reasons.some((x) => x.includes("non-English")));
+  assert.equal(d.signals.language, "ja");
+  assert.ok(d.reasons.some((x) => x.includes("ja query")));
 });
 
 test("router treats code-like syntax as keyword on short queries", () => {
