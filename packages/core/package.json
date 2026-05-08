@@ -63,7 +63,7 @@
     "prepublishOnly": "pnpm clean && pnpm build && pnpm test"
   },
   "peerDependencies": {
-    "@huggingface/transformers": "^3.0.0 || ^4.0.0"
+    "@huggingface/transformers": "^4.0.0"
   },
   "peerDependenciesMeta": {
     "@huggingface/transformers": {
