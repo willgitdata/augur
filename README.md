@@ -1,4 +1,7 @@
-# Augur (Named after the ancient Roman augurs who interpreted signs {query vectors} to foresee outcomes {optimized retrieval architecture})
+# Augur (
+
+
+##### Named after the ancient Roman augurs who interpreted signs to foresee the best path forward. To augur is to predict, and this package predicts the optimal retrieval method for your use case.
 
 
 **An adaptive retrieval orchestration layer for AI/RAG systems.**
