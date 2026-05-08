@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import {
   Augur,
   CascadedReranker,
+  Doc2QueryChunker,
   GeminiEmbedder,
   HashEmbedder,
   HeuristicReranker,
@@ -27,8 +28,10 @@ import {
   MMRReranker,
   SentenceChunker,
   TfIdfEmbedder,
+  type Chunker,
   type Embedder,
   type Reranker,
+  type SemanticChunker,
 } from "@augur/core";
 import { formatReport, runEval, type EvalDoc, type EvalQuery, type EvalReport } from "./runner.js";
 
@@ -49,6 +52,9 @@ interface Args {
   geminiCacheDir?: string;
   limit?: number;
   metadataChunker: boolean;
+  doc2query: boolean;
+  doc2queryModel?: string;
+  doc2queryNumQueries?: number;
   bm25Stem: boolean;
   mmr: boolean;
   mmrLambda: number;
@@ -63,6 +69,7 @@ function parseArgs(argv: string[]): Args {
     bm25Stem: false,
     mmr: false,
     mmrLambda: 0.7,
+    doc2query: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -93,6 +100,9 @@ function parseArgs(argv: string[]): Args {
     else if (a === "--bm25-stem") out.bm25Stem = true;
     else if (a === "--mmr") out.mmr = true;
     else if (a === "--mmr-lambda") out.mmrLambda = parseFloat(argv[++i]!);
+    else if (a === "--doc2query") out.doc2query = true;
+    else if (a === "--doc2query-model") out.doc2queryModel = argv[++i];
+    else if (a === "--doc2query-n") out.doc2queryNumQueries = parseInt(argv[++i]!, 10);
   }
   return out;
 }
@@ -159,9 +169,17 @@ async function main() {
   const queries = loadJson<EvalQuery[]>(join(HERE, "queries.json"));
 
   const baseChunker = new SentenceChunker();
-  const chunker = args.metadataChunker
-    ? new MetadataChunker({ base: baseChunker })
-    : baseChunker;
+  let chunker: Chunker | SemanticChunker = baseChunker;
+  if (args.metadataChunker) {
+    chunker = new MetadataChunker({ base: chunker });
+  }
+  if (args.doc2query) {
+    chunker = new Doc2QueryChunker({
+      base: chunker,
+      ...(args.doc2queryModel ? { model: args.doc2queryModel } : {}),
+      ...(args.doc2queryNumQueries !== undefined ? { numQueries: args.doc2queryNumQueries } : {}),
+    });
+  }
   const embedder = buildEmbedder(args);
   const baseReranker = buildReranker(args);
   // If --mmr is set, cascade [base reranker → MMR] for diverse top-K. The
