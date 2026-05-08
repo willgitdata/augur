@@ -480,7 +480,7 @@ curl -X POST localhost:3001/search \
   -d '{"query":"hello","topK":3}'
 ```
 
-The trace is in the response. Open `http://localhost:3000` (the dashboard) to see it visually.
+The trace is in the response — log it, ship it to your observability backend, or render it in your own UI.
 
 ---
 

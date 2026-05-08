@@ -23,8 +23,8 @@ export interface Router {
 /**
  * HeuristicRouter — rule-based per-query strategy selection. See the
  * inline comments in `decide()` for the full priority order. Every
- * decision records human-readable `reasons` so the dashboard and trace
- * explorer can show *why* a route was picked.
+ * decision records human-readable `reasons` so trace consumers (logs,
+ * observability backends, your own UI) can show *why* a route was picked.
  */
 export interface HeuristicRouterOptions {
   /**

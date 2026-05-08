@@ -17,7 +17,7 @@
 <!-- What did you run locally to convince yourself this works? At minimum: -->
 - [ ] `pnpm typecheck`
 - [ ] Core test suite passes
-- [ ] Affected examples / dashboard manually verified
+- [ ] Affected examples manually verified
 
 ## Notes for the reviewer
 

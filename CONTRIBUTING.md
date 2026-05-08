@@ -21,17 +21,16 @@ pnpm -r --filter './packages/*' build
 This is a pnpm workspace.
 
 - `packages/core` — `@augur/core`, the SDK. Adapter interface, router, chunkers, embedders, reranker, trace store.
-- `packages/server` — `@augur/server`, a Fastify HTTP wrapper around the SDK with `/index`, `/search`, `/traces`, `/admin/*` endpoints.
-- `apps/dashboard` — `@augur/dashboard`, a Next.js trace explorer that hits the server's REST API.
+- `packages/server` — `@augur/server`, a Fastify HTTP wrapper around the SDK with `/index`, `/search`, `/traces`, `/health`, `/docs` endpoints.
 - `examples/` — runnable examples covering the SDK's main paths (basic search, chunking strategies, custom adapters).
+
+The dashboard (Next.js trace explorer) and eval harness (BEIR runner + bundled corpus) used to live in this repo. They're kept out of tree now to keep the install lean — both remain available in git history.
 
 ## Running things
 
 ```bash
-pnpm dev:server          # @augur/server on :3001 (in-memory adapter, hash embedder)
-pnpm dev:dashboard       # @augur/dashboard on :3000
-
-pnpm --filter example-basic-search start    # one-shot SDK demo
+pnpm dev:server                              # @augur/server on :3001
+pnpm --filter example-basic-search start     # one-shot SDK demo
 pnpm --filter example-chunking start
 pnpm --filter example-custom-adapter start
 ```
