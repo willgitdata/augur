@@ -177,12 +177,17 @@ export class Augur {
         const [v] = await this.embedder.embed([req.query]);
         return v!;
       });
+      // Query-aware hybrid weight: short / specific queries lean BM25; long
+      // natural-language queries lean vector. Production hybrid systems (Vespa,
+      // Pinecone hybrid) all do some version of this — a fixed 0.5/0.5 mix
+      // under-weights whichever side is wrong for the current query shape.
+      const vectorWeight = pickVectorWeight(decision.signals);
       candidates = await tracer.span("search:hybrid", () =>
         (activeAdapter.searchHybrid ?? hybridFallback).call(activeAdapter, {
           embedding,
           query: req.query,
           topK: expandedTopK,
-          vectorWeight: 0.6, // sensible default; tunable via context
+          vectorWeight,
           ...(req.filter ? { filter: req.filter } : {}),
         })
       );
@@ -232,6 +237,28 @@ export class Augur {
   async clear(): Promise<void> {
     await this.adapter.clear();
   }
+}
+
+/**
+ * Map query signals to a hybrid vector/keyword weight. The output is the
+ * fraction the vector side gets in RRF / score combination; (1 - weight)
+ * goes to BM25.
+ *
+ * Heuristic, no learned weights — a tiny query-aware ramp:
+ *
+ *   - Quoted phrase or specific identifier present → BM25 carries (0.3).
+ *     The user is asking for an exact match; vector tends to dilute.
+ *   - Very short query (≤2 tokens) → BM25 leans (0.4). Bi-encoders embed
+ *     single terms poorly.
+ *   - Long natural-language question (≥6 tokens, no specific tokens) →
+ *     vector leans (0.7). Semantic match dominates lexical at length.
+ *   - Default → 0.5. Equal mix when the query gives no strong signal.
+ */
+function pickVectorWeight(signals: import("./types.js").QuerySignals): number {
+  if (signals.hasQuotedPhrase || signals.hasSpecificTokens || signals.hasCodeLike) return 0.3;
+  if (signals.tokens <= 2) return 0.4;
+  if (signals.isQuestion && signals.tokens >= 6) return 0.7;
+  return 0.5;
 }
 
 /** Fallback hybrid for adapters that didn't override `searchHybrid`. */

@@ -104,7 +104,7 @@ Writing a new adapter is implementing five methods. See [`examples/custom-adapte
 
 | You bring                         | Augur provides                              |
 |-----------------------------------|--------------------------------------------------|
-| Documents                         | Chunking (3 strategies + `MetadataChunker` wrapper) |
+| Documents                         | Chunking (3 strategies + `MetadataChunker`, `Doc2QueryChunker` wrappers) |
 | (optional) An embedder + API key  | Offline: `HashEmbedder`, `TfIdfEmbedder`, `LocalEmbedder` (ONNX, no network). Hosted: `OpenAIEmbedder`, `GeminiEmbedder` |
 | (optional) A vector DB            | A default `InMemoryAdapter` (BM25 + brute-force vector + RRF hybrid) |
 | (optional) A reranker             | Offline: `HeuristicReranker`, `LocalReranker` (cross-encoder ONNX), `MMRReranker` (diversity). Hosted: `CohereReranker`, `JinaReranker`. Plus `CascadedReranker` for staged pipelines. |

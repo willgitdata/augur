@@ -225,6 +225,40 @@ LocalEmbedder + LocalReranker + MetadataChunker + stemmed BM25        NDCG@10 = 
 Vector-strategy NDCG goes from 0.638 (HashEmbedder) to **0.922** with the
 full local stack — the kind of jump you typically need a hosted API for.
 
+### Doc2Query — synthetic-question expansion at index time
+
+For each chunk, generate N questions the chunk could answer using a small
+T5 model (`Xenova/LaMini-T5-61M`, ~24MB), then append them to the chunk's
+content before embedding and BM25 indexing. Cost is paid once at index;
+**zero query-time latency**. Works particularly well on conversational
+queries against reference-style content (and on non-English chunks
+indexed alongside English questions).
+
+```ts
+import { Augur, Doc2QueryChunker, SentenceChunker, MetadataChunker } from "@augur/core";
+
+const augr = new Augur({
+  chunker: new Doc2QueryChunker({
+    base: new MetadataChunker({ base: new SentenceChunker() }),
+    numQueries: 3,             // questions per chunk; more = better recall, longer index
+    model: "Xenova/LaMini-T5-61M",
+  }),
+});
+```
+
+Requires `@huggingface/transformers` (same dep as LocalEmbedder).
+
+### Query-aware hybrid weights
+
+`Augur.search()` now picks the BM25-vs-vector mix per query from the
+router's signals — quoted phrases / specific tokens / very short queries
+lean BM25 (0.3-0.4 vector weight), long natural-language questions lean
+vector (0.7), default is 0.5. Production hybrid systems all do some
+version of this; a fixed 0.5/0.5 mix under-weights whichever side is
+wrong for the current query shape.
+
+No configuration needed — it's automatic when strategy = "hybrid".
+
 ### Stemmed BM25 (`InMemoryAdapter({ useStemming: true })`)
 
 Turns on Porter stemming + English stopword filtering for the keyword
