@@ -1,4 +1,5 @@
-# Augur
+# Augur (Named after the ancient Roman augurs who interpreted signs {query vectors} to foresee outcomes {optimized retrieval architecture})
+
 
 **An adaptive retrieval orchestration layer for AI/RAG systems.**
 
