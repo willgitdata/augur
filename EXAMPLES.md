@@ -235,6 +235,70 @@ LocalEmbedder + LocalReranker + MetadataChunker + stemmed BM25        NDCG@10 = 
 Vector-strategy NDCG reaches **0.922** with the full local stack — the
 kind of quality you typically need a hosted API for.
 
+### Contextual Retrieval (Anthropic's pattern) — biggest single quality lift
+
+For each chunk, send the chunk *and its source document* to a fast LLM
+(Haiku, GPT-4o-mini, Gemini Flash) and ask for a one-line description
+that situates the chunk. Prepend that description to the chunk content
+before embedding. Anthropic measured **chunk failure rate dropping from
+5.7% → 1.9% (a 67% reduction)** with this technique on their internal
+RAG eval — and it stacks with hybrid retrieval and reranking.
+
+The `Embedder`-style contract is one method (`contextualize`) — wire any
+LLM provider in ~10 lines:
+
+```ts
+import { Augur, ContextualChunker, SentenceChunker, ANTHROPIC_CONTEXTUAL_PROMPT } from "@augur/core";
+import Anthropic from "@anthropic-ai/sdk";
+
+const client = new Anthropic();
+
+const chunker = new ContextualChunker({
+  base: new SentenceChunker(),
+  provider: {
+    name: "anthropic:claude-haiku-4-5",
+    async contextualize({ chunk, document }) {
+      const r = await client.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 100,
+        messages: [{
+          role: "user",
+          content: ANTHROPIC_CONTEXTUAL_PROMPT
+            .replace("{WHOLE_DOCUMENT}", document)
+            .replace("{CHUNK_CONTENT}", chunk),
+        }],
+      });
+      const block = r.content[0];
+      return block && block.type === "text" ? block.text : "";
+    },
+  },
+  concurrency: 4,            // tune to your provider's rate limit
+});
+
+const augr = new Augur({
+  embedder: new LocalEmbedder(),
+  chunker,
+});
+
+await augr.index(documents);  // one LLM call per chunk, cached on hash(doc, chunk)
+```
+
+Cost: with Anthropic's prompt caching the document portion (the bulk of
+the input) is amortized across all chunks of the same document, so the
+per-chunk cost is roughly the chunk size in tokens — a few cents per
+thousand chunks at Haiku rates. Re-indexing unchanged content is free
+(the `MemoryContextCache` default returns the prior result; swap in a
+persistent cache for cross-process re-use).
+
+The same `provider` interface works with OpenAI, Gemini, or any LLM —
+just swap the SDK call inside `contextualize`. The `ContextualChunker`
+itself stays the same.
+
+This composes with `MetadataChunker` and `Doc2QueryChunker` — wrap them
+in any order. Common stack: `Contextual( Metadata( Sentence ) )` so
+chunks get both document metadata (cheap, deterministic) and LLM-generated
+context (expensive, semantic).
+
 ### Doc2Query — synthetic-question expansion at index time
 
 For each chunk, generate N questions the chunk could answer using a small
