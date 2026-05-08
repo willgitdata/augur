@@ -70,7 +70,6 @@ export {
   HeuristicReranker,
   CohereReranker,
   JinaReranker,
-  HttpCrossEncoderReranker,
   CascadedReranker,
 } from "./reranking/reranker.js";
 export { LocalReranker } from "./reranking/local-reranker.js";

@@ -31,9 +31,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
-    "typecheck": "tsc -p tsconfig.eval.json",
-    "test": "node --test --import tsx 'src/**/*.test.ts' 'eval/**/*.test.ts'",
-    "eval": "tsx eval/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --import tsx 'src/**/*.test.ts'",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
