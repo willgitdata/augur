@@ -100,7 +100,7 @@ against the labeled relevant docs. Because the runner is a pure function
 of an `Augur` instance, swap the embedder, adapter, router, or reranker
 between runs to measure the real impact of any change.
 
-Corpus and queries live at `packages/core/eval/{corpus,queries}.json` —
+Corpus and queries live at `evaluations/{corpus,queries}.json` —
 add domain-specific labeled pairs there to evaluate on your own data.
 
 ### Format

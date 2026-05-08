@@ -272,30 +272,25 @@ The `Reranker` interface has five ready implementations:
 
 ```ts
 import {
-  HeuristicReranker,        // zero-dep, sub-ms; weak baseline
-  CohereReranker,            // hosted cross-encoder, multilingual v3
-  JinaReranker,              // hosted cross-encoder, multilingual v2
-  HttpCrossEncoderReranker,  // BYO endpoint — self-hosted BGE / mxbai / etc
-  CascadedReranker,          // chain rerankers: cheap-broad → expensive-narrow
+  HeuristicReranker,   // zero-dep, sub-ms; weak baseline
+  LocalReranker,        // local ONNX cross-encoder (~22MB)
+  CohereReranker,       // hosted cross-encoder, multilingual v3
+  JinaReranker,         // hosted cross-encoder, multilingual v2
+  CascadedReranker,     // chain rerankers: cheap-broad → expensive-narrow
 } from "@augur/core";
-
-// Generic fetch-based hookup for any cross-encoder you serve internally:
-const myReranker = new HttpCrossEncoderReranker({
-  endpoint: "http://rerank.svc.cluster.local/score",
-  // Default protocol: POST { query, documents, topK } → { scores: number[] }.
-  // Override `requestBody` and `parseResponse` to match a different shape.
-});
 
 // Cascaded rerank — heuristic narrows 100 → 50, cross-encoder narrows 50 → 10:
 const cascade = new CascadedReranker([
   [new HeuristicReranker(), 50],
-  [new HttpCrossEncoderReranker({ endpoint: "..." }), 10],
+  [new LocalReranker(), 10],
 ]);
 ```
 
-`HeuristicReranker` is fine for a smoke test; cross-encoder rerankers are
-typically the single biggest accuracy lever once embeddings are decent.
-Cascaded reranking gives you both: cheap narrowing on a wide first pass,
+For any other cross-encoder hosted behind HTTP, implement the four-method
+`Reranker` interface directly — it's about 30 lines. `HeuristicReranker`
+is fine for a smoke test; cross-encoder rerankers are typically the
+single biggest accuracy lever once embeddings are decent. Cascaded
+reranking gives you both: cheap narrowing on a wide first pass,
 expensive scoring only on the survivors.
 
 ---

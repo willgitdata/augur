@@ -4,7 +4,6 @@ import {
   CascadedReranker,
   CohereReranker,
   HeuristicReranker,
-  HttpCrossEncoderReranker,
   JinaReranker,
 } from "./reranker.js";
 import type { SearchResult } from "../types.js";
@@ -110,75 +109,6 @@ test("JinaReranker hits the configured endpoint with auth header", async () => {
   assert.ok(seenUrl.includes("api.jina.ai"));
   assert.equal(seenAuth, "Bearer jina-test");
   assert.equal(out[0]!.chunk.id, "b:0");
-});
-
-test("HttpCrossEncoderReranker uses default protocol and reorders by scores", async () => {
-  stubFetch((_url, init) => {
-    const body = JSON.parse(init.body as string);
-    assert.equal(body.query, "vector db");
-    assert.deepEqual(body.documents.length, 3);
-    return new Response(
-      JSON.stringify({ scores: [0.1, 0.2, 0.95] }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
-  });
-  const r = new HttpCrossEncoderReranker({ endpoint: "http://internal.svc/rerank" });
-  const out = await r.rerank("vector db", candidates, 2);
-  assert.equal(out.length, 2);
-  assert.equal(out[0]!.chunk.id, "c:0"); // highest score 0.95
-  assert.equal(out[1]!.chunk.id, "b:0"); // 0.2
-  assert.equal(out[0]!.score, 0.95);
-  assert.equal(out[0]!.rawScores?.original, 0.5);
-});
-
-test("HttpCrossEncoderReranker accepts custom request and response shapes", async () => {
-  stubFetch((_url, init) => {
-    const body = JSON.parse(init.body as string);
-    // Custom shape: text + passages
-    assert.equal(body.text, "redis");
-    assert.deepEqual(body.passages.length, 3);
-    return new Response(
-      JSON.stringify({ ranks: [{ idx: 2, prob: 0.7 }, { idx: 0, prob: 0.4 }, { idx: 1, prob: 0.1 }] }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
-  });
-  const r = new HttpCrossEncoderReranker({
-    endpoint: "http://internal.svc/score",
-    name: "internal-bge",
-    requestBody: (query, docs) => ({ text: query, passages: docs }),
-    parseResponse: (raw, n) => {
-      const arr = (raw as { ranks: Array<{ idx: number; prob: number }> }).ranks;
-      const scores = new Array<number>(n).fill(0);
-      for (const { idx, prob } of arr) scores[idx] = prob;
-      return scores;
-    },
-  });
-  const out = await r.rerank("redis", candidates, 3);
-  assert.equal(r.name, "internal-bge");
-  assert.equal(out[0]!.chunk.id, "c:0"); // 0.7 highest
-  assert.equal(out[1]!.chunk.id, "a:0"); // 0.4
-  assert.equal(out[2]!.chunk.id, "b:0"); // 0.1
-});
-
-test("HttpCrossEncoderReranker errors when score count mismatches doc count", async () => {
-  stubFetch(
-    () =>
-      new Response(JSON.stringify({ scores: [0.1, 0.2] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-  );
-  const r = new HttpCrossEncoderReranker({ endpoint: "http://internal.svc/rerank" });
-  await assert.rejects(() => r.rerank("q", candidates, 3), /expected 3 scores, got 2/);
-});
-
-test("HttpCrossEncoderReranker throws on non-OK response", async () => {
-  stubFetch(() => new Response("server down", { status: 500 }));
-  const r = new HttpCrossEncoderReranker({
-    endpoint: "http://internal.svc/rerank",
-    name: "internal",
-  });
-  await assert.rejects(() => r.rerank("q", candidates, 3), /internal failed.*500/);
 });
 
 // ---------- CascadedReranker ----------
