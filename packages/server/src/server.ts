@@ -63,7 +63,7 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     embedder: augr.embedder.name,
     chunker: augr.chunker.name,
     router: augr.router.name,
-    reranker: augr.reranker.name,
+    reranker: augr.reranker?.name ?? null,
     capabilities: augr.adapter.capabilities,
   }));
 
