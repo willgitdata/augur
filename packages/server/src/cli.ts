@@ -6,12 +6,17 @@
  * to env vars (no flags, no config files) for the MVP. Docker-friendly,
  * twelve-factor, and matches the "Vercel-feel" goal.
  */
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
+  Augur,
   InMemoryAdapter,
   LocalEmbedder,
   PgVectorAdapter,
   PineconeAdapter,
   TurbopufferAdapter,
+  type Document,
   type Embedder,
   type VectorAdapter,
 } from "@augur/core";
@@ -28,6 +33,10 @@ async function main() {
     adapter,
     embedder,
     apiKey: process.env.AUGUR_API_KEY,
+    // Opt into language-aware filtering via env var. See AugurOptions
+    // JSDoc for when this is the right call (localized canonical answers
+    // per language) vs the wrong call (cross-language canonical content).
+    autoLanguageFilter: process.env.AUGUR_AUTO_LANGUAGE_FILTER === "1",
   });
 
   try {
@@ -40,6 +49,37 @@ async function main() {
     app.log.error(e);
     process.exit(1);
   }
+
+  // Optional demo-corpus seed — enable with AUGUR_SEED_DEMO=1. Indexes the
+  // bundled 182-doc eval corpus into the running adapter so the dashboard
+  // playground and direct API calls work out of the box without users
+  // having to wire up a corpus first. No-op in production unless the env
+  // var is explicitly set.
+  if (process.env.AUGUR_SEED_DEMO === "1") {
+    seedDemoCorpus(adapter, embedder).catch((err) => {
+      app.log.warn(`demo seed failed: ${err instanceof Error ? err.message : String(err)}`);
+    });
+  }
+}
+
+async function seedDemoCorpus(adapter: VectorAdapter, embedder: Embedder): Promise<void> {
+  const here = dirname(fileURLToPath(import.meta.url));
+  // Walk up to repo root and load the bundled eval corpus.
+  const corpusPath = resolve(here, "../../../evaluations/corpus.json");
+  let docs: Document[];
+  try {
+    docs = JSON.parse(readFileSync(corpusPath, "utf8")) as Document[];
+  } catch (err) {
+    console.warn(`AUGUR_SEED_DEMO: corpus.json not found at ${corpusPath}, skipping seed`);
+    return;
+  }
+  const augr = new Augur({ adapter, embedder });
+  console.log(`AUGUR_SEED_DEMO: indexing ${docs.length} demo docs (this runs once on boot)…`);
+  const t0 = performance.now();
+  const r = await augr.index(docs);
+  console.log(
+    `AUGUR_SEED_DEMO: indexed ${r.documents} docs → ${r.chunks} chunks in ${(performance.now() - t0).toFixed(0)} ms`
+  );
 }
 
 function pickEmbedder(): Embedder {

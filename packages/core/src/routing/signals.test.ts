@@ -2,10 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { computeSignals } from "./signals.js";
 
-test("signals: tokens / avgTokenLen on typical query", () => {
+test("signals: wordCount / avgWordLen on typical query", () => {
   const s = computeSignals("how do I tune autovacuum");
-  assert.equal(s.tokens, 5);
-  assert.ok(s.avgTokenLen > 2);
+  assert.equal(s.wordCount, 5);
+  assert.ok(s.avgWordLen > 2);
 });
 
 test("signals: hasQuotedPhrase detects double and single quotes", () => {
@@ -89,12 +89,29 @@ test("signals: hasNegation false on plain query", () => {
   assert.equal(computeSignals("redis cluster setup").hasNegation, false);
 });
 
-test("signals: language non-en on Japanese", () => {
-  assert.equal(computeSignals("重複行 削除 PostgreSQL").language, "non-en");
+test("signals: language ja on Japanese (hiragana/katakana)", () => {
+  // "How to delete duplicate rows in PostgreSQL" — uses hiragana の/を/する
+  assert.equal(computeSignals("PostgreSQL の重複行を削除する方法").language, "ja");
 });
 
-test("signals: language non-en on Chinese", () => {
-  assert.equal(computeSignals("如何配置连接池").language, "non-en");
+test("signals: language zh on Chinese (Han only)", () => {
+  assert.equal(computeSignals("如何配置连接池").language, "zh");
+});
+
+test("signals: language ko on Korean (hangul)", () => {
+  assert.equal(computeSignals("연결 풀 설정 방법").language, "ko");
+});
+
+test("signals: language ru on Cyrillic", () => {
+  assert.equal(computeSignals("настройка пула соединений Postgres").language, "ru");
+});
+
+test("signals: language ar on Arabic", () => {
+  assert.equal(computeSignals("تجميع اتصالات قاعدة البيانات").language, "ar");
+});
+
+test("signals: language hi on Devanagari", () => {
+  assert.equal(computeSignals("कनेक्शन पूल कॉन्फ़िगर करें").language, "hi");
 });
 
 test("signals: language en on Spanish (Latin script)", () => {
