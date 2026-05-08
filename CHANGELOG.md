@@ -16,8 +16,6 @@ called out under **BREAKING** in the entry.
 - Granular language detection: `signals.language` is now a BCP-47-style code (`en`, `ja`, `zh`, `ko`, `ru`, `ar`, `hi`, `th`, `he`, `el`) instead of binary `"en" | "non-en"`.
 - Per-chunk `metadata.lang` auto-tagging at index time.
 - `SearchRequest.minScore` — drops results below a confidence floor (useful for "no answer" signals to downstream LLMs).
-- BEIR runner (`evaluations/beir.ts`) — runs the auto-routing pipeline against any BEIR dataset, with `--model` / `--query-prefix` / `--dtype` / `--device` / `--fast-keyword` flags.
-- Server demo seed (`AUGUR_SEED_DEMO=1`) — server seeds the bundled 182-doc eval corpus on boot for dev / dashboard demos.
 
 ### Changed
 
@@ -34,6 +32,8 @@ called out under **BREAKING** in the entry.
 
 - `HashEmbedder`, `TfIdfEmbedder` — placeholder embedders no longer ship; `LocalEmbedder` is the only built-in.
 - Hosted-provider embedder/reranker classes from core (`GeminiEmbedder`, etc.) — moved to user-implemented `Embedder` / `Reranker` instances per the EXAMPLES.md §5 pattern.
+- `apps/dashboard` (Next.js trace explorer) and `evaluations/` (BEIR runner + bundled 182-doc corpus) — both moved to separate sister repos so the main repo stays focused on the SDK. The dashboard was a development tool; the eval harness was for benchmarking the maintainers' own routing changes. Neither was a runtime dependency. Performance numbers in this CHANGELOG and the README still apply — they were measured against the eval harness, which is reproducible from the sister repo.
+- `AUGUR_SEED_DEMO` env var — required the bundled corpus that's now removed.
 
 ### Performance
 
