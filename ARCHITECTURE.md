@@ -86,9 +86,14 @@ interface Chunker {
   readonly name: string;
   chunk(doc: Document): Chunk[];
 }
+
+interface AsyncChunker {
+  readonly name: string;
+  chunkAsync(doc: Document): Promise<Chunk[]>;
+}
 ```
 
-Sync because most chunking is sync. `SemanticChunker` needs an embedder, so it adds an async path (`chunkAsync`). `chunkDocument()` is the polymorphic helper.
+Two interfaces, deliberately. Most chunking is sync (`SentenceChunker`, `FixedSizeChunker`, `MetadataChunker`); async chunkers (`SemanticChunker`, `Doc2QueryChunker`, `ContextualChunker`) need to call out to an embedder or an LLM and can't satisfy the sync contract. Splitting the interfaces means a misuse — passing an async chunker where a sync one is expected — fails at compile time, not at runtime. The `chunkDocument()` helper is the polymorphic entry point Augur uses internally; it accepts `Chunker | AsyncChunker`.
 
 We picked sentence-pack as the default because it's a strict improvement over fixed-size for prose without the latency cost of semantic chunking. Heuristic, but a *good* heuristic — most teams will be better off with sentence-pack than what they have today.
 
@@ -129,6 +134,8 @@ interface Reranker {
 ```
 
 We ship `HeuristicReranker` (token overlap + proximity), `LocalReranker` (on-device cross-encoder ONNX), `MMRReranker` (diversity), and `CascadedReranker` (chain rerankers). All implement a one-method interface; users wire in Cohere / Voyage / Jina by writing ~20 lines against the provider's SDK.
+
+Default reranker is `null` — bare retrieval if `reranker` is omitted. Pass `new LocalReranker()` (or any provider's reranker) to keep the cross-encoder voting on every query, which is what the README's headline NDCG@10 numbers measure. The previous default — a token-overlap heuristic — gave traces a "yes I rerank" line while doing close to nothing, so we removed it; an explicit reranker is now required for the rerank stage to fire.
 
 ## How routing actually works
 

@@ -28,6 +28,9 @@ export type {
 export {
   type VectorAdapter,
   type AdapterCapabilities,
+  type VectorSearchOpts,
+  type KeywordSearchOpts,
+  type HybridSearchOpts,
   BaseAdapter,
   InMemoryAdapter,
   type InMemoryAdapterOptions,

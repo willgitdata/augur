@@ -9,9 +9,9 @@ Hands-on walkthroughs. Each example lives in `examples/<name>/` and is runnable 
 The 30-line "hello world".
 
 ```ts
-import { Augur } from "@augur/core";
+import { Augur, LocalEmbedder } from "@augur/core";
 
-const augr = new Augur();
+const augr = new Augur({ embedder: new LocalEmbedder() });
 
 await augr.index([
   { id: "pg",    content: "PostgreSQL supports vector search via pgvector." },
@@ -80,7 +80,10 @@ class JsonFileAdapter extends BaseAdapter {
   // ... upsert / searchVector / searchKeyword / delete / count / clear ...
 }
 
-const augr = new Augur({ adapter: new JsonFileAdapter("./store.json") });
+const augr = new Augur({
+  adapter: new JsonFileAdapter("./store.json"),
+  embedder: new LocalEmbedder(),
+});
 ```
 
 The full implementation is `examples/custom-adapter/index.ts`. About 90 lines, including the BM25-ish keyword search.
@@ -394,7 +397,7 @@ const cascade = new CascadedReranker([
 ```
 
 For Cohere, Jina, Voyage, or any hosted cross-encoder, implement the
-four-method `Reranker` interface directly against the provider's SDK —
+one-method `Reranker` interface directly against the provider's SDK —
 see §5 above for a Cohere snippet. `HeuristicReranker` is fine for a
 smoke test; cross-encoder rerankers are typically the single biggest
 accuracy lever once embeddings are decent.
@@ -457,11 +460,11 @@ console.log(trace.decision);
 //     "reranking enabled (latency budget allows)"
 //   ],
 //   reranked: true,
-//   signals: { tokens: 6, avgTokenLen: 4.5, hasQuotedPhrase: false, ... }
+//   signals: { wordCount: 6, avgWordLen: 4.5, hasQuotedPhrase: false, language: "en", ... }
 // }
 
 console.log(trace.spans.map(s => `${s.name}: ${s.durationMs.toFixed(1)}ms`));
-// ["embed:query: 1.4ms", "search:vector: 0.8ms", "rerank: 0.3ms"]
+// ["embed:query: 1.4ms", "pool:vector: 0.8ms", "pool:keyword: 0.4ms", "rerank: 0.3ms"]
 ```
 
 Save the trace ID; if a user reports a bad result, you can look up exactly what happened.
@@ -491,13 +494,13 @@ import { BaseRetriever } from "@langchain/core/retrievers";
 import { Augur } from "@augur/core";
 
 class AugurRetriever extends BaseRetriever {
-  augr = new Augur({ /* ... */ });
+  augr = new Augur({ embedder: new LocalEmbedder() /* + adapter, reranker, ... */ });
   lc_namespace = ["custom", "augur"];
   async _getRelevantDocuments(query: string) {
     const { results } = await this.augr.search({ query });
     return results.map((r) => ({
       pageContent: r.chunk.content,
-      metadata: { ...r.chunk.metadata, score: r.score, traceId: r.chunk.id },
+      metadata: { ...r.chunk.metadata, score: r.score, chunkId: r.chunk.id },
     }));
   }
 }
@@ -510,8 +513,9 @@ class AugurRetriever extends BaseRetriever {
 ## 10. A/B testing two routers
 
 ```ts
-const a = new Augur({ router: new HeuristicRouter() });
-const b = new Augur({ router: new MyMLRouter() });
+const embedder = new LocalEmbedder();
+const a = new Augur({ embedder, router: new HeuristicRouter() });
+const b = new Augur({ embedder, router: new MyMLRouter() });
 
 const which = userId.charCodeAt(0) % 2 === 0 ? a : b;
 const result = await which.search({ query, context: { ab: which === a ? "A" : "B" } });
