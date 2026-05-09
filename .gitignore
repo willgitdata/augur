@@ -33,5 +33,5 @@ coverage/
 .vercel/
 .cache/
 
-# Claude Code local settings (per-developer)
+# local AI tooling settings (per-developer)
 .claude/
