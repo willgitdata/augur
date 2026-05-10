@@ -1,0 +1,296 @@
+name: Eval matrix
+
+# Manually triggered. Restores the eval harness from feffc73^ into an
+# untracked eval-local/ directory, runs a matrix of embedder / reranker /
+# chunker configs against the bundled 504-query corpus, and (optionally)
+# runs BEIR datasets. Posts the summary as a comment on the open PR for
+# the current branch.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Matrix mode for the bundled-corpus run'
+        type: choice
+        options: [quick, full]
+        default: quick
+      run_beir:
+        description: 'Also run BEIR (SciFact + NFCorpus). FiQA skipped — 57K docs is slow.'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # need full history so `git archive feffc73^` works
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @augur/core
+        run: pnpm -r --filter @augur/core build
+
+      - name: Restore eval harness from feffc73^
+        run: |
+          mkdir -p eval-local
+          git archive feffc73^ evaluations | tar -x -C eval-local
+          ls eval-local/evaluations/
+
+      - name: Apply fixups so harness builds against current @augur/core
+        run: |
+          # cli.ts: SemanticChunker (type) → AsyncChunker (renamed in 0.1.0)
+          sed -i 's/type SemanticChunker,/type AsyncChunker,/' eval-local/evaluations/cli.ts
+          sed -i 's/Chunker | SemanticChunker/Chunker | AsyncChunker/' eval-local/evaluations/cli.ts
+
+          # package.json: workspace:* → link to packages/core (outside workspace)
+          sed -i 's|"@augur/core": "workspace:\*"|"@augur/core": "link:../../packages/core"|' eval-local/evaluations/package.json
+
+          # tsconfig.json: self-contained (previously extended tsconfig.base.json)
+          cat > eval-local/evaluations/tsconfig.json <<'JSON'
+          {
+            "compilerOptions": {
+              "target": "ES2022",
+              "module": "ESNext",
+              "moduleResolution": "Bundler",
+              "lib": ["ES2022", "DOM"],
+              "strict": true,
+              "noUncheckedIndexedAccess": true,
+              "noImplicitOverride": true,
+              "esModuleInterop": true,
+              "skipLibCheck": true,
+              "noEmit": true
+            },
+            "include": ["**/*.ts"],
+            "exclude": ["node_modules"]
+          }
+          JSON
+
+      - name: Install eval deps (outside workspace)
+        working-directory: eval-local/evaluations
+        run: pnpm install --ignore-workspace
+
+      - name: Typecheck eval harness
+        working-directory: eval-local/evaluations
+        run: pnpm typecheck
+
+      - name: Cache HuggingFace models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-eval-${{ runner.os }}-v1
+
+      - name: Run bundled-corpus matrix
+        working-directory: eval-local/evaluations
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          mkdir -p results
+
+          run_eval() {
+            local name="$1"; shift
+            echo
+            echo "================================================================"
+            echo "  Config: $name"
+            echo "================================================================"
+            pnpm eval -- "$@" --save "results/$name.json"
+          }
+
+          # ---- Baselines ----
+          run_eval baseline-current \
+            --reranker local --metadata-chunker --bm25-stem
+
+          run_eval baseline-bare \
+            --reranker none
+
+          # ---- Embedder upgrades ----
+          run_eval embedder-bge-small \
+            --reranker local --metadata-chunker --bm25-stem \
+            --local-embedder-model "Xenova/bge-small-en-v1.5" \
+            --local-embedder-query-prefix "Represent this sentence for searching relevant passages: "
+
+          run_eval embedder-e5-small \
+            --reranker local --metadata-chunker --bm25-stem \
+            --local-embedder-model "Xenova/e5-small-v2" \
+            --local-embedder-query-prefix "query: " \
+            --local-embedder-doc-prefix "passage: "
+
+          if [[ "$MODE" == "full" ]]; then
+            run_eval embedder-bge-base \
+              --reranker local --metadata-chunker --bm25-stem \
+              --local-embedder-model "Xenova/bge-base-en-v1.5" \
+              --local-embedder-query-prefix "Represent this sentence for searching relevant passages: "
+
+            run_eval embedder-bge-large \
+              --reranker local --metadata-chunker --bm25-stem \
+              --local-embedder-model "Xenova/bge-large-en-v1.5" \
+              --local-embedder-query-prefix "Represent this sentence for searching relevant passages: "
+          fi
+
+          # ---- Reranker upgrade ----
+          run_eval reranker-bge-base \
+            --reranker local --metadata-chunker --bm25-stem \
+            --local-embedder-model "Xenova/bge-small-en-v1.5" \
+            --local-embedder-query-prefix "Represent this sentence for searching relevant passages: " \
+            --local-reranker-model "Xenova/bge-reranker-base"
+
+          # ---- Doc2Query + winning candidate (full mode only) ----
+          if [[ "$MODE" == "full" ]]; then
+            run_eval chunker-doc2query \
+              --reranker local --metadata-chunker --bm25-stem --doc2query
+
+            run_eval chunker-doc2query-bge-small \
+              --reranker local --metadata-chunker --bm25-stem --doc2query \
+              --local-embedder-model "Xenova/bge-small-en-v1.5" \
+              --local-embedder-query-prefix "Represent this sentence for searching relevant passages: "
+
+            run_eval winning-candidate \
+              --reranker local --metadata-chunker --bm25-stem --doc2query \
+              --local-embedder-model "Xenova/bge-small-en-v1.5" \
+              --local-embedder-query-prefix "Represent this sentence for searching relevant passages: " \
+              --local-reranker-model "Xenova/bge-reranker-base"
+          fi
+
+      - name: Generate bundled-corpus SUMMARY.md
+        working-directory: eval-local/evaluations
+        run: |
+          node --input-type=module -e '
+            import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+            const dir = "results";
+            const files = readdirSync(dir).filter((f) => f.endsWith(".json")).sort();
+            const rows = files.map((f) => {
+              const r = JSON.parse(readFileSync(`${dir}/${f}`, "utf8"));
+              return {
+                name: f.replace(".json", ""),
+                ndcg: r.aggregate.ndcg10.toFixed(3),
+                mrr: r.aggregate.mrr.toFixed(3),
+                recall: r.aggregate.recall10.toFixed(3),
+              };
+            });
+            const md = [
+              "## Bundled-corpus matrix (504 queries / 182 docs)",
+              "",
+              "| Config | NDCG@10 | MRR | Recall@10 |",
+              "| --- | ---: | ---: | ---: |",
+              ...rows.map((r) => `| \`${r.name}\` | ${r.ndcg} | ${r.mrr} | ${r.recall} |`),
+              "",
+            ];
+            writeFileSync(`${dir}/SUMMARY.md`, md.join("\n") + "\n");
+            console.log(md.join("\n"));
+          '
+
+      - name: Run BEIR (SciFact + NFCorpus)
+        if: ${{ inputs.run_beir == true }}
+        working-directory: eval-local/evaluations
+        run: |
+          set -euo pipefail
+          mkdir -p ~/beir results
+
+          # Download SciFact + NFCorpus from the TU Darmstadt BEIR mirror.
+          # FiQA (~57K docs) is intentionally skipped — slow on a free runner.
+          for ds in scifact nfcorpus; do
+            echo "Downloading $ds..."
+            curl -fsSL --retry 3 -o ~/beir/$ds.zip \
+              "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/$ds.zip"
+            unzip -q ~/beir/$ds.zip -d ~/beir/
+          done
+
+          # Run the BEIR runner with the winning candidate stack:
+          # BGE-small embedder + bge-reranker-base reranker + MetadataChunker
+          # + stemmed BM25. The beir.ts script hardcodes the rest of the stack
+          # (MetadataChunker, LocalReranker, useStemming) — we only override
+          # the embedder and reranker models via CLI flags.
+          for ds in scifact nfcorpus; do
+            echo "Running BEIR $ds..."
+            pnpm exec tsx beir.ts ~/beir/$ds \
+              --model "Xenova/bge-small-en-v1.5" \
+              --query-prefix "Represent this sentence for searching relevant passages: " \
+              | tee "results/beir-${ds}.txt"
+          done
+
+      - name: Generate BEIR section
+        if: ${{ inputs.run_beir == true }}
+        working-directory: eval-local/evaluations
+        run: |
+          node --input-type=module -e '
+            import { readFileSync, writeFileSync, appendFileSync, existsSync } from "node:fs";
+            const datasets = ["scifact", "nfcorpus"];
+            const rows = [];
+            for (const ds of datasets) {
+              const path = `results/beir-${ds}.txt`;
+              if (!existsSync(path)) continue;
+              const txt = readFileSync(path, "utf8");
+              const ndcg = (txt.match(/NDCG@10\s+(\S+)/) ?? ["", "?"])[1];
+              const mrr  = (txt.match(/MRR@10\s+(\S+)/) ?? ["", "?"])[1];
+              const recall = (txt.match(/Recall@10\s+(\S+)/) ?? ["", "?"])[1];
+              rows.push({ ds, ndcg, mrr, recall });
+            }
+            const md = [
+              "",
+              "## BEIR (winning candidate: BGE-small + bge-reranker-base + MetadataChunker + stemmed BM25)",
+              "",
+              "| Dataset | NDCG@10 | MRR@10 | Recall@10 |",
+              "| --- | ---: | ---: | ---: |",
+              ...rows.map((r) => `| **${r.ds}** | ${r.ndcg} | ${r.mrr} | ${r.recall} |`),
+            ];
+            appendFileSync("results/SUMMARY.md", md.join("\n") + "\n");
+            console.log(md.join("\n"));
+          '
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results-${{ github.run_id }}
+          path: eval-local/evaluations/results/
+          retention-days: 30
+
+      - name: Post results to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('eval-local/evaluations/results/SUMMARY.md', 'utf8');
+            const branch = context.ref.replace('refs/heads/', '');
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${branch}`,
+              state: 'open',
+            });
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              `# Eval matrix results`,
+              ``,
+              `_Workflow run: [${context.runId}](${runUrl})_  ·  _mode: \`${{ inputs.mode }}\`_  ·  _BEIR: \`${{ inputs.run_beir }}\`_`,
+              ``,
+              summary,
+              ``,
+              `Full per-query JSON in the workflow artifacts (\`eval-results-${context.runId}\`).`,
+            ].join('\n');
+            if (prs.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prs[0].number,
+                body,
+              });
+              console.log(`Posted to PR #${prs[0].number}`);
+            } else {
+              console.log('No open PR found for this branch; results are in the artifact only.');
+            }
