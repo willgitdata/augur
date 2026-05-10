@@ -35,3 +35,8 @@ coverage/
 
 # Claude Code local settings (per-developer)
 .claude/
+
+# Local eval harness (restored from feffc73^ by the Eval matrix workflow
+# or by hand for dev runs). Out of tree by design — the eval ships as a
+# sister repo, not as part of the SDK.
+eval-local/
