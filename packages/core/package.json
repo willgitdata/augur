@@ -58,7 +58,7 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --import tsx 'src/**/*.test.ts'",
+    "test": "find src -name '*.test.ts' -print0 | xargs -0 node --test --import tsx",
     "clean": "rm -rf dist",
     "prepublishOnly": "pnpm clean && pnpm build && pnpm test"
   },
