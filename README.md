@@ -40,29 +40,39 @@ Modern RAG pipelines fail in three predictable ways. Augur addresses all three:
 
 ## Performance — auto method, no tuning
 
-The numbers below all use **the same recommended local stack** — `LocalEmbedder` + `LocalReranker` + `MetadataChunker(SentenceChunker)` + `InMemoryAdapter({ useStemming: true })` + the default `HeuristicRouter` — across every dataset. No per-corpus tuning.
+The recommended local stack — `LocalEmbedder` + `LocalReranker` +
+`MetadataChunker(SentenceChunker)` + `InMemoryAdapter({ useStemming: true })`
++ the default `HeuristicRouter` — runs in **44 MB total on-device**
+(`Xenova/all-MiniLM-L6-v2` 22 MB embedder + `Xenova/ms-marco-MiniLM-L-6-v2`
+22 MB cross-encoder), no network at query time, no API keys. The cross-
+encoder votes on every query by default (`alwaysRerank: true`); latency-
+conscious deployments opt out with `new HeuristicRouter({ alwaysRerank: false })`.
 
-**Bundled eval** (504 queries, 182 docs, 12 query archetypes, 12 languages):
+The router adapts per corpus with no per-dataset tuning — code-like
+queries route to keyword, natural-language questions to vector, the rest
+to weighted hybrid; quoted phrases and short identifiers always favor
+BM25. The trace records the routing decision and reasons for every
+query, so when the auto choice is wrong on your corpus you see *why*.
 
-| Metric    |    Auto |
-| --------- | ------: |
-| NDCG@10   | **0.920** |
-| MRR       |   0.918 |
-| Recall@10 |   0.962 |
+### What's enforced in CI today
 
-**Public BEIR benchmarks** (apples-to-apples vs. baselines reported in BEIR / BGE / E5 / ColBERTv2 papers):
+`packages/core/src/eval-smoke.test.ts` runs a 16-doc / 12-query synthetic
+corpus with a deterministic stub embedder on every PR and asserts
+`NDCG@10 > 0.65`. That's a structural regression net — it catches "the
+routing pipeline broke" but does *not* establish absolute quality
+numbers. Read it, run it (`pnpm test`), trust it for what it is.
 
-| Dataset                            |    **Auto** |  BM25 | BM25+rerank | Contriever | ColBERTv2 | BGE-large (1.3GB) | E5-large (1.3GB) |
-| ---------------------------------- | ----------: | ----: | ----------: | ---------: | --------: | ----------------: | ---------------: |
-| **SciFact** (scientific claims)    |   **0.707** | 0.665 |       0.688 |      0.677 |     0.694 |             0.745 |            0.736 |
-| **FiQA** (finance Q&A, 57K docs)   |   **0.338** | 0.236 |       0.347 |      0.329 |     0.356 |             0.450 |            0.424 |
-| **NFCorpus** (medical literature)  |   **0.324** | 0.325 |       0.350 |      0.328 |     0.339 |             0.380 |            0.371 |
+### Quality benchmarks (out of tree)
 
-The auto stack is **44 MB total on-device** (`Xenova/all-MiniLM-L6-v2` 22 MB + `Xenova/ms-marco-MiniLM-L-6-v2` reranker 22 MB), no network at query time. On SciFact it beats BM25+rerank, Contriever, and ColBERTv2 — using a 22 MB embedder vs. their 1.3 GB. The trailing gap on the largest dense models is purely embedder size; the routing pipeline matches their published numbers when you swap in BGE-large (`new LocalEmbedder({ model: "Xenova/bge-large-en-v1.5", queryPrefix: "..." })` — see [EXAMPLES.md](EXAMPLES.md)).
-
-The router adapts per corpus with **no per-dataset tuning**: 76% keyword on NFCorpus (medical terms reward exact match), 98% hybrid on SciFact (claims need both signals), 72% vector on FiQA (natural-language questions), 45% hybrid on the bundled eval. Same code, same configuration.
-
-End-to-end latency, single-threaded: **p50 ~25 ms, p95 ~35 ms, ~40 QPS** with the cross-encoder voting on every query. For RAG where the LLM call dominates, this is free. Latency-conscious deployments can opt out with `new HeuristicRouter({ alwaysRerank: false })` and get the BM25 fast path back.
+The earlier development tree included a 504-query / 182-doc internal
+eval and a BEIR runner (SciFact / FiQA / NFCorpus). On that harness the
+auto stack measured competitively against published BM25, Contriever,
+and ColBERTv2 baselines using a 22 MB embedder vs. their 100s of MB —
+but **the harness is no longer in this repo** (preserved at commit
+`feffc73^` and slated for republish as a standalone `augur-eval` sister
+repo). Until then, anyone wanting to verify quality numbers should
+either re-run from that commit or wait for the dedicated repo. We're not
+quoting specific numbers here we can't reproduce on demand.
 
 ## Pluggable backends
 
@@ -88,7 +98,7 @@ augur/
 └── DEVELOPMENT_GUIDE.md   # contributor + local-dev guide
 ```
 
-The repo intentionally ships only the SDK and the optional HTTP wrapper. A trace-explorer dashboard and the BEIR-eval harness used to produce the numbers above are kept out of tree as development tools — both remain available in git history if you need them, and may be re-published as standalone sister repos in the future.
+The repo intentionally ships only the SDK and the optional HTTP wrapper. A trace-explorer dashboard and the BEIR-eval harness used during development are kept out of tree — both remain available in git history at commit `feffc73^` and are slated for republish as standalone sister repos.
 
 ## Quick start
 

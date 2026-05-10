@@ -135,7 +135,7 @@ interface Reranker {
 
 We ship `HeuristicReranker` (token overlap + proximity), `LocalReranker` (on-device cross-encoder ONNX), `MMRReranker` (diversity), and `CascadedReranker` (chain rerankers). All implement a one-method interface; users wire in Cohere / Voyage / Jina by writing ~20 lines against the provider's SDK.
 
-Default reranker is `null` — bare retrieval if `reranker` is omitted. Pass `new LocalReranker()` (or any provider's reranker) to keep the cross-encoder voting on every query, which is what the README's headline NDCG@10 numbers measure. The previous default — a token-overlap heuristic — gave traces a "yes I rerank" line while doing close to nothing, so we removed it; an explicit reranker is now required for the rerank stage to fire.
+Default reranker is `null` — bare retrieval if `reranker` is omitted. Pass `new LocalReranker()` (or any provider's reranker) to enable the cross-encoder rerank stage, which is what the recommended "auto" stack (and the eval-smoke regression net in CI) exercises. The previous default — a token-overlap heuristic — gave traces a "yes I rerank" line while doing close to nothing, so we removed it; an explicit reranker is now required for the rerank stage to fire.
 
 ## How routing actually works
 

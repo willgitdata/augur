@@ -226,17 +226,14 @@ new LocalEmbedder({
 `[doc-id | topic | title]` to each chunk before embedding — the
 "Doc2Query lite" pattern.
 
-**Measured impact on the bundled 504-query eval (no API keys):**
-
-```
-LocalEmbedder (all-MiniLM-L6-v2)                                      NDCG@10 = 0.845
-LocalEmbedder + LocalReranker                                         NDCG@10 = 0.877 (+0.032)
-LocalEmbedder + LocalReranker + MetadataChunker                       NDCG@10 = 0.899 (+0.054)
-LocalEmbedder + LocalReranker + MetadataChunker + stemmed BM25        NDCG@10 = 0.910 (+0.065)
-```
-
-Vector-strategy NDCG reaches **0.922** with the full local stack — the
-kind of quality you typically need a hosted API for.
+**Stacking order matters.** Each layer attacks a different failure
+mode: the bi-encoder gives broad recall, the cross-encoder rescues
+near-misses, the metadata chunker fixes "the chunk doesn't mention the
+doc topic," stemmed BM25 catches plural/inflectional misses on lexical
+queries. Numbers measured on a 504-query development eval (preserved
+out-of-tree at commit `feffc73^`) confirmed each layer adds incremental
+NDCG@10; that harness will be republished as `augur-eval` so you can
+re-run on your own corpus.
 
 ### Contextual Retrieval (Anthropic's pattern) — biggest single quality lift
 
@@ -339,10 +336,11 @@ No configuration needed — it's automatic when strategy = "hybrid".
 ### Stemmed BM25 (`InMemoryAdapter({ useStemming: true })`)
 
 Turns on Porter stemming + English stopword filtering for the keyword
-path. Same pipeline Lucene/Elasticsearch use by default. On the bundled
-eval this single flag adds ~+0.022 NDCG@10 to *any* config and is the
-biggest cheap win on quoted / named-entity / short keyword queries
-(running ↔ runs, connection ↔ connections all collapse to one stem).
+path. Same pipeline Lucene/Elasticsearch use by default. The reliable
+win on quoted / named-entity / short keyword queries is the recall lift
+from collapsing inflectional forms (running ↔ runs,
+connection ↔ connections all map to one stem); for any non-trivial BM25
+workload it's the cheapest improvement you'll find.
 
 ```ts
 import { Augur, InMemoryAdapter, LocalEmbedder, LocalReranker } from "@augur/core";
@@ -408,6 +406,11 @@ accuracy lever once embeddings are decent.
 
 The recommended adapter for most teams — you probably already have Postgres.
 
+The schema dimension MUST match your embedder. The example below uses
+`LocalEmbedder` (384d). For a hosted embedder, swap both numbers in
+lockstep — `text-embedding-3-small` is 1536d, `text-embedding-3-large`
+is 3072d, Cohere `embed-english-v3.0` is 1024d.
+
 ```sql
 CREATE EXTENSION vector;
 CREATE TABLE chunks (
@@ -416,7 +419,7 @@ CREATE TABLE chunks (
   content TEXT NOT NULL,
   index INT NOT NULL,
   metadata JSONB,
-  embedding VECTOR(1536),
+  embedding VECTOR(384),  -- match your embedder's dimension
   content_tsv tsvector GENERATED ALWAYS AS (to_tsvector('english', content)) STORED
 );
 CREATE INDEX ON chunks USING ivfflat (embedding vector_cosine_ops);
@@ -435,13 +438,22 @@ const augr = new Augur({
   adapter: new PgVectorAdapter({
     client: { query: (sql, params) => client.query(sql, params).then((r) => ({ rows: r.rows })) },
     table: "chunks",
-    dimension: 384,
+    dimension: 384,                  // matches LocalEmbedder + the VECTOR(384) above
   }),
-  embedder: new LocalEmbedder(),  // or your hosted embedder per §5
+  embedder: new LocalEmbedder(),     // or your hosted embedder per §5
 });
 ```
 
+The adapter validates `chunk.embedding.length === dimension` at upsert
+time and throws on mismatch, so you'll catch this on the first
+`index()` call rather than silently corrupting the table.
+
 Vector + keyword + hybrid all in one place, no extra services.
+
+> **Filter keys must be plain identifiers.** `PgVectorAdapter` rejects
+> filter keys that don't match `^[a-zA-Z_][a-zA-Z0-9_]*$` (the same rule
+> it applies to the table name). Postgres can't parameter-bind inside
+> `metadata->>'key'`, so we whitelist instead of escaping.
 
 ---
 

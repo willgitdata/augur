@@ -44,9 +44,18 @@ called out under **BREAKING** in the entry.
 
 ### Performance
 
-- Bundled 504-query eval (LocalEmbedder + LocalReranker + MetadataChunker + stemmed BM25 + multi-stage retrieval): **NDCG@10 = 0.920**, MRR = 0.918, Recall@10 = 0.962.
-- BEIR (auto-routing, default 22 MB MiniLM-L6 + 22 MB cross-encoder): SciFact 0.707, FiQA 0.338, NFCorpus 0.324.
-- BEIR with BGE-large embedder: SciFact 0.742 (matches published vector-only baseline), NFCorpus 0.315.
-- End-to-end p50 ~25 ms, p95 ~35 ms, ~40 QPS single-threaded with cross-encoder reranking on every query.
+CI enforces `NDCG@10 > 0.65` on a 16-doc / 12-query synthetic corpus
+(`packages/core/src/eval-smoke.test.ts`) — a structural regression net
+that catches pipeline breakage on every PR.
+
+The earlier development tree included a 504-query / 182-doc internal
+eval and a BEIR runner (SciFact, FiQA, NFCorpus) measuring the auto
+stack against BM25 / Contriever / ColBERTv2 baselines. That harness was
+removed from main in commit `feffc73`; it is preserved in git history
+and slated for republish as a standalone `augur-eval` sister repo.
+Quality numbers from that harness are not reproduced here because they
+cannot be re-run from the published `@augur/core` artifact — anyone
+needing to verify them should `git checkout feffc73^` and run the
+bundled `pnpm eval`.
 
 [Unreleased]: https://github.com/willgitdata/augur/commits/main
