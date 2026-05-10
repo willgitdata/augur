@@ -1,23 +1,42 @@
 name: Eval matrix
 
 # Manually triggered. Restores the eval harness from feffc73^ into an
-# untracked eval-local/ directory, runs a matrix of embedder / reranker /
-# chunker configs against the bundled 504-query corpus, and (optionally)
-# runs BEIR datasets. Posts the summary as a comment on the open PR for
-# the current branch.
+# untracked eval-local/ directory, then runs one of:
+#   - BEIR-only: measure our Auto stack on SciFact / NFCorpus / FiQA and
+#     compare to published baselines (default mode for the README table).
+#   - Bundled-matrix: sweep embedder/reranker/chunker configs against the
+#     bundled 504-query corpus to identify the strongest Auto stack.
+#   - Both: run the matrix first, then BEIR with the same Auto stack.
+#
+# Posts the comparison table as a comment on the open PR for the chosen
+# branch, plus a JSON artifact with raw per-query results.
 
 on:
   workflow_dispatch:
     inputs:
-      mode:
-        description: 'Matrix mode for the bundled-corpus run'
+      target:
+        description: 'What to run'
         type: choice
-        options: [quick, full]
-        default: quick
-      run_beir:
-        description: 'Also run BEIR (SciFact + NFCorpus). FiQA skipped — 57K docs is slow.'
+        options:
+          - beir-only           # SciFact + NFCorpus + FiQA against literature baselines
+          - bundled-quick       # 5-config matrix on bundled 504-query corpus
+          - bundled-full        # 10-config matrix on bundled corpus
+          - bundled-then-beir   # full bundled matrix, then BEIR with current Auto
+        default: beir-only
+      auto_stack:
+        description: 'Which Auto stack to evaluate on BEIR'
+        type: choice
+        options:
+          - default       # MiniLM-L6 + ms-marco-MiniLM-L-6-v2 + MetadataChunker + stemmed BM25 (current README default)
+          - bge-small     # BGE-small embedder, ms-marco reranker (mid-size upgrade, ~150 MB)
+          - bge-reranker  # MiniLM-L6 embedder, bge-reranker-base reranker (~300 MB)
+          - bge-full      # BGE-small embedder + bge-reranker-base reranker (~430 MB)
+          - bge-large     # BGE-large embedder + ms-marco reranker (matches paper-baseline footprint)
+        default: default
+      run_fiqa:
+        description: 'Include FiQA (57K docs — adds ~30-45 min to BEIR run)'
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: read
@@ -26,7 +45,7 @@ permissions:
 jobs:
   eval:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,10 +77,10 @@ jobs:
           sed -i 's/type SemanticChunker,/type AsyncChunker,/' eval-local/evaluations/cli.ts
           sed -i 's/Chunker | SemanticChunker/Chunker | AsyncChunker/' eval-local/evaluations/cli.ts
 
-          # package.json: workspace:* → link to packages/core (outside workspace)
+          # package.json: workspace:* → link to packages/core
           sed -i 's|"@augur/core": "workspace:\*"|"@augur/core": "link:../../packages/core"|' eval-local/evaluations/package.json
 
-          # tsconfig.json: self-contained (previously extended tsconfig.base.json)
+          # tsconfig.json: self-contained
           cat > eval-local/evaluations/tsconfig.json <<'JSON'
           {
             "compilerOptions": {
@@ -81,6 +100,27 @@ jobs:
           }
           JSON
 
+      - name: Patch beir.ts to accept --reranker-model
+        run: |
+          # beir.ts hardcodes LocalReranker() with no model override. Patch in
+          # a --reranker-model flag so the workflow can swap the reranker stack
+          # without re-vendoring beir.ts.
+          python3 - <<'PY'
+          import re
+          path = "eval-local/evaluations/beir.ts"
+          src = open(path).read()
+          src = src.replace(
+              'const fastKeyword = argv.includes("--fast-keyword");',
+              'const fastKeyword = argv.includes("--fast-keyword");\nconst rerankerModel = readFlag("reranker-model");'
+          )
+          src = src.replace(
+              "reranker: new LocalReranker(),",
+              "reranker: new LocalReranker(rerankerModel ? { model: rerankerModel } : {}),"
+          )
+          open(path, "w").write(src)
+          print("Patched beir.ts to accept --reranker-model")
+          PY
+
       - name: Install eval deps (outside workspace)
         working-directory: eval-local/evaluations
         run: pnpm install --ignore-workspace
@@ -93,12 +133,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
-          key: hf-eval-${{ runner.os }}-v1
+          key: hf-eval-${{ runner.os }}-v2
 
+      # =========================================================
+      # BUNDLED-CORPUS MATRIX (optional)
+      # =========================================================
       - name: Run bundled-corpus matrix
+        if: ${{ contains(inputs.target, 'bundled') }}
         working-directory: eval-local/evaluations
         env:
-          MODE: ${{ inputs.mode }}
+          MODE: ${{ inputs.target == 'bundled-quick' && 'quick' || 'full' }}
         run: |
           set -euo pipefail
           mkdir -p results
@@ -112,14 +156,11 @@ jobs:
             pnpm eval -- "$@" --save "results/$name.json"
           }
 
-          # ---- Baselines ----
-          run_eval baseline-current \
-            --reranker local --metadata-chunker --bm25-stem
+          # Baselines
+          run_eval baseline-current --reranker local --metadata-chunker --bm25-stem
+          run_eval baseline-bare    --reranker none
 
-          run_eval baseline-bare \
-            --reranker none
-
-          # ---- Embedder upgrades ----
+          # Embedder upgrades
           run_eval embedder-bge-small \
             --reranker local --metadata-chunker --bm25-stem \
             --local-embedder-model "Xenova/bge-small-en-v1.5" \
@@ -143,14 +184,14 @@ jobs:
               --local-embedder-query-prefix "Represent this sentence for searching relevant passages: "
           fi
 
-          # ---- Reranker upgrade ----
+          # Reranker upgrade
           run_eval reranker-bge-base \
             --reranker local --metadata-chunker --bm25-stem \
             --local-embedder-model "Xenova/bge-small-en-v1.5" \
             --local-embedder-query-prefix "Represent this sentence for searching relevant passages: " \
             --local-reranker-model "Xenova/bge-reranker-base"
 
-          # ---- Doc2Query + winning candidate (full mode only) ----
+          # Doc2Query + winning candidate (full only)
           if [[ "$MODE" == "full" ]]; then
             run_eval chunker-doc2query \
               --reranker local --metadata-chunker --bm25-stem --doc2query
@@ -167,9 +208,11 @@ jobs:
               --local-reranker-model "Xenova/bge-reranker-base"
           fi
 
-      - name: Generate bundled-corpus SUMMARY.md
+      - name: Bundled matrix SUMMARY.md
+        if: ${{ contains(inputs.target, 'bundled') }}
         working-directory: eval-local/evaluations
         run: |
+          mkdir -p results
           node --input-type=module -e '
             import { readdirSync, readFileSync, writeFileSync } from "node:fs";
             const dir = "results";
@@ -195,64 +238,212 @@ jobs:
             console.log(md.join("\n"));
           '
 
-      - name: Run BEIR (SciFact + NFCorpus)
-        if: ${{ inputs.run_beir == true }}
-        working-directory: eval-local/evaluations
+      # =========================================================
+      # BEIR — Auto vs published baselines
+      # =========================================================
+      - name: Download BEIR datasets
+        if: ${{ inputs.target == 'beir-only' || inputs.target == 'bundled-then-beir' }}
         run: |
           set -euo pipefail
-          mkdir -p ~/beir results
+          mkdir -p ~/beir
 
-          # Download SciFact + NFCorpus from the TU Darmstadt BEIR mirror.
-          # FiQA (~57K docs) is intentionally skipped — slow on a free runner.
-          for ds in scifact nfcorpus; do
+          DATASETS="scifact nfcorpus"
+          if [[ "${{ inputs.run_fiqa }}" == "true" ]]; then
+            DATASETS="$DATASETS fiqa"
+          fi
+
+          for ds in $DATASETS; do
+            if [[ -d ~/beir/$ds ]]; then
+              echo "$ds already present, skipping download"
+              continue
+            fi
             echo "Downloading $ds..."
             curl -fsSL --retry 3 -o ~/beir/$ds.zip \
               "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/$ds.zip"
             unzip -q ~/beir/$ds.zip -d ~/beir/
+            rm ~/beir/$ds.zip
           done
+          ls ~/beir/
 
-          # Run the BEIR runner with the winning candidate stack:
-          # BGE-small embedder + bge-reranker-base reranker + MetadataChunker
-          # + stemmed BM25. The beir.ts script hardcodes the rest of the stack
-          # (MetadataChunker, LocalReranker, useStemming) — we only override
-          # the embedder and reranker models via CLI flags.
-          for ds in scifact nfcorpus; do
-            echo "Running BEIR $ds..."
-            pnpm exec tsx beir.ts ~/beir/$ds \
-              --model "Xenova/bge-small-en-v1.5" \
-              --query-prefix "Represent this sentence for searching relevant passages: " \
-              | tee "results/beir-${ds}.txt"
-          done
-
-      - name: Generate BEIR section
-        if: ${{ inputs.run_beir == true }}
+      - name: Run BEIR with chosen Auto stack
+        if: ${{ inputs.target == 'beir-only' || inputs.target == 'bundled-then-beir' }}
         working-directory: eval-local/evaluations
+        env:
+          STACK: ${{ inputs.auto_stack }}
         run: |
+          set -euo pipefail
+          mkdir -p results
+
+          # Map stack choice to beir.ts CLI flags. The beir.ts harness already
+          # uses MetadataChunker(SentenceChunker) + stemmed BM25; we override
+          # the embedder and reranker per stack.
+          BEIR_ARGS=()
+          case "$STACK" in
+            default)
+              # MiniLM-L6 + ms-marco (no overrides)
+              ;;
+            bge-small)
+              BEIR_ARGS=(--model "Xenova/bge-small-en-v1.5" \
+                         --query-prefix "Represent this sentence for searching relevant passages: ")
+              ;;
+            bge-reranker)
+              BEIR_ARGS=(--reranker-model "Xenova/bge-reranker-base")
+              ;;
+            bge-full)
+              BEIR_ARGS=(--model "Xenova/bge-small-en-v1.5" \
+                         --query-prefix "Represent this sentence for searching relevant passages: " \
+                         --reranker-model "Xenova/bge-reranker-base")
+              ;;
+            bge-large)
+              BEIR_ARGS=(--model "Xenova/bge-large-en-v1.5" \
+                         --query-prefix "Represent this sentence for searching relevant passages: ")
+              ;;
+          esac
+
+          DATASETS="scifact nfcorpus"
+          if [[ "${{ inputs.run_fiqa }}" == "true" ]]; then
+            DATASETS="$DATASETS fiqa"
+          fi
+
+          for ds in $DATASETS; do
+            echo "================================================================"
+            echo "  BEIR / $ds  ·  stack=$STACK"
+            echo "================================================================"
+            pnpm exec tsx beir.ts ~/beir/$ds "${BEIR_ARGS[@]}" | tee "results/beir-${ds}.txt"
+          done
+
+      - name: Build BEIR comparison table (Auto vs published baselines)
+        if: ${{ inputs.target == 'beir-only' || inputs.target == 'bundled-then-beir' }}
+        working-directory: eval-local/evaluations
+        env:
+          STACK: ${{ inputs.auto_stack }}
+          RUN_FIQA: ${{ inputs.run_fiqa }}
+        run: |
+          mkdir -p results
           node --input-type=module -e '
-            import { readFileSync, writeFileSync, appendFileSync, existsSync } from "node:fs";
-            const datasets = ["scifact", "nfcorpus"];
-            const rows = [];
-            for (const ds of datasets) {
-              const path = `results/beir-${ds}.txt`;
-              if (!existsSync(path)) continue;
+            import { readFileSync, writeFileSync, existsSync, appendFileSync } from "node:fs";
+
+            // Published baselines from the BEIR / BGE / E5 / ColBERTv2 papers.
+            // Numbers below are the reported NDCG@10 from each paper:
+            //   - BM25, BM25+CE, Contriever, ColBERTv2: BEIR benchmark paper (Thakur et al. 2021) + ColBERTv2 paper
+            //   - BGE-large-en-v1.5: BGE paper (Xiao et al. 2023)
+            //   - E5-large-v2: E5 paper (Wang et al. 2022)
+            const BASELINES = {
+              scifact: {
+                "BM25":              0.665,
+                "BM25+rerank":       0.688,
+                "Contriever":        0.677,
+                "ColBERTv2":         0.694,
+                "BGE-large (1.3GB)": 0.745,
+                "E5-large (1.3GB)":  0.736,
+              },
+              fiqa: {
+                "BM25":              0.236,
+                "BM25+rerank":       0.347,
+                "Contriever":        0.329,
+                "ColBERTv2":         0.356,
+                "BGE-large (1.3GB)": 0.450,
+                "E5-large (1.3GB)":  0.424,
+              },
+              nfcorpus: {
+                "BM25":              0.325,
+                "BM25+rerank":       0.350,
+                "Contriever":        0.328,
+                "ColBERTv2":         0.339,
+                "BGE-large (1.3GB)": 0.380,
+                "E5-large (1.3GB)":  0.371,
+              },
+            };
+
+            const STACK_LABEL = {
+              "default":      "Auto (MiniLM-L6 + ms-marco)",
+              "bge-small":    "Auto (BGE-small + ms-marco)",
+              "bge-reranker": "Auto (MiniLM-L6 + bge-reranker-base)",
+              "bge-full":     "Auto (BGE-small + bge-reranker-base)",
+              "bge-large":    "Auto (BGE-large + ms-marco)",
+            };
+
+            const stack = process.env.STACK;
+            const runFiqa = process.env.RUN_FIQA === "true";
+            const datasets = ["scifact", "fiqa", "nfcorpus"].filter(
+              (d) => d !== "fiqa" || runFiqa
+            );
+
+            function parseNdcg(path) {
+              if (!existsSync(path)) return null;
               const txt = readFileSync(path, "utf8");
-              const ndcg = (txt.match(/NDCG@10\s+(\S+)/) ?? ["", "?"])[1];
-              const mrr  = (txt.match(/MRR@10\s+(\S+)/) ?? ["", "?"])[1];
-              const recall = (txt.match(/Recall@10\s+(\S+)/) ?? ["", "?"])[1];
-              rows.push({ ds, ndcg, mrr, recall });
+              const m = txt.match(/NDCG@10\s+(\S+)/);
+              return m ? parseFloat(m[1]) : null;
             }
-            const md = [
-              "",
-              "## BEIR (winning candidate: BGE-small + bge-reranker-base + MetadataChunker + stemmed BM25)",
-              "",
-              "| Dataset | NDCG@10 | MRR@10 | Recall@10 |",
-              "| --- | ---: | ---: | ---: |",
-              ...rows.map((r) => `| **${r.ds}** | ${r.ndcg} | ${r.mrr} | ${r.recall} |`),
-            ];
-            appendFileSync("results/SUMMARY.md", md.join("\n") + "\n");
-            console.log(md.join("\n"));
+
+            // Auto numbers measured this run
+            const auto = {};
+            for (const ds of datasets) {
+              auto[ds] = parseNdcg(`results/beir-${ds}.txt`);
+            }
+
+            // Build the README-format comparison table.
+            const cols = ["Auto", "BM25", "BM25+rerank", "Contriever", "ColBERTv2", "BGE-large (1.3GB)", "E5-large (1.3GB)"];
+            const md = [];
+            md.push("## BEIR — Auto vs published baselines");
+            md.push("");
+            md.push(`Auto stack: **${STACK_LABEL[stack] ?? stack}**  ·  measured this workflow run.`);
+            md.push(`Baselines are the published NDCG@10 from BEIR / BGE / E5 / ColBERTv2 papers (static — not re-measured).`);
+            md.push("");
+            md.push("| Dataset | " + cols.join(" | ") + " |");
+            md.push("| --- | " + cols.map(() => "---:").join(" | ") + " |");
+            for (const ds of datasets) {
+              const label =
+                ds === "scifact" ? "**SciFact** (scientific claims)"
+                : ds === "fiqa" ? "**FiQA** (finance Q&A, 57K docs)"
+                : "**NFCorpus** (medical literature)";
+              const a = auto[ds];
+              const autoCell = a == null ? "—" : `**${a.toFixed(3)}**`;
+              const row = [label, autoCell];
+              for (const k of cols.slice(1)) {
+                const v = BASELINES[ds][k];
+                row.push(v == null ? "—" : v.toFixed(3));
+              }
+              md.push("| " + row.join(" | ") + " |");
+            }
+            md.push("");
+
+            // Highlight where Auto beats specific baselines (helpful for the README narrative).
+            const wins = [];
+            for (const ds of datasets) {
+              const a = auto[ds];
+              if (a == null) continue;
+              const beats = Object.entries(BASELINES[ds])
+                .filter(([k, v]) => a > v && !k.includes("BGE-large") && !k.includes("E5-large"))
+                .map(([k]) => k);
+              if (beats.length > 0) {
+                wins.push(`- **${ds}**: Auto (${a.toFixed(3)}) beats ${beats.join(", ")}.`);
+              }
+            }
+            if (wins.length > 0) {
+              md.push("**Where Auto beats published baselines:**");
+              md.push("");
+              md.push(...wins);
+              md.push("");
+            }
+
+            // Footnote.
+            md.push("_Reproduce: trigger this workflow with `target=beir-only` and the same `auto_stack`._");
+            md.push("");
+
+            const out = md.join("\n") + "\n";
+            const summaryPath = "results/SUMMARY.md";
+            if (existsSync(summaryPath)) {
+              appendFileSync(summaryPath, "\n" + out);
+            } else {
+              writeFileSync(summaryPath, out);
+            }
+            console.log(out);
           '
 
+      # =========================================================
+      # ARTIFACTS + PR COMMENT
+      # =========================================================
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -265,7 +456,9 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const summary = fs.readFileSync('eval-local/evaluations/results/SUMMARY.md', 'utf8');
+            const summary = fs.existsSync('eval-local/evaluations/results/SUMMARY.md')
+              ? fs.readFileSync('eval-local/evaluations/results/SUMMARY.md', 'utf8')
+              : '_No SUMMARY.md generated — check the workflow logs._';
             const branch = context.ref.replace('refs/heads/', '');
             const { data: prs } = await github.rest.pulls.list({
               owner: context.repo.owner,
@@ -275,12 +468,12 @@ jobs:
             });
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const body = [
-              `# Eval matrix results`,
+              `# Eval results`,
               ``,
-              `_Workflow run: [${context.runId}](${runUrl})_  ·  _mode: \`${{ inputs.mode }}\`_  ·  _BEIR: \`${{ inputs.run_beir }}\`_`,
+              `_Workflow run: [${context.runId}](${runUrl})_`,
+              `_target: \`${{ inputs.target }}\`  ·  auto_stack: \`${{ inputs.auto_stack }}\`  ·  run_fiqa: \`${{ inputs.run_fiqa }}\`_`,
               ``,
               summary,
-              ``,
               `Full per-query JSON in the workflow artifacts (\`eval-results-${context.runId}\`).`,
             ].join('\n');
             if (prs.length > 0) {
