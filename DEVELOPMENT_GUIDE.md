@@ -93,9 +93,9 @@ Prettier with default config. We don't lint with ESLint at MVP scale — TypeScr
 
 ### A new chunker
 
-1. Create `packages/core/src/chunking/mychunker.ts` implementing `Chunker`.
+1. Create `packages/core/src/chunking/mychunker.ts`.
 2. Export from `chunking/index.ts` and the root `index.ts`.
-3. Sync chunkers implement `chunk()`. Async chunkers (those that need an embedder, an LLM, etc.) should follow the `SemanticChunker` pattern: throw from `chunk()`, implement `chunkAsync()`, and `chunkDocument()` will route correctly.
+3. Two interfaces: implement `Chunker` (one method, `chunk(doc): Chunk[]`) for sync chunkers, or `AsyncChunker` (one method, `chunkAsync(doc): Promise<Chunk[]>`) for chunkers that need an embedder, an LLM call, or any other async dependency. They are *separate* interfaces — async chunkers do not implement `Chunker`. The polymorphic `chunkDocument()` helper accepts either flavor and is what the orchestrator calls internally.
 
 ### A new router
 
