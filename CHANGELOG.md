@@ -162,21 +162,35 @@ licensed. Node ≥ 20. Zero runtime dependencies in core.
 
 ### Performance
 
-- CI enforces `NDCG@10 > 0.65` on a 16-doc / 12-query synthetic
-  corpus (`packages/core/src/eval-smoke.test.ts`) — a structural
-  regression net that catches pipeline breakage on every PR. This is
-  not a quality benchmark; it asserts the routing pipeline still
-  *works* end-to-end.
-- The recommended local stack is **44 MB on-device total**
-  (`Xenova/all-MiniLM-L6-v2` 22 MB + `Xenova/ms-marco-MiniLM-L-6-v2`
-  22 MB), no network at query time, no API keys.
-- A 504-query / 182-doc development eval and a BEIR runner
-  (SciFact / FiQA / NFCorpus) drove the routing constants and fusion
-  weights during development. That harness is preserved in git
-  history at commit `feffc73^` and slated for republish as a
-  standalone `augur-eval` sister repo. Specific benchmark numbers
-  from that harness are not reproduced in this CHANGELOG because
-  they cannot be re-run from the published `@augur/core` artifact.
+CI enforces `NDCG@10 > 0.65` on a 16-doc / 12-query synthetic corpus
+(`packages/core/src/eval-smoke.test.ts`) — a structural regression net
+that catches pipeline breakage on every PR.
+
+The recommended local stack is **44 MB on-device total**
+(`Xenova/all-MiniLM-L6-v2` 22 MB embedder + `Xenova/ms-marco-MiniLM-L-6-v2`
+22 MB cross-encoder), no network at query time, no API keys.
+
+**BEIR — measured by the `Eval matrix` workflow** (Actions tab,
+`workflow_dispatch` with `target=beir-only`, `auto_stack=default`,
+`run_fiqa=true`). Auto stack = MiniLM-L6 + ms-marco cross-encoder +
+MetadataChunker + stemmed BM25, no per-corpus tuning:
+
+| Dataset    |    Auto |  BM25 | BM25+rerank | Contriever | ColBERTv2 | BGE-large (1.3GB) | E5-large (1.3GB) |
+| ---------- | ------: | ----: | ----------: | ---------: | --------: | ----------------: | ---------------: |
+| SciFact    |   0.707 | 0.665 |       0.688 |      0.677 |     0.694 |             0.745 |            0.736 |
+| FiQA       |   0.345 | 0.236 |       0.347 |      0.329 |     0.356 |             0.450 |            0.424 |
+| NFCorpus   |   0.324 | 0.325 |       0.350 |      0.328 |     0.339 |             0.380 |            0.371 |
+
+Auto numbers are this workflow's measurements; baseline columns are
+the published numbers from the BEIR (Thakur et al. 2021), BGE
+(Xiao et al. 2023), E5 (Wang et al. 2022), and ColBERTv2 papers
+(static, not re-measured here).
+
+A 504-query / 182-doc development eval drove the routing constants
+and fusion weights during development. That harness lives at git
+commit `feffc73^` and is slated for republish as a standalone
+`augur-eval` sister repo. The `Eval matrix` workflow restores it on
+demand to produce the table above.
 
 [Unreleased]: https://github.com/willgitdata/augur/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/willgitdata/augur/releases/tag/v0.1.0
