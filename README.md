@@ -5,7 +5,7 @@
 
 ###### Named after the ancient Roman augurs who interpreted signs to foresee the best path forward. To augur is to predict, and this package predicts the optimal retrieval method for your use case.
 
-**TL;DR**: use this when you're too lazy to dive into the intricacies of retrieval systems. Sensible defaults, competitive BEIR numbers, and a trace on every search that tells you *why* each result came back.
+**TL;DR**: use this when you don't have the ability or resources to dive into the intricacies of retrieval systems. Sensible defaults, competitive BEIR numbers, and a trace on every search that tells you *why* each result came back.
 
 **Adaptive retrieval orchestration for RAG and semantic search: vector retrieval, BM25 keyword search, hybrid fusion, and cross-encoder reranking in one TypeScript SDK.**
 
