@@ -17,7 +17,7 @@ import {
  * Keyword search: Pinecone does not natively support BM25, so `searchKeyword`
  * throws. The router knows to fall back to vector-only when an adapter is
  * keyword-incapable. Hybrid via Pinecone's sparse-dense vectors is a
- * reasonable v2 — tracked in ARCHITECTURE.md.
+ * reasonable v2 — tracked in docs/architecture.md.
  */
 export class PineconeAdapter extends BaseAdapter {
   readonly name = "pinecone";

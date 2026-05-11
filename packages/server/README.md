@@ -53,8 +53,8 @@ await app.listen({ port: 3001 });
 ## Learn more
 
 - [Project README](https://github.com/willgitdata/augur#readme): pitch, BEIR comparison table, and quick start
-- [ARCHITECTURE.md](https://github.com/willgitdata/augur/blob/main/ARCHITECTURE.md): how the orchestrator, router, adapters, chunkers, and rerankers fit together
-- [API_REFERENCE.md](https://github.com/willgitdata/augur/blob/main/API_REFERENCE.md): SDK and HTTP API reference
+- [Architecture](https://github.com/willgitdata/augur/blob/main/docs/architecture.md): how the orchestrator, router, adapters, chunkers, and rerankers fit together
+- [API reference](https://github.com/willgitdata/augur/blob/main/docs/api-reference.md): SDK and HTTP API reference
 
 ## License
 

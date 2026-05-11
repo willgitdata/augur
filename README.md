@@ -1,6 +1,6 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="augur-wordmark-dark.svg">
-  <img src="augur-wordmark-light.svg" alt="Augur">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/augur-wordmark-dark.svg">
+  <img src="assets/augur-wordmark-light.svg" alt="Augur">
 </picture>
 
 ###### Named after the ancient Roman augurs who interpreted signs to foresee the best path forward. To augur is to predict, and this package predicts the optimal retrieval method for your use case.
@@ -57,7 +57,7 @@ BEIR NDCG@10, auto vs. published baselines:
 
 Auto numbers measured by the [`Eval matrix` workflow](.github/workflows/eval.yml); trigger from the Actions tab with `target=beir-only`, `auto_stack=default`, `run_fiqa=true`. Baseline columns are the published numbers from the BEIR (Thakur et al. 2021), BGE (Xiao et al. 2023), E5 (Wang et al. 2022), and ColBERTv2 papers; static, not re-measured here.
 
-At 44 MB on-device, the auto stack beats BM25, BM25+rerank, Contriever, and ColBERTv2 on SciFact. It beats BM25 and Contriever on FiQA and is within noise of BM25+rerank (0.345 vs 0.347). It ties BM25 on NFCorpus. The 1.3 GB BGE-large and E5-large win consistently. For a stack about 30x our footprint, you would expect them to. The routing pipeline matches their published numbers if you swap in BGE-large yourself; see [EXAMPLES.md](EXAMPLES.md) for the constructor.
+At 44 MB on-device, the auto stack beats BM25, BM25+rerank, Contriever, and ColBERTv2 on SciFact. It beats BM25 and Contriever on FiQA and is within noise of BM25+rerank (0.345 vs 0.347). It ties BM25 on NFCorpus. The 1.3 GB BGE-large and E5-large win consistently. For a stack about 30x our footprint, you would expect them to. The routing pipeline matches their published numbers if you swap in BGE-large yourself; see [docs/examples.md](docs/examples.md) for the constructor.
 
 The router adapts per corpus with no per-dataset tuning. Code-like queries route to keyword, natural-language questions to vector, the rest to weighted hybrid; quoted phrases and short identifiers favor BM25. The trace records the routing decision and reasons for every query.
 
@@ -83,10 +83,14 @@ augur/
 ├── packages/core/         # @augur-rag/core, the SDK (this is what most users install)
 ├── packages/server/       # @augur-rag/server, optional Fastify wrapper for standalone deploy
 ├── examples/              # basic-search, custom-adapter, chunking
-├── ARCHITECTURE.md        # how the system is organized + why
-├── EXAMPLES.md            # extended walkthroughs (hosted embedders, contextual retrieval, BGE-large, MMR, ...)
-├── API_REFERENCE.md       # SDK + HTTP API reference
-└── DEVELOPMENT_GUIDE.md   # contributor + local-dev guide
+├── docs/
+│   ├── architecture.md    # how the system is organized + why
+│   ├── examples.md        # extended walkthroughs (hosted embedders, contextual retrieval, BGE-large, MMR, ...)
+│   ├── api-reference.md   # SDK + HTTP API reference
+│   ├── development.md     # contributor + local-dev guide
+│   ├── releasing.md       # publish runbook
+│   └── migrating.md       # version-to-version upgrade notes
+└── assets/                # wordmark SVGs
 ```
 
 The repo ships only the SDK and the optional HTTP wrapper. A trace-explorer dashboard and the BEIR-eval harness used during development live in git history at commit `feffc73^` and are slated for republish as standalone sister repos. The `Eval matrix` workflow restores the harness in CI on demand to produce the table above.
@@ -104,7 +108,7 @@ docker compose up
 
 ## Status
 
-v0.1, active development. Issues, ideas, and PRs welcome. See [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md).
+v0.1, active development. Issues, ideas, and PRs welcome. See [docs/development.md](./docs/development.md).
 
 ## License
 
