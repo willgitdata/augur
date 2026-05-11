@@ -8,8 +8,9 @@ name: Eval matrix
 #     bundled 504-query corpus to identify the strongest Auto stack.
 #   - Both: run the matrix first, then BEIR with the same Auto stack.
 #
-# Posts the comparison table as a comment on the open PR for the chosen
-# branch, plus a JSON artifact with raw per-query results.
+# Always writes the comparison table to the workflow Job Summary; also
+# attempts to comment on the open PR for the chosen branch and uploads
+# a JSON artifact with raw per-query results.
 
 on:
   workflow_dispatch:
@@ -41,6 +42,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  issues: write
 
 jobs:
   eval:
@@ -324,10 +326,6 @@ jobs:
             import { readFileSync, writeFileSync, existsSync, appendFileSync } from "node:fs";
 
             // Published baselines from the BEIR / BGE / E5 / ColBERTv2 papers.
-            // Numbers below are the reported NDCG@10 from each paper:
-            //   - BM25, BM25+CE, Contriever, ColBERTv2: BEIR benchmark paper (Thakur et al. 2021) + ColBERTv2 paper
-            //   - BGE-large-en-v1.5: BGE paper (Xiao et al. 2023)
-            //   - E5-large-v2: E5 paper (Wang et al. 2022)
             const BASELINES = {
               scifact: {
                 "BM25":              0.665,
@@ -376,13 +374,11 @@ jobs:
               return m ? parseFloat(m[1]) : null;
             }
 
-            // Auto numbers measured this run
             const auto = {};
             for (const ds of datasets) {
               auto[ds] = parseNdcg(`results/beir-${ds}.txt`);
             }
 
-            // Build the README-format comparison table.
             const cols = ["Auto", "BM25", "BM25+rerank", "Contriever", "ColBERTv2", "BGE-large (1.3GB)", "E5-large (1.3GB)"];
             const md = [];
             md.push("## BEIR — Auto vs published baselines");
@@ -408,7 +404,6 @@ jobs:
             }
             md.push("");
 
-            // Highlight where Auto beats specific baselines (helpful for the README narrative).
             const wins = [];
             for (const ds of datasets) {
               const a = auto[ds];
@@ -427,7 +422,6 @@ jobs:
               md.push("");
             }
 
-            // Footnote.
             md.push("_Reproduce: trigger this workflow with `target=beir-only` and the same `auto_stack`._");
             md.push("");
 
@@ -442,7 +436,7 @@ jobs:
           '
 
       # =========================================================
-      # ARTIFACTS + PR COMMENT
+      # ARTIFACTS + PR COMMENT + JOB SUMMARY
       # =========================================================
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -451,21 +445,17 @@ jobs:
           path: eval-local/evaluations/results/
           retention-days: 30
 
-      - name: Post results to PR
+      - name: Write summary + post to PR
+        if: always()
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const summary = fs.existsSync('eval-local/evaluations/results/SUMMARY.md')
-              ? fs.readFileSync('eval-local/evaluations/results/SUMMARY.md', 'utf8')
+            const summaryPath = 'eval-local/evaluations/results/SUMMARY.md';
+            const summary = fs.existsSync(summaryPath)
+              ? fs.readFileSync(summaryPath, 'utf8')
               : '_No SUMMARY.md generated — check the workflow logs._';
-            const branch = context.ref.replace('refs/heads/', '');
-            const { data: prs } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              head: `${context.repo.owner}:${branch}`,
-              state: 'open',
-            });
+
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const body = [
               `# Eval results`,
@@ -474,16 +464,71 @@ jobs:
               `_target: \`${{ inputs.target }}\`  ·  auto_stack: \`${{ inputs.auto_stack }}\`  ·  run_fiqa: \`${{ inputs.run_fiqa }}\`_`,
               ``,
               summary,
+              ``,
               `Full per-query JSON in the workflow artifacts (\`eval-results-${context.runId}\`).`,
             ].join('\n');
-            if (prs.length > 0) {
-              await github.rest.issues.createComment({
+
+            // Always write to GitHub Actions Job Summary — guaranteed visible
+            // on the workflow run page, no API call required, no permissions
+            // dance. This is the backstop if the PR-comment path fails.
+            await core.summary.addRaw(body).write();
+            console.log('Wrote eval results to Job Summary.');
+
+            // Then try to comment on the open PR for this run. Strategy:
+            // (1) listPullRequestsAssociatedWithCommit — the canonical API
+            //     for "which PR is this commit on." Works for both push
+            //     events and workflow_dispatch.
+            // (2) Fallback: pulls.list filtered by head ref. Works when the
+            //     commit predates the PR or the association cache is stale.
+            // Both strategies log what they found so a future debug session
+            // doesn't have to guess.
+            console.log(`context.ref=${context.ref}  context.sha=${context.sha}`);
+
+            let targetPr = null;
+
+            try {
+              const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: prs[0].number,
-                body,
+                commit_sha: context.sha,
               });
-              console.log(`Posted to PR #${prs[0].number}`);
+              console.log(`listPullRequestsAssociatedWithCommit → ${prs.length} PRs: ${prs.map((p) => `#${p.number}(${p.state})`).join(', ')}`);
+              targetPr = prs.find((p) => p.state === 'open') ?? null;
+            } catch (e) {
+              console.log(`listPullRequestsAssociatedWithCommit error: ${e.message}`);
+            }
+
+            if (!targetPr) {
+              const branch = context.ref.replace('refs/heads/', '');
+              const head = `${context.repo.owner}:${branch}`;
+              console.log(`Falling back to pulls.list with head=${head}`);
+              try {
+                const { data: prs } = await github.rest.pulls.list({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  head,
+                  state: 'open',
+                });
+                console.log(`pulls.list → ${prs.length} PRs: ${prs.map((p) => `#${p.number}`).join(', ')}`);
+                targetPr = prs[0] ?? null;
+              } catch (e) {
+                console.log(`pulls.list error: ${e.message}`);
+              }
+            }
+
+            if (targetPr) {
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: targetPr.number,
+                  body,
+                });
+                console.log(`Posted comment to PR #${targetPr.number}`);
+              } catch (e) {
+                console.log(`createComment error: ${e.message}`);
+                console.log('Results are still in the Job Summary above and the workflow artifact.');
+              }
             } else {
-              console.log('No open PR found for this branch; results are in the artifact only.');
+              console.log('No open PR found for this run. Results are in the Job Summary above and the workflow artifact.');
             }
