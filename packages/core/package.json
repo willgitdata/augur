@@ -78,7 +78,7 @@
     "dev": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc --noEmit",
     "test": "find src -name '*.test.ts' -print0 | xargs -0 node --test --import tsx",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "prepublishOnly": "pnpm clean && pnpm build && pnpm test"
   },
   "peerDependencies": {

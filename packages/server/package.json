@@ -48,7 +48,7 @@
     "dev": "tsx watch src/cli.ts",
     "start": "node dist/cli.js",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "prepublishOnly": "pnpm clean && pnpm build && pnpm typecheck"
   },
   "dependencies": {
