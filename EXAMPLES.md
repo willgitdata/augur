@@ -9,9 +9,9 @@ Hands-on walkthroughs. Each example lives in `examples/<name>/` and is runnable 
 The 30-line "hello world".
 
 ```ts
-import { Augur } from "@augur/core";
+import { Augur, LocalEmbedder } from "@augur/core";
 
-const augr = new Augur();
+const augr = new Augur({ embedder: new LocalEmbedder() });
 
 await augr.index([
   { id: "pg",    content: "PostgreSQL supports vector search via pgvector." },
@@ -80,7 +80,10 @@ class JsonFileAdapter extends BaseAdapter {
   // ... upsert / searchVector / searchKeyword / delete / count / clear ...
 }
 
-const augr = new Augur({ adapter: new JsonFileAdapter("./store.json") });
+const augr = new Augur({
+  adapter: new JsonFileAdapter("./store.json"),
+  embedder: new LocalEmbedder(),
+});
 ```
 
 The full implementation is `examples/custom-adapter/index.ts`. About 90 lines, including the BM25-ish keyword search.
@@ -223,17 +226,14 @@ new LocalEmbedder({
 `[doc-id | topic | title]` to each chunk before embedding — the
 "Doc2Query lite" pattern.
 
-**Measured impact on the bundled 504-query eval (no API keys):**
-
-```
-LocalEmbedder (all-MiniLM-L6-v2)                                      NDCG@10 = 0.845
-LocalEmbedder + LocalReranker                                         NDCG@10 = 0.877 (+0.032)
-LocalEmbedder + LocalReranker + MetadataChunker                       NDCG@10 = 0.899 (+0.054)
-LocalEmbedder + LocalReranker + MetadataChunker + stemmed BM25        NDCG@10 = 0.910 (+0.065)
-```
-
-Vector-strategy NDCG reaches **0.922** with the full local stack — the
-kind of quality you typically need a hosted API for.
+**Stacking order matters.** Each layer attacks a different failure
+mode: the bi-encoder gives broad recall, the cross-encoder rescues
+near-misses, the metadata chunker fixes "the chunk doesn't mention the
+doc topic," stemmed BM25 catches plural/inflectional misses on lexical
+queries. Numbers measured on a 504-query development eval (preserved
+out-of-tree at commit `feffc73^`) confirmed each layer adds incremental
+NDCG@10; that harness will be republished as `augur-eval` so you can
+re-run on your own corpus.
 
 ### Contextual Retrieval (Anthropic's pattern) — biggest single quality lift
 
@@ -336,10 +336,11 @@ No configuration needed — it's automatic when strategy = "hybrid".
 ### Stemmed BM25 (`InMemoryAdapter({ useStemming: true })`)
 
 Turns on Porter stemming + English stopword filtering for the keyword
-path. Same pipeline Lucene/Elasticsearch use by default. On the bundled
-eval this single flag adds ~+0.022 NDCG@10 to *any* config and is the
-biggest cheap win on quoted / named-entity / short keyword queries
-(running ↔ runs, connection ↔ connections all collapse to one stem).
+path. Same pipeline Lucene/Elasticsearch use by default. The reliable
+win on quoted / named-entity / short keyword queries is the recall lift
+from collapsing inflectional forms (running ↔ runs,
+connection ↔ connections all map to one stem); for any non-trivial BM25
+workload it's the cheapest improvement you'll find.
 
 ```ts
 import { Augur, InMemoryAdapter, LocalEmbedder, LocalReranker } from "@augur/core";
@@ -394,7 +395,7 @@ const cascade = new CascadedReranker([
 ```
 
 For Cohere, Jina, Voyage, or any hosted cross-encoder, implement the
-four-method `Reranker` interface directly against the provider's SDK —
+one-method `Reranker` interface directly against the provider's SDK —
 see §5 above for a Cohere snippet. `HeuristicReranker` is fine for a
 smoke test; cross-encoder rerankers are typically the single biggest
 accuracy lever once embeddings are decent.
@@ -405,6 +406,11 @@ accuracy lever once embeddings are decent.
 
 The recommended adapter for most teams — you probably already have Postgres.
 
+The schema dimension MUST match your embedder. The example below uses
+`LocalEmbedder` (384d). For a hosted embedder, swap both numbers in
+lockstep — `text-embedding-3-small` is 1536d, `text-embedding-3-large`
+is 3072d, Cohere `embed-english-v3.0` is 1024d.
+
 ```sql
 CREATE EXTENSION vector;
 CREATE TABLE chunks (
@@ -413,7 +419,7 @@ CREATE TABLE chunks (
   content TEXT NOT NULL,
   index INT NOT NULL,
   metadata JSONB,
-  embedding VECTOR(1536),
+  embedding VECTOR(384),  -- match your embedder's dimension
   content_tsv tsvector GENERATED ALWAYS AS (to_tsvector('english', content)) STORED
 );
 CREATE INDEX ON chunks USING ivfflat (embedding vector_cosine_ops);
@@ -432,13 +438,22 @@ const augr = new Augur({
   adapter: new PgVectorAdapter({
     client: { query: (sql, params) => client.query(sql, params).then((r) => ({ rows: r.rows })) },
     table: "chunks",
-    dimension: 384,
+    dimension: 384,                  // matches LocalEmbedder + the VECTOR(384) above
   }),
-  embedder: new LocalEmbedder(),  // or your hosted embedder per §5
+  embedder: new LocalEmbedder(),     // or your hosted embedder per §5
 });
 ```
 
+The adapter validates `chunk.embedding.length === dimension` at upsert
+time and throws on mismatch, so you'll catch this on the first
+`index()` call rather than silently corrupting the table.
+
 Vector + keyword + hybrid all in one place, no extra services.
+
+> **Filter keys must be plain identifiers.** `PgVectorAdapter` rejects
+> filter keys that don't match `^[a-zA-Z_][a-zA-Z0-9_]*$` (the same rule
+> it applies to the table name). Postgres can't parameter-bind inside
+> `metadata->>'key'`, so we whitelist instead of escaping.
 
 ---
 
@@ -457,11 +472,11 @@ console.log(trace.decision);
 //     "reranking enabled (latency budget allows)"
 //   ],
 //   reranked: true,
-//   signals: { tokens: 6, avgTokenLen: 4.5, hasQuotedPhrase: false, ... }
+//   signals: { wordCount: 6, avgWordLen: 4.5, hasQuotedPhrase: false, language: "en", ... }
 // }
 
 console.log(trace.spans.map(s => `${s.name}: ${s.durationMs.toFixed(1)}ms`));
-// ["embed:query: 1.4ms", "search:vector: 0.8ms", "rerank: 0.3ms"]
+// ["embed:query: 1.4ms", "pool:vector: 0.8ms", "pool:keyword: 0.4ms", "rerank: 0.3ms"]
 ```
 
 Save the trace ID; if a user reports a bad result, you can look up exactly what happened.
@@ -491,13 +506,13 @@ import { BaseRetriever } from "@langchain/core/retrievers";
 import { Augur } from "@augur/core";
 
 class AugurRetriever extends BaseRetriever {
-  augr = new Augur({ /* ... */ });
+  augr = new Augur({ embedder: new LocalEmbedder() /* + adapter, reranker, ... */ });
   lc_namespace = ["custom", "augur"];
   async _getRelevantDocuments(query: string) {
     const { results } = await this.augr.search({ query });
     return results.map((r) => ({
       pageContent: r.chunk.content,
-      metadata: { ...r.chunk.metadata, score: r.score, traceId: r.chunk.id },
+      metadata: { ...r.chunk.metadata, score: r.score, chunkId: r.chunk.id },
     }));
   }
 }
@@ -510,8 +525,9 @@ class AugurRetriever extends BaseRetriever {
 ## 10. A/B testing two routers
 
 ```ts
-const a = new Augur({ router: new HeuristicRouter() });
-const b = new Augur({ router: new MyMLRouter() });
+const embedder = new LocalEmbedder();
+const a = new Augur({ embedder, router: new HeuristicRouter() });
+const b = new Augur({ embedder, router: new MyMLRouter() });
 
 const which = userId.charCodeAt(0) % 2 === 0 ? a : b;
 const result = await which.search({ query, context: { ab: which === a ? "A" : "B" } });
