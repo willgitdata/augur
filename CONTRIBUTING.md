@@ -38,14 +38,16 @@ pnpm --filter example-custom-adapter start
 ## Testing
 
 ```bash
-# core unit tests (12 tests across router + querybrain class)
-cd packages/core && node --import tsx --test src/routing/router.test.ts src/augur.test.ts
+pnpm test                              # all packages — currently 191 tests in @augur/core
+pnpm --filter @augur/core test         # core only
 
-# typecheck the whole workspace
-pnpm typecheck
+pnpm typecheck                         # typecheck the whole workspace
+pnpm build                             # compile both publishable packages
 ```
 
-CI runs all three on every PR.
+Tests use Node's built-in test runner (no Jest, no vitest). Test files
+live next to their subjects (e.g. `router.ts` + `router.test.ts`).
+CI runs `typecheck`, `build`, and `test` on every PR.
 
 ## Making a change
 

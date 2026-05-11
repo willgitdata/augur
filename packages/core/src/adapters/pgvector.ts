@@ -205,7 +205,18 @@ function buildFilterSql(
   const params: unknown[] = [];
   let p = startParam;
   for (const [k, v] of Object.entries(filter)) {
-    clauses.push(`metadata->>'${k.replace(/'/g, "''")}' = $${p}`);
+    // Filter keys are interpolated into SQL as JSONB path operands; Postgres
+    // doesn't allow parameter binding inside `metadata->>'key'`. We require
+    // strict identifier syntax to make the interpolation unambiguously safe
+    // and reject anything else loudly. Same rule as the table identifier
+    // check in the constructor.
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k)) {
+      throw new Error(
+        `PgVectorAdapter: invalid filter key ${JSON.stringify(k)} ` +
+          "(must match /^[a-zA-Z_][a-zA-Z0-9_]*$/)"
+      );
+    }
+    clauses.push(`metadata->>'${k}' = $${p}`);
     params.push(String(v));
     p += 1;
   }

@@ -171,23 +171,43 @@ test("PgVectorAdapter: searchVector with filter renumbers parameters correctly",
   assert.match(c.sql, /LIMIT \$4/);
 });
 
-test("PgVectorAdapter: filter keys escape single quotes (injection guard)", async () => {
-  nextRows = [];
+test("PgVectorAdapter: filter keys are validated (injection guard)", async () => {
   const a = ad();
-  // Adversarial filter key — the JSON-path interpolation MUST escape it,
-  // otherwise the user controls the SQL after `metadata->>'`.
-  await a.searchVector({
-    embedding: [0.1, 0.2, 0.3],
-    topK: 1,
-    filter: { "topic'; DROP TABLE chunks; --": "x" },
-  });
-  const c = captured[0]!;
-  // The dangerous quote is doubled (the standard SQL escape) — the
-  // adversary's payload now lives inside the JSON-path string literal
-  // rather than as bare SQL.
-  assert.match(c.sql, /metadata->>'topic''; DROP TABLE chunks; --'/);
-  // And the value is still a parameter, not interpolated.
-  assert.equal(c.params[1], "x");
+  // Adversarial filter key. Postgres doesn't allow parameter binding inside
+  // `metadata->>'key'`, so the key is interpolated. Rather than relying on
+  // single-quote escaping (which is correct only under default
+  // standard_conforming_strings), we reject anything that isn't a strict
+  // identifier — same rule as the table-name check in the constructor.
+  await assert.rejects(
+    () =>
+      a.searchVector({
+        embedding: [0.1, 0.2, 0.3],
+        topK: 1,
+        filter: { "topic'; DROP TABLE chunks; --": "x" },
+      }),
+    /invalid filter key/
+  );
+  // No query should have been issued.
+  assert.equal(captured.length, 0);
+});
+
+test("PgVectorAdapter: filter keys reject non-identifier characters", async () => {
+  const a = ad();
+  // Spaces, dashes, dots, leading digits — all rejected. JSONB paths in
+  // the wild can contain these, but for retrieval-filter use we want a
+  // strict whitelist.
+  for (const bad of ["foo bar", "foo-bar", "foo.bar", "1abc", "", "foo'bar"]) {
+    await assert.rejects(
+      () =>
+        a.searchVector({
+          embedding: [0.1, 0.2, 0.3],
+          topK: 1,
+          filter: { [bad]: "x" },
+        }),
+      /invalid filter key/,
+      `expected rejection for filter key ${JSON.stringify(bad)}`
+    );
+  }
 });
 
 test("PgVectorAdapter: searchKeyword uses plainto_tsquery + AND filters", async () => {

@@ -9,22 +9,25 @@ Two surfaces: the **TypeScript SDK** (`@augur/core`) and the **HTTP API** (`@aug
 ### `new Augur(options?)`
 
 ```ts
-import { Augur } from "@augur/core";
+import { Augur, LocalEmbedder } from "@augur/core";
 
 const augr = new Augur({
-  adapter,        // VectorAdapter        — default: InMemoryAdapter
-  embedder,       // Embedder             — REQUIRED (e.g. new LocalEmbedder())
-  chunker,        // Chunker              — default: SentenceChunker
-  router,         // Router               — default: HeuristicRouter
-  reranker,       // Reranker             — default: HeuristicReranker
-  traceStore,     // TraceStore           — optional capture store
-  autoIndexAdHocDocuments, // boolean     — default: true
+  embedder,                // Embedder             — REQUIRED (e.g. new LocalEmbedder())
+  adapter,                 // VectorAdapter        — default: InMemoryAdapter
+  chunker,                 // Chunker | AsyncChunker — default: SentenceChunker
+  router,                  // Router               — default: HeuristicRouter
+  reranker,                // Reranker | null      — default: null (no reranker)
+  traceStore,              // TraceStore           — optional capture store
+  autoIndexAdHocDocuments, // boolean              — default: true
+  adHocCacheSize,          // number               — default: 8 (LRU; 0 disables)
+  autoLanguageFilter,      // boolean              — default: false
 });
 ```
 
-`embedder` is required. Everything else is optional; with the
-`LocalEmbedder` default and no other args, you get a fully functional
-in-memory pipeline.
+`embedder` is the only required option. The default `reranker` is `null`
+— pass `new LocalReranker()` (zero-API-key on-device cross-encoder) to
+get the headline accuracy mode where the cross-encoder votes on every
+query.
 
 ### `augr.index(documents)`
 
@@ -42,12 +45,13 @@ const result = await augr.index([
 ```ts
 const { results, trace } = await augr.search({
   query: "...",
-  documents,           // optional — ad-hoc inline docs
+  documents,           // optional — ad-hoc inline docs (LRU-cached by content fingerprint)
   topK: 10,            // default 10
   forceStrategy,       // "vector" | "keyword" | "hybrid" | "rerank"
   latencyBudgetMs,     // soft budget — affects rerank decision
   filter: { source: "wiki" },
   context: { userId: "u1" },  // forwarded to the router
+  minScore: 0.4,       // optional confidence floor — drops results below this score
 });
 ```
 
@@ -97,8 +101,12 @@ interface SearchTrace {
   };
   spans: Array<{ name; startMs; endMs; durationMs; attributes? }>;
   candidates: number;
-  adapter: string;
+  adapter: string;          // bare adapter name — never mutated with "(ad-hoc)" suffixes
   embeddingModel?: string;
+  adHoc?: boolean;          // true when the query used a scratch adapter from req.documents
+  adHocCacheHit?: boolean;  // true when an ad-hoc query reused a cached scratch adapter
+  autoLanguageFilter?: string;       // BCP-47 code the auto-filter pinned to, if fired
+  autoLanguageFilterDropped?: boolean; // true if the auto-filter would have emptied the pool
 }
 ```
 
@@ -124,13 +132,19 @@ Returns the live configuration:
 {
   "status": "ok",
   "adapter": "in-memory",
-  "embedder": "hash-embedder",
+  "embedder": "local:Xenova/all-MiniLM-L6-v2",
   "chunker": "sentence",
   "router": "heuristic-v1",
-  "reranker": "heuristic-reranker",
+  "reranker": null,
   "capabilities": { "vector": true, "keyword": true, "hybrid": true, ... }
 }
 ```
+
+`reranker` is `null` when the server was started without one configured.
+The default `@augur/server` CLI ships no reranker — pass
+`new LocalReranker()` (or any provider's reranker) when you wire your
+own `buildServer({ embedder, reranker })` to keep cross-encoder voting
+on.
 
 Use this to verify that the deployed instance is wired the way you think it is.
 
