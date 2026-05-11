@@ -60,7 +60,7 @@ Reasons:
   - reranking skipped (latency budget)
 ```
 
-The point: the user never asked about strategies. The router did.
+The user never asked about strategies. The router did.
 
 ---
 
@@ -88,7 +88,7 @@ const augr = new Augur({
 
 The full implementation is `examples/custom-adapter/index.ts`. About 90 lines, including the BM25-ish keyword search.
 
-The takeaway: hybrid retrieval (RRF) and the routing engine come for free as soon as you implement vector + keyword. You don't write the fusion code yourself.
+Hybrid retrieval (RRF) and the routing engine come for free as soon as you implement vector + keyword. You don't write the fusion code yourself.
 
 ---
 
@@ -104,21 +104,17 @@ const semantic = new SemanticChunker({ embedder: new LocalEmbedder(), threshold:
 
 Run on the same document, you'll see:
 
-- `fixed-size` → predictable count, mid-sentence cuts
-- `sentence` → grammatical units, slight count variance
-- `semantic` → topic-aligned cuts, fewer chunks for cohesive text
+- `fixed-size`: predictable count, mid-sentence cuts
+- `sentence`: grammatical units, slight count variance
+- `semantic`: topic-aligned cuts, fewer chunks for cohesive text
 
 Pick based on content type, not on intuition. When in doubt, `SentenceChunker` is the default for a reason.
 
 ---
 
-## 5. Switching to a hosted embedder + reranker
+## 5. Switching to a hosted embedder and reranker
 
-`@augur-rag/core` ships one built-in embedder (`LocalEmbedder`, on-device ONNX)
-and three rerankers (`HeuristicReranker`, `LocalReranker`, `MMRReranker`).
-Hosted providers are intentionally not in core — the `Embedder` interface
-is three methods, the `Reranker` is one. Implement against your provider's
-official SDK and pass it in:
+`@augur-rag/core` ships one built-in embedder (`LocalEmbedder`, on-device ONNX) and three rerankers (`HeuristicReranker`, `LocalReranker`, `MMRReranker`). Hosted providers are intentionally not in core. The `Embedder` interface is three methods, `Reranker` is one. Implement against your provider's official SDK and pass it in:
 
 ```ts
 import { Augur, PineconeAdapter, type Embedder, type Reranker } from "@augur-rag/core";
@@ -163,16 +159,11 @@ const augr = new Augur({
 });
 ```
 
-The router adapts to Pinecone's keyword-incapable status automatically (stops
-picking keyword, lets the reranker carry precision).
+The router adapts to Pinecone's keyword-incapable status automatically (stops picking keyword, lets the reranker carry precision).
 
 ### Picking the built-in offline embedder (no API key needed)
 
-`LocalEmbedder` is the only embedder shipped in core. It runs a real
-sentence-transformer model entirely on-device via
-`@huggingface/transformers` (ONNX Runtime). Default model is
-`Xenova/all-MiniLM-L6-v2` (~22MB, 384d). First run downloads the model
-to `~/.cache/huggingface/hub`; subsequent runs are instant.
+`LocalEmbedder` is the only embedder shipped in core. It runs a real sentence-transformer model entirely on-device via `@huggingface/transformers` (ONNX Runtime). Default model is `Xenova/all-MiniLM-L6-v2` (~22MB, 384d). First run downloads the model to `~/.cache/huggingface/hub`; subsequent runs are instant.
 
 ```ts
 import {
@@ -196,8 +187,7 @@ You'll need to install the optional peer dep:
 pnpm add @huggingface/transformers
 ```
 
-For higher accuracy at a slightly larger size, swap the model and supply
-the model's required prefixes:
+For higher accuracy at a slightly larger size, swap the model and supply the model's required prefixes:
 
 ```ts
 // BGE-small: top of MTEB at this size; query prefix required.
@@ -222,30 +212,15 @@ new LocalEmbedder({
 });
 ```
 
-`MetadataChunker` wraps any base chunker and prepends
-`[doc-id | topic | title]` to each chunk before embedding — the
-"Doc2Query lite" pattern.
+`MetadataChunker` wraps any base chunker and prepends `[doc-id | topic | title]` to each chunk before embedding.
 
-**Stacking order matters.** Each layer attacks a different failure
-mode: the bi-encoder gives broad recall, the cross-encoder rescues
-near-misses, the metadata chunker fixes "the chunk doesn't mention the
-doc topic," stemmed BM25 catches plural/inflectional misses on lexical
-queries. Numbers measured on a 504-query development eval (preserved
-out-of-tree at commit `feffc73^`) confirmed each layer adds incremental
-NDCG@10; that harness will be republished as `augur-eval` so you can
-re-run on your own corpus.
+Stacking order matters. Each layer attacks a different failure mode: the bi-encoder gives broad recall, the cross-encoder rescues near-misses, the metadata chunker fixes "the chunk doesn't mention the doc topic," stemmed BM25 catches plural and inflectional misses on lexical queries. Numbers measured on a 504-query development eval (preserved out-of-tree at commit `feffc73^`) confirmed each layer adds incremental NDCG@10; that harness will be republished as `augur-eval` so you can re-run on your own corpus.
 
-### Contextual Retrieval (Anthropic's pattern) — biggest single quality lift
+### Contextual Retrieval (Anthropic's pattern)
 
-For each chunk, send the chunk *and its source document* to a fast LLM
-(Haiku, GPT-4o-mini, Gemini Flash) and ask for a one-line description
-that situates the chunk. Prepend that description to the chunk content
-before embedding. Anthropic measured **chunk failure rate dropping from
-5.7% → 1.9% (a 67% reduction)** with this technique on their internal
-RAG eval — and it stacks with hybrid retrieval and reranking.
+For each chunk, send the chunk and its source document to a fast LLM (Haiku, GPT-4o-mini, Gemini Flash) and ask for a one-line description that situates the chunk. Prepend that description to the chunk content before embedding. Anthropic measured chunk failure rate dropping from 5.7% to 1.9% (a 67% reduction) with this technique on their internal RAG eval, and it stacks with hybrid retrieval and reranking.
 
-The `Embedder`-style contract is one method (`contextualize`) — wire any
-LLM provider in ~10 lines:
+The contract is one method (`contextualize`); wire any LLM provider in ~10 lines:
 
 ```ts
 import { Augur, ContextualChunker, SentenceChunker, ANTHROPIC_CONTEXTUAL_PROMPT } from "@augur-rag/core";
@@ -283,30 +258,15 @@ const augr = new Augur({
 await augr.index(documents);  // one LLM call per chunk, cached on hash(doc, chunk)
 ```
 
-Cost: with Anthropic's prompt caching the document portion (the bulk of
-the input) is amortized across all chunks of the same document, so the
-per-chunk cost is roughly the chunk size in tokens — a few cents per
-thousand chunks at Haiku rates. Re-indexing unchanged content is free
-(the `MemoryContextCache` default returns the prior result; swap in a
-persistent cache for cross-process re-use).
+Cost: with Anthropic's prompt caching the document portion (the bulk of the input) is amortized across all chunks of the same document, so the per-chunk cost is roughly the chunk size in tokens, a few cents per thousand chunks at Haiku rates. Re-indexing unchanged content is free (the `MemoryContextCache` default returns the prior result; swap in a persistent cache for cross-process re-use).
 
-The same `provider` interface works with OpenAI, Gemini, or any LLM —
-just swap the SDK call inside `contextualize`. The `ContextualChunker`
-itself stays the same.
+The same `provider` interface works with OpenAI, Gemini, or any LLM; swap the SDK call inside `contextualize`. The `ContextualChunker` itself stays the same.
 
-This composes with `MetadataChunker` and `Doc2QueryChunker` — wrap them
-in any order. Common stack: `Contextual( Metadata( Sentence ) )` so
-chunks get both document metadata (cheap, deterministic) and LLM-generated
-context (expensive, semantic).
+This composes with `MetadataChunker` and `Doc2QueryChunker`; wrap them in any order. Common stack: `Contextual( Metadata( Sentence ) )` so chunks get both document metadata (cheap, deterministic) and LLM-generated context (expensive, semantic).
 
-### Doc2Query — synthetic-question expansion at index time
+### Doc2Query: synthetic-question expansion at index time
 
-For each chunk, generate N questions the chunk could answer using a small
-T5 model (`Xenova/LaMini-T5-61M`, ~24MB), then append them to the chunk's
-content before embedding and BM25 indexing. Cost is paid once at index;
-**zero query-time latency**. Works particularly well on conversational
-queries against reference-style content (and on non-English chunks
-indexed alongside English questions).
+For each chunk, generate N questions the chunk could answer using a small T5 model (`Xenova/LaMini-T5-61M`, ~24MB), then append them to the chunk's content before embedding and BM25 indexing. Cost is paid once at index; zero query-time latency. Works particularly well on conversational queries against reference-style content (and on non-English chunks indexed alongside English questions).
 
 ```ts
 import { Augur, Doc2QueryChunker, SentenceChunker, MetadataChunker } from "@augur-rag/core";
@@ -324,23 +284,13 @@ Requires `@huggingface/transformers` (same dep as LocalEmbedder).
 
 ### Query-aware hybrid weights
 
-`Augur.search()` now picks the BM25-vs-vector mix per query from the
-router's signals — quoted phrases / specific tokens / very short queries
-lean BM25 (0.3-0.4 vector weight), long natural-language questions lean
-vector (0.7), default is 0.5. Production hybrid systems all do some
-version of this; a fixed 0.5/0.5 mix under-weights whichever side is
-wrong for the current query shape.
+`Augur.search()` picks the BM25-vs-vector mix per query from the router's signals: quoted phrases, specific tokens, and very short queries lean BM25 (0.3-0.4 vector weight), long natural-language questions lean vector (0.7), default is 0.5. Production hybrid systems all do some version of this; a fixed 0.5/0.5 mix under-weights whichever side is wrong for the current query shape.
 
-No configuration needed — it's automatic when strategy = "hybrid".
+No configuration needed; it's automatic when strategy = "hybrid".
 
 ### Stemmed BM25 (`InMemoryAdapter({ useStemming: true })`)
 
-Turns on Porter stemming + English stopword filtering for the keyword
-path. Same pipeline Lucene/Elasticsearch use by default. The reliable
-win on quoted / named-entity / short keyword queries is the recall lift
-from collapsing inflectional forms (running ↔ runs,
-connection ↔ connections all map to one stem); for any non-trivial BM25
-workload it's the cheapest improvement you'll find.
+Turns on Porter stemming + English stopword filtering for the keyword path. Same pipeline Lucene and Elasticsearch use by default. The reliable win on quoted, named-entity, and short keyword queries is the recall lift from collapsing inflectional forms (running ↔ runs, connection ↔ connections all map to one stem); for any non-trivial BM25 workload it's the cheapest improvement you'll find.
 
 ```ts
 import { Augur, InMemoryAdapter, LocalEmbedder, LocalReranker } from "@augur-rag/core";
@@ -354,8 +304,7 @@ const augr = new Augur({
 
 ### MMR (Maximal Marginal Relevance) for diverse top-K
 
-For ambiguous queries with multiple relevant docs, pure-relevance reranking
-concentrates on near-duplicates. `MMRReranker` rebalances toward novelty:
+For ambiguous queries with multiple relevant docs, pure-relevance reranking concentrates on near-duplicates. `MMRReranker` rebalances toward novelty:
 
 ```ts
 import { CascadedReranker, LocalReranker, MMRReranker, Augur } from "@augur-rag/core";
@@ -369,11 +318,7 @@ const reranker = new CascadedReranker([
 const augr = new Augur({ reranker, /* ... */ });
 ```
 
-`λ = 1.0` is pure relevance; `λ = 0.7` is the standard "relevance with
-diversity boost". Not enabled by default — on QA-style queries (one
-relevant doc) MMR pushes hits out in favor of variety, which hurts. Reach
-for it on multi-aspect queries, search-results pages, and RAG pipelines
-where the LLM benefits from non-redundant context.
+`λ = 1.0` is pure relevance; `λ = 0.7` is the standard "relevance with diversity boost". Not enabled by default; on QA-style queries (one relevant doc) MMR pushes hits out in favor of variety, which hurts. Reach for it on multi-aspect queries, search-results pages, and RAG pipelines where the LLM benefits from non-redundant context.
 
 ### Picking a reranker
 
@@ -384,32 +329,25 @@ import {
   HeuristicReranker,    // zero-dep, sub-ms; weak baseline (token overlap + proximity)
   LocalReranker,        // local ONNX cross-encoder (~22MB, ms-marco-MiniLM-L-6-v2)
   MMRReranker,          // diversity-aware reranking (no model)
-  CascadedReranker,     // chain rerankers: cheap-broad → expensive-narrow
+  CascadedReranker,     // chain rerankers: cheap-broad to expensive-narrow
 } from "@augur-rag/core";
 
-// Cascaded rerank — heuristic narrows 100 → 50, cross-encoder narrows 50 → 10:
+// Cascaded rerank: heuristic narrows 100 → 50, cross-encoder narrows 50 → 10:
 const cascade = new CascadedReranker([
   [new HeuristicReranker(), 50],
   [new LocalReranker(), 10],
 ]);
 ```
 
-For Cohere, Jina, Voyage, or any hosted cross-encoder, implement the
-one-method `Reranker` interface directly against the provider's SDK —
-see §5 above for a Cohere snippet. `HeuristicReranker` is fine for a
-smoke test; cross-encoder rerankers are typically the single biggest
-accuracy lever once embeddings are decent.
+For Cohere, Jina, Voyage, or any hosted cross-encoder, implement the one-method `Reranker` interface directly against the provider's SDK; see §5 above for a Cohere snippet. `HeuristicReranker` is fine for a smoke test; cross-encoder rerankers are typically the single biggest accuracy lever once embeddings are decent.
 
 ---
 
 ## 6. Postgres with pgvector
 
-The recommended adapter for most teams — you probably already have Postgres.
+The recommended adapter for most teams: you probably already have Postgres.
 
-The schema dimension MUST match your embedder. The example below uses
-`LocalEmbedder` (384d). For a hosted embedder, swap both numbers in
-lockstep — `text-embedding-3-small` is 1536d, `text-embedding-3-large`
-is 3072d, Cohere `embed-english-v3.0` is 1024d.
+The schema dimension MUST match your embedder. The example below uses `LocalEmbedder` (384d). For a hosted embedder, swap both numbers in lockstep: `text-embedding-3-small` is 1536d, `text-embedding-3-large` is 3072d, Cohere `embed-english-v3.0` is 1024d.
 
 ```sql
 CREATE EXTENSION vector;
@@ -444,22 +382,17 @@ const augr = new Augur({
 });
 ```
 
-The adapter validates `chunk.embedding.length === dimension` at upsert
-time and throws on mismatch, so you'll catch this on the first
-`index()` call rather than silently corrupting the table.
+The adapter validates `chunk.embedding.length === dimension` at upsert time and throws on mismatch, so you'll catch this on the first `index()` call rather than silently corrupting the table.
 
 Vector + keyword + hybrid all in one place, no extra services.
 
-> **Filter keys must be plain identifiers.** `PgVectorAdapter` rejects
-> filter keys that don't match `^[a-zA-Z_][a-zA-Z0-9_]*$` (the same rule
-> it applies to the table name). Postgres can't parameter-bind inside
-> `metadata->>'key'`, so we whitelist instead of escaping.
+> Filter keys must be plain identifiers. `PgVectorAdapter` rejects filter keys that don't match `^[a-zA-Z_][a-zA-Z0-9_]*$` (the same rule it applies to the table name). Postgres can't parameter-bind inside `metadata->>'key'`, so we whitelist instead of escaping.
 
 ---
 
 ## 7. Trace introspection
 
-The whole point of the system. Every search produces a trace; every trace is enough to explain (or debug) the result.
+Every search produces a trace; every trace is enough to explain (or debug) the result.
 
 ```ts
 const { trace } = await augr.search({ query: "how to deploy with zero downtime" });
@@ -495,7 +428,7 @@ curl -X POST localhost:3001/search \
   -d '{"query":"hello","topK":3}'
 ```
 
-The trace is in the response — log it, ship it to your observability backend, or render it in your own UI.
+The trace is in the response: log it, ship it to your observability backend, or render it in your own UI.
 
 ---
 
@@ -518,7 +451,7 @@ class AugurRetriever extends BaseRetriever {
 }
 ```
 
-20 lines. The same pattern works for LlamaIndex; we'll publish official bindings as `@augur-rag/langchain` and `@augur-rag/llamaindex` once the SDK API stabilizes.
+About 20 lines. The same pattern works for LlamaIndex; we'll publish official bindings as `@augur-rag/langchain` and `@augur-rag/llamaindex` once the SDK API stabilizes.
 
 ---
 

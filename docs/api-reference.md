@@ -1,6 +1,6 @@
 # API Reference
 
-Two surfaces: the **TypeScript SDK** (`@augur-rag/core`) and the **HTTP API** (`@augur-rag/server`). Both expose the same conceptual operations: index, search, inspect traces.
+Two surfaces: the TypeScript SDK (`@augur-rag/core`) and the HTTP API (`@augur-rag/server`). Both expose the same conceptual operations: index, search, inspect traces.
 
 ---
 
@@ -12,26 +12,23 @@ Two surfaces: the **TypeScript SDK** (`@augur-rag/core`) and the **HTTP API** (`
 import { Augur, LocalEmbedder } from "@augur-rag/core";
 
 const augr = new Augur({
-  embedder,                // Embedder             — REQUIRED (e.g. new LocalEmbedder())
-  adapter,                 // VectorAdapter        — default: InMemoryAdapter
-  chunker,                 // Chunker | AsyncChunker — default: SentenceChunker
-  router,                  // Router               — default: HeuristicRouter
-  reranker,                // Reranker | null      — default: null (no reranker)
-  traceStore,              // TraceStore           — optional capture store
-  autoIndexAdHocDocuments, // boolean              — default: true
-  adHocCacheSize,          // number               — default: 8 (LRU; 0 disables)
-  autoLanguageFilter,      // boolean              — default: false
+  embedder,                // Embedder              REQUIRED (e.g. new LocalEmbedder())
+  adapter,                 // VectorAdapter         default: InMemoryAdapter
+  chunker,                 // Chunker | AsyncChunker  default: SentenceChunker
+  router,                  // Router                default: HeuristicRouter
+  reranker,                // Reranker | null       default: null (no reranker)
+  traceStore,              // TraceStore            optional capture store
+  autoIndexAdHocDocuments, // boolean               default: true
+  adHocCacheSize,          // number                default: 8 (LRU; 0 disables)
+  autoLanguageFilter,      // boolean               default: false
 });
 ```
 
-`embedder` is the only required option. The default `reranker` is `null`
-— pass `new LocalReranker()` (zero-API-key on-device cross-encoder) to
-get the headline accuracy mode where the cross-encoder votes on every
-query.
+`embedder` is the only required option. The default `reranker` is `null`. Pass `new LocalReranker()` (zero-API-key on-device cross-encoder) to enable the rerank stage that the recommended auto stack uses.
 
 ### `augr.index(documents)`
 
-Chunks → embeds → upserts.
+Chunks, embeds, upserts.
 
 ```ts
 const result = await augr.index([
@@ -45,13 +42,13 @@ const result = await augr.index([
 ```ts
 const { results, trace } = await augr.search({
   query: "...",
-  documents,           // optional — ad-hoc inline docs (LRU-cached by content fingerprint)
+  documents,           // optional: ad-hoc inline docs (LRU-cached by content fingerprint)
   topK: 10,            // default 10
   forceStrategy,       // "vector" | "keyword" | "hybrid" | "rerank"
-  latencyBudgetMs,     // soft budget — affects rerank decision
+  latencyBudgetMs,     // soft budget; affects rerank decision
   filter: { source: "wiki" },
   context: { userId: "u1" },  // forwarded to the router
-  minScore: 0.4,       // optional confidence floor — drops results below this score
+  minScore: 0.4,       // optional confidence floor; drops results below this score
 });
 ```
 
@@ -64,7 +61,7 @@ Returns:
 }
 ```
 
-### Types — quick reference
+### Types: quick reference
 
 ```ts
 interface Document {
@@ -101,10 +98,10 @@ interface SearchTrace {
   };
   spans: Array<{ name; startMs; endMs; durationMs; attributes? }>;
   candidates: number;
-  adapter: string;          // bare adapter name — never mutated with "(ad-hoc)" suffixes
+  adapter: string;           // bare adapter name; never mutated with "(ad-hoc)" suffixes
   embeddingModel?: string;
-  adHoc?: boolean;          // true when the query used a scratch adapter from req.documents
-  adHocCacheHit?: boolean;  // true when an ad-hoc query reused a cached scratch adapter
+  adHoc?: boolean;           // true when the query used a scratch adapter from req.documents
+  adHocCacheHit?: boolean;   // true when an ad-hoc query reused a cached scratch adapter
   autoLanguageFilter?: string;       // BCP-47 code the auto-filter pinned to, if fired
   autoLanguageFilterDropped?: boolean; // true if the auto-filter would have emptied the pool
 }
@@ -140,11 +137,7 @@ Returns the live configuration:
 }
 ```
 
-`reranker` is `null` when the server was started without one configured.
-The default `@augur-rag/server` CLI ships no reranker — pass
-`new LocalReranker()` (or any provider's reranker) when you wire your
-own `buildServer({ embedder, reranker })` to keep cross-encoder voting
-on.
+`reranker` is `null` when the server was started without one. The default `@augur-rag/server` CLI ships no reranker; pass `new LocalReranker()` (or any provider's reranker) when you wire your own `buildServer({ embedder, reranker })` to keep cross-encoder voting on.
 
 Use this to verify that the deployed instance is wired the way you think it is.
 
@@ -196,7 +189,7 @@ Most recent traces, newest first. `limit` is capped at 500.
 
 ### `GET /traces/:id`
 
-Single trace by ID. Returns 404 if expired/missing.
+Single trace by ID. Returns 404 if expired or missing.
 
 ### `DELETE /traces`
 
@@ -266,4 +259,4 @@ app.post("/search", async (req, res) => {
 });
 ```
 
-You don't need `@augur-rag/server` for this. Use it when you want OpenAPI, traces UI, and auth out of the box.
+You don't need `@augur-rag/server` for this. Use it when you want OpenAPI, traces UI, and optional API-key auth without writing the boilerplate.
