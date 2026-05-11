@@ -5,11 +5,11 @@
 
 ###### Named after the ancient Roman augurs who interpreted signs to foresee the best path forward. To augur is to predict, and this package predicts the optimal retrieval method for your use case.
 
-**An adaptive retrieval orchestration layer for AI / RAG systems.**
+**Adaptive retrieval orchestration for RAG and semantic search — vector retrieval, BM25 keyword search, hybrid fusion, and cross-encoder reranking in one TypeScript SDK.**
 
-> **Competitive accuracy, out of the box. Full traces on every search. Retrieval becomes a one-line constructor — not a six-week side quest.**
+> **Competitive accuracy on BEIR, out of the box. Full traces on every search. Retrieval becomes a one-line constructor — not a six-week side quest.**
 
-Augur sits on top of your existing vector database, embedder, and reranker and decides — *per query* — which retrieval strategy to use: vector, keyword, hybrid, or vector-then-rerank. Every decision is a transparent trace recorded in the response. Drop into any RAG pipeline; **the auto method is best out of the box**.
+Augur is a TypeScript library that sits on top of your existing vector database (**pgvector**, **Pinecone**, **Turbopuffer**, or in-memory), embedder, and reranker, and decides — *per query* — which retrieval strategy to use: **vector / semantic search**, **BM25 keyword search**, **weighted hybrid**, or **vector-then-cross-encoder rerank**. Every decision is a transparent trace recorded in the response. Drop it in to **improve RAG pipeline performance** without rebuilding your stack.
 
 ```ts
 import { Augur, LocalEmbedder } from "@augur/core";
@@ -30,17 +30,28 @@ const { results, trace } = await augr.search({
 // trace.decision.reasons === ["natural-language question → semantic search", ...]
 ```
 
+## Use cases
+
+Augur is built for teams that need to **improve RAG pipeline performance** without rebuilding their stack. Common use cases:
+
+- **Add semantic search to an existing app.** Wrap your Postgres / pgvector, Pinecone, or Turbopuffer store with Augur and you get per-query strategy routing + cross-encoder reranking on top, with ~50 lines of integration code.
+- **Combine vector and keyword search (hybrid retrieval).** RRF fusion comes free via `BaseAdapter` — implement vector + keyword paths, get hybrid retrieval and the routing engine without writing the fusion code yourself.
+- **Cross-encoder reranking without infrastructure.** `LocalReranker` runs MS-MARCO MiniLM on-device (22 MB ONNX, no API key). Drop in any hosted reranker (Cohere, Voyage, Jina) via a one-method interface.
+- **On-device embeddings.** `LocalEmbedder` runs sentence-transformers (`all-MiniLM-L6-v2` by default, swap to BGE / E5 / nomic) via `@huggingface/transformers` — no OpenAI bill, no network at query time.
+- **Anthropic-style contextual retrieval.** First-class `ContextualChunker` with the published prompt template, prompt caching support, and a pluggable LLM provider — works with Anthropic, OpenAI, Gemini, or any custom LLM.
+- **Debuggable retrieval.** Every `search()` returns a `SearchTrace` with the routing decision, reasons, span timings, candidates, and raw scores. When the auto choice is wrong on your corpus, you see exactly *why* — no more opaque RAG.
+
 ## Why Augur
 
 Modern RAG pipelines fail in three predictable ways. Augur addresses all three:
 
-- **One-strategy-fits-all retrieval** misses recall. Pure vector misses exact matches (error codes, SKUs); pure BM25 misses paraphrases. → **Adaptive routing**: `HeuristicRouter` picks per-query strategy from query signals; the cross-encoder reranks every candidate. The interface lets `MLRouter` drop in later without changing user code.
+- **One-strategy-fits-all retrieval** misses recall. Pure vector retrieval misses exact matches (error codes, SKUs, named entities); pure BM25 misses paraphrases and semantic similarity. → **Adaptive routing**: `HeuristicRouter` picks per-query strategy from query signals; the cross-encoder reranks every candidate. The interface lets `MLRouter` drop in later without changing user code.
 - **Untunable chunking** kneecaps quality. → **Pluggable chunkers**: `SentenceChunker`, `SemanticChunker`, plus `ContextualChunker` (Anthropic's [contextual retrieval](https://www.anthropic.com/news/contextual-retrieval) — +67% reduction in chunk-failure rate per their published numbers). One-method interface for any custom chunker.
 - **Opaque retrieval** makes debugging RAG impossible. → **First-class observability**: every `search()` returns a `SearchTrace` with the decision, reasoning, span timings, candidates, and scores.
 
 ## Performance — auto method, no tuning
 
-The recommended local stack — `LocalEmbedder` + `LocalReranker` + `MetadataChunker(SentenceChunker)` + `InMemoryAdapter({ useStemming: true })` + the default `HeuristicRouter` — runs in **44 MB total on-device** (`Xenova/all-MiniLM-L6-v2` 22 MB embedder + `Xenova/ms-marco-MiniLM-L-6-v2` 22 MB cross-encoder), no network at query time, no API keys. Same configuration across every dataset — no per-corpus tuning.
+The recommended local stack — `LocalEmbedder` + `LocalReranker` + `MetadataChunker(SentenceChunker)` + `InMemoryAdapter({ useStemming: true })` + the default `HeuristicRouter` — runs in **44 MB total on-device** (`Xenova/all-MiniLM-L6-v2` 22 MB embedder + `Xenova/ms-marco-MiniLM-L-6-v2` 22 MB cross-encoder), no network at query time, no API keys. Same configuration across every BEIR dataset below — no per-corpus tuning.
 
 **BEIR — NDCG@10, Auto vs. published baselines:**
 
@@ -67,7 +78,7 @@ The router adapts per corpus with no per-dataset tuning — code-like queries ro
 | `InMemoryAdapter`   | Zero-dep, BM25 + brute-force vector. Dev / small datasets. |
 | `PineconeAdapter`   | Pinecone REST. Vector only.                           |
 | `TurbopufferAdapter`| Native vector + BM25 + hybrid.                        |
-| `PgVectorAdapter`   | Postgres + `vector` extension. Vector + tsvector + RRF hybrid. |
+| `PgVectorAdapter`   | Postgres + `pgvector` extension. Vector + tsvector + RRF hybrid. |
 
 Custom adapter is five methods — see [`examples/custom-adapter`](./examples/custom-adapter/index.ts).
 
@@ -99,8 +110,16 @@ docker compose up
 
 ## Status
 
-v0.1, active development. Small enough to read end-to-end in an afternoon, useful enough to drop into a real RAG project tomorrow. Issues, ideas, and PRs welcome — see [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md).
+v0.1, active development. Small enough to read end-to-end in an afternoon, useful enough to drop into a real RAG pipeline tomorrow. Issues, ideas, and PRs welcome — see [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md).
 
 ## License
 
 MIT.
+
+---
+
+## Keywords / topics
+
+`semantic-search` · `vector-search` · `vector-retrieval` · `retrieval-augmented-generation` · `rag` · `rag-pipeline` · `hybrid-search` · `bm25` · `reranking` · `cross-encoder` · `embeddings` · `sentence-transformers` · `pgvector` · `pinecone` · `turbopuffer` · `contextual-retrieval` · `onnx` · `huggingface` · `typescript` · `ai` · `llm` · `mteb` · `beir` · `nlp` · `information-retrieval`
+
+**Searching for "how to improve RAG pipeline performance," "TypeScript semantic search library," "hybrid vector + BM25 retrieval," "Postgres pgvector retrieval orchestration," "cross-encoder reranking on-device," or "Anthropic contextual retrieval in TypeScript"? Augur is built for those use cases.** Star the repo if any of these match your stack.
