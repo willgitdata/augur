@@ -1,6 +1,6 @@
 # API Reference
 
-Two surfaces: the **TypeScript SDK** (`@augur/core`) and the **HTTP API** (`@augur/server`). Both expose the same conceptual operations: index, search, inspect traces.
+Two surfaces: the **TypeScript SDK** (`@augur-rag/core`) and the **HTTP API** (`@augur-rag/server`). Both expose the same conceptual operations: index, search, inspect traces.
 
 ---
 
@@ -9,7 +9,7 @@ Two surfaces: the **TypeScript SDK** (`@augur/core`) and the **HTTP API** (`@aug
 ### `new Augur(options?)`
 
 ```ts
-import { Augur, LocalEmbedder } from "@augur/core";
+import { Augur, LocalEmbedder } from "@augur-rag/core";
 
 const augr = new Augur({
   embedder,                // Embedder             — REQUIRED (e.g. new LocalEmbedder())
@@ -141,7 +141,7 @@ Returns the live configuration:
 ```
 
 `reranker` is `null` when the server was started without one configured.
-The default `@augur/server` CLI ships no reranker — pass
+The default `@augur-rag/server` CLI ships no reranker — pass
 `new LocalReranker()` (or any provider's reranker) when you wire your
 own `buildServer({ embedder, reranker })` to keep cross-encoder voting
 on.
@@ -255,7 +255,7 @@ class LoggingRouter extends HeuristicRouter {
 ### Wrap the SDK in your own service
 
 ```ts
-import { Augur } from "@augur/core";
+import { Augur } from "@augur-rag/core";
 import express from "express";
 
 const augr = new Augur({ /* prod config */ });
@@ -266,4 +266,4 @@ app.post("/search", async (req, res) => {
 });
 ```
 
-You don't need `@augur/server` for this. Use it when you want OpenAPI, traces UI, and auth out of the box.
+You don't need `@augur-rag/server` for this. Use it when you want OpenAPI, traces UI, and auth out of the box.

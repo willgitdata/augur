@@ -7,7 +7,7 @@ import {
 } from "./adapter.js";
 
 /**
- * Minimal Postgres client interface — keeps `@augur/core` zero-dep.
+ * Minimal Postgres client interface — keeps `@augur-rag/core` zero-dep.
  *
  * Users pass any client that implements this shape. Both `pg` (`new Client()`)
  * and `postgres` (`postgres()`) can be wrapped in a few lines:

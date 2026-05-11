@@ -1,5 +1,5 @@
 {
-  "name": "@augur/core",
+  "name": "@augur-rag/core",
   "version": "0.1.0",
   "description": "Adaptive retrieval orchestration for RAG and semantic search in TypeScript: per-query routing across vector / BM25 / hybrid + cross-encoder reranking, with full traces. Works with pgvector, Pinecone, Turbopuffer, or any custom adapter.",
   "license": "MIT",

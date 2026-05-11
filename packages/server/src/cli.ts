@@ -14,7 +14,7 @@ import {
   TurbopufferAdapter,
   type Embedder,
   type VectorAdapter,
-} from "@augur/core";
+} from "@augur-rag/core";
 import { buildServer } from "./server.js";
 
 async function main() {

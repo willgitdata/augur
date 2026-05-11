@@ -5,7 +5,7 @@ import {
   TraceStore,
   type Document,
   type SearchRequest,
-} from "@augur/core";
+} from "@augur-rag/core";
 import Fastify, { type FastifyInstance } from "fastify";
 import { openApiSpec } from "./openapi.js";
 

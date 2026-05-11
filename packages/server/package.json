@@ -1,7 +1,7 @@
 {
-  "name": "@augur/server",
+  "name": "@augur-rag/server",
   "version": "0.1.0",
-  "description": "Augur HTTP API server. Drop-in Fastify wrapper around @augur/core with OpenAPI docs and trace explorer compatibility.",
+  "description": "Augur HTTP API server. Drop-in Fastify wrapper around @augur-rag/core with OpenAPI docs and trace explorer compatibility.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -52,7 +52,7 @@
     "prepublishOnly": "pnpm clean && pnpm build && pnpm typecheck"
   },
   "dependencies": {
-    "@augur/core": "workspace:*",
+    "@augur-rag/core": "workspace:*",
     "fastify": "^5.8.5",
     "@fastify/cors": "^11.2.0"
   },

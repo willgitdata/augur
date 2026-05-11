@@ -10,7 +10,7 @@
  * The repo workspace already resolves it; if you copy this file out of
  * the repo into a fresh project, install it explicitly:
  *
- *   npm i @augur/core @huggingface/transformers
+ *   npm i @augur-rag/core @huggingface/transformers
  *
  * This example reproduces the headline configuration from the README:
  *
@@ -33,7 +33,7 @@ import {
   LocalReranker,
   MetadataChunker,
   SentenceChunker,
-} from "@augur/core";
+} from "@augur-rag/core";
 
 async function main() {
   const augr = new Augur({

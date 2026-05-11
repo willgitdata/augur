@@ -1,23 +1,23 @@
-# @augur/server
+# @augur-rag/server
 
-The HTTP API for Augur: adaptive retrieval orchestration for RAG and semantic search. A drop-in Fastify wrapper around [@augur/core](https://www.npmjs.com/package/@augur/core) with OpenAPI docs at `/docs` and search traces in every response.
+The HTTP API for Augur: adaptive retrieval orchestration for RAG and semantic search. A drop-in Fastify wrapper around [@augur-rag/core](https://www.npmjs.com/package/@augur-rag/core) with OpenAPI docs at `/docs` and search traces in every response.
 
 ## Install + run
 
 ```bash
-npm install -g @augur/server
+npm install -g @augur-rag/server
 # also install the peer dep, since augur-server uses LocalEmbedder by default:
 npm install -g @huggingface/transformers
 augur-server
 ```
 
-`@huggingface/transformers` is an *optional* peer of `@augur/core`. The `augur-server` CLI uses `LocalEmbedder` out of the box (on-device ONNX, no API keys), which needs the peer dep. If you wire your own `buildServer({ embedder })` against a hosted provider (OpenAI / Cohere / Voyage / etc.), you can skip it.
+`@huggingface/transformers` is an *optional* peer of `@augur-rag/core`. The `augur-server` CLI uses `LocalEmbedder` out of the box (on-device ONNX, no API keys), which needs the peer dep. If you wire your own `buildServer({ embedder })` against a hosted provider (OpenAI / Cohere / Voyage / etc.), you can skip it.
 
 ## Or as a library in your own service
 
 ```ts
-import { buildServer } from "@augur/server";
-import { LocalEmbedder } from "@augur/core";
+import { buildServer } from "@augur-rag/server";
+import { LocalEmbedder } from "@augur-rag/core";
 
 const app = buildServer({
   embedder: new LocalEmbedder(),

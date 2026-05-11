@@ -14,7 +14,7 @@
 Augur is a TypeScript library that sits on top of your existing vector database (**pgvector**, **Pinecone**, **Turbopuffer**, or in-memory), embedder, and reranker, and decides, *per query*, which retrieval strategy to use: **vector / semantic search**, **BM25 keyword search**, **weighted hybrid**, or **vector-then-cross-encoder rerank**. Every decision is a transparent trace recorded in the response. Drop it in to **improve RAG pipeline performance** without rebuilding your stack.
 
 ```ts
-import { Augur, LocalEmbedder } from "@augur/core";
+import { Augur, LocalEmbedder } from "@augur-rag/core";
 
 const augr = new Augur({ embedder: new LocalEmbedder() });
 
@@ -88,8 +88,8 @@ Custom adapter is five methods. See [`examples/custom-adapter`](./examples/custo
 
 ```
 augur/
-├── packages/core/         # @augur/core, the SDK (this is what most users install)
-├── packages/server/       # @augur/server, optional Fastify wrapper for standalone deploy
+├── packages/core/         # @augur-rag/core, the SDK (this is what most users install)
+├── packages/server/       # @augur-rag/server, optional Fastify wrapper for standalone deploy
 ├── examples/              # basic-search, custom-adapter, chunking
 ├── ARCHITECTURE.md        # how the system is organized + why
 ├── EXAMPLES.md            # extended walkthroughs (hosted embedders, contextual retrieval, BGE-large, MMR, ...)

@@ -20,8 +20,8 @@ pnpm -r --filter './packages/*' build
 
 This is a pnpm workspace.
 
-- `packages/core` — `@augur/core`, the SDK. Adapter interface, router, chunkers, embedders, reranker, trace store.
-- `packages/server` — `@augur/server`, a Fastify HTTP wrapper around the SDK with `/index`, `/search`, `/traces`, `/health`, `/docs` endpoints.
+- `packages/core` — `@augur-rag/core`, the SDK. Adapter interface, router, chunkers, embedders, reranker, trace store.
+- `packages/server` — `@augur-rag/server`, a Fastify HTTP wrapper around the SDK with `/index`, `/search`, `/traces`, `/health`, `/docs` endpoints.
 - `examples/` — runnable examples covering the SDK's main paths (basic search, chunking strategies, custom adapters).
 
 The dashboard (Next.js trace explorer) and eval harness (BEIR runner + bundled corpus) used to live in this repo. They're kept out of tree now to keep the install lean — both remain available in git history.
@@ -29,7 +29,7 @@ The dashboard (Next.js trace explorer) and eval harness (BEIR runner + bundled c
 ## Running things
 
 ```bash
-pnpm dev:server                              # @augur/server on :3001
+pnpm dev:server                              # @augur-rag/server on :3001
 pnpm --filter example-basic-search start     # one-shot SDK demo
 pnpm --filter example-chunking start
 pnpm --filter example-custom-adapter start
@@ -38,8 +38,8 @@ pnpm --filter example-custom-adapter start
 ## Testing
 
 ```bash
-pnpm test                              # all packages — currently 191 tests in @augur/core
-pnpm --filter @augur/core test         # core only
+pnpm test                              # all packages — currently 191 tests in @augur-rag/core
+pnpm --filter @augur-rag/core test         # core only
 
 pnpm typecheck                         # typecheck the whole workspace
 pnpm build                             # compile both publishable packages

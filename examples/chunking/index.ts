@@ -12,7 +12,7 @@ import {
   SemanticChunker,
   LocalEmbedder,
   chunkDocument,
-} from "@augur/core";
+} from "@augur-rag/core";
 
 const doc = {
   id: "guide",

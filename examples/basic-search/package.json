@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": { "start": "tsx index.ts" },
   "dependencies": {
-    "@augur/core": "workspace:*"
+    "@augur-rag/core": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.7.0",

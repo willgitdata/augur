@@ -9,7 +9,7 @@ Hands-on walkthroughs. Each example lives in `examples/<name>/` and is runnable 
 The 30-line "hello world".
 
 ```ts
-import { Augur, LocalEmbedder } from "@augur/core";
+import { Augur, LocalEmbedder } from "@augur-rag/core";
 
 const augr = new Augur({ embedder: new LocalEmbedder() });
 
@@ -69,7 +69,7 @@ The point: the user never asked about strategies. The router did.
 Implement `VectorAdapter`, get the whole orchestrator for free.
 
 ```ts
-import { BaseAdapter } from "@augur/core";
+import { BaseAdapter } from "@augur-rag/core";
 
 class JsonFileAdapter extends BaseAdapter {
   readonly name = "json-file";
@@ -95,7 +95,7 @@ The takeaway: hybrid retrieval (RRF) and the routing engine come for free as soo
 ## 4. Comparing chunkers
 
 ```ts
-import { FixedSizeChunker, SentenceChunker, SemanticChunker, LocalEmbedder } from "@augur/core";
+import { FixedSizeChunker, SentenceChunker, SemanticChunker, LocalEmbedder } from "@augur-rag/core";
 
 const fixed    = new FixedSizeChunker({ size: 200, overlap: 30 });
 const sentence = new SentenceChunker({ targetSize: 200 });
@@ -114,14 +114,14 @@ Pick based on content type, not on intuition. When in doubt, `SentenceChunker` i
 
 ## 5. Switching to a hosted embedder + reranker
 
-`@augur/core` ships one built-in embedder (`LocalEmbedder`, on-device ONNX)
+`@augur-rag/core` ships one built-in embedder (`LocalEmbedder`, on-device ONNX)
 and three rerankers (`HeuristicReranker`, `LocalReranker`, `MMRReranker`).
 Hosted providers are intentionally not in core — the `Embedder` interface
 is three methods, the `Reranker` is one. Implement against your provider's
 official SDK and pass it in:
 
 ```ts
-import { Augur, PineconeAdapter, type Embedder, type Reranker } from "@augur/core";
+import { Augur, PineconeAdapter, type Embedder, type Reranker } from "@augur-rag/core";
 import OpenAI from "openai";
 import { CohereClient } from "cohere-ai";
 
@@ -181,7 +181,7 @@ import {
   LocalReranker,
   MetadataChunker,
   SentenceChunker,
-} from "@augur/core";
+} from "@augur-rag/core";
 
 const augr = new Augur({
   embedder: new LocalEmbedder(),                                  // 22MB, 384d
@@ -248,7 +248,7 @@ The `Embedder`-style contract is one method (`contextualize`) — wire any
 LLM provider in ~10 lines:
 
 ```ts
-import { Augur, ContextualChunker, SentenceChunker, ANTHROPIC_CONTEXTUAL_PROMPT } from "@augur/core";
+import { Augur, ContextualChunker, SentenceChunker, ANTHROPIC_CONTEXTUAL_PROMPT } from "@augur-rag/core";
 import Anthropic from "@anthropic-ai/sdk";
 
 const client = new Anthropic();
@@ -309,7 +309,7 @@ queries against reference-style content (and on non-English chunks
 indexed alongside English questions).
 
 ```ts
-import { Augur, Doc2QueryChunker, SentenceChunker, MetadataChunker } from "@augur/core";
+import { Augur, Doc2QueryChunker, SentenceChunker, MetadataChunker } from "@augur-rag/core";
 
 const augr = new Augur({
   chunker: new Doc2QueryChunker({
@@ -343,7 +343,7 @@ connection ↔ connections all map to one stem); for any non-trivial BM25
 workload it's the cheapest improvement you'll find.
 
 ```ts
-import { Augur, InMemoryAdapter, LocalEmbedder, LocalReranker } from "@augur/core";
+import { Augur, InMemoryAdapter, LocalEmbedder, LocalReranker } from "@augur-rag/core";
 
 const augr = new Augur({
   adapter: new InMemoryAdapter({ useStemming: true }),
@@ -358,7 +358,7 @@ For ambiguous queries with multiple relevant docs, pure-relevance reranking
 concentrates on near-duplicates. `MMRReranker` rebalances toward novelty:
 
 ```ts
-import { CascadedReranker, LocalReranker, MMRReranker, Augur } from "@augur/core";
+import { CascadedReranker, LocalReranker, MMRReranker, Augur } from "@augur-rag/core";
 
 // Cross-encoder narrows by relevance; MMR diversifies the survivors.
 const reranker = new CascadedReranker([
@@ -377,7 +377,7 @@ where the LLM benefits from non-redundant context.
 
 ### Picking a reranker
 
-`@augur/core` ships four offline rerankers:
+`@augur-rag/core` ships four offline rerankers:
 
 ```ts
 import {
@@ -385,7 +385,7 @@ import {
   LocalReranker,        // local ONNX cross-encoder (~22MB, ms-marco-MiniLM-L-6-v2)
   MMRReranker,          // diversity-aware reranking (no model)
   CascadedReranker,     // chain rerankers: cheap-broad → expensive-narrow
-} from "@augur/core";
+} from "@augur-rag/core";
 
 // Cascaded rerank — heuristic narrows 100 → 50, cross-encoder narrows 50 → 10:
 const cascade = new CascadedReranker([
@@ -429,7 +429,7 @@ CREATE INDEX ON chunks (document_id);
 
 ```ts
 import pg from "pg";
-import { Augur, PgVectorAdapter, LocalEmbedder } from "@augur/core";
+import { Augur, PgVectorAdapter, LocalEmbedder } from "@augur-rag/core";
 
 const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await client.connect();
@@ -503,7 +503,7 @@ The trace is in the response — log it, ship it to your observability backend, 
 
 ```ts
 import { BaseRetriever } from "@langchain/core/retrievers";
-import { Augur } from "@augur/core";
+import { Augur } from "@augur-rag/core";
 
 class AugurRetriever extends BaseRetriever {
   augr = new Augur({ embedder: new LocalEmbedder() /* + adapter, reranker, ... */ });
@@ -518,7 +518,7 @@ class AugurRetriever extends BaseRetriever {
 }
 ```
 
-20 lines. The same pattern works for LlamaIndex; we'll publish official bindings as `@augur/langchain` and `@augur/llamaindex` once the SDK API stabilizes.
+20 lines. The same pattern works for LlamaIndex; we'll publish official bindings as `@augur-rag/langchain` and `@augur-rag/llamaindex` once the SDK API stabilizes.
 
 ---
 

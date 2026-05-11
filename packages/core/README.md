@@ -1,11 +1,11 @@
-# @augur/core
+# @augur-rag/core
 
 The Augur SDK: adaptive retrieval orchestration for RAG and semantic search. Per-query routing across vector, BM25, hybrid, and cross-encoder reranking. Full search traces in every response.
 
 ## Install
 
 ```bash
-npm install @augur/core
+npm install @augur-rag/core
 # also install the peer dep if you use LocalEmbedder or LocalReranker (on-device ONNX models):
 npm install @huggingface/transformers
 ```
@@ -15,7 +15,7 @@ npm install @huggingface/transformers
 ## Hello world
 
 ```ts
-import { Augur, LocalEmbedder } from "@augur/core";
+import { Augur, LocalEmbedder } from "@augur-rag/core";
 
 const augr = new Augur({ embedder: new LocalEmbedder() });
 
