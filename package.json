@@ -16,7 +16,9 @@
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "clean": "pnpm -r exec rm -rf dist node_modules/.cache",
-    "format": "prettier --write \"**/*.{ts,tsx,json,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "release:check": "git diff-index --quiet HEAD -- || (echo 'release: working tree dirty; commit or stash first' && exit 1)",
+    "release": "pnpm release:check && pnpm --filter @augur/core publish && pnpm --filter @augur/server publish"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
