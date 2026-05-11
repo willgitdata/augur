@@ -12,8 +12,8 @@ _Nothing yet._
 
 ## [0.1.0] - 2026-05-10
 
-Initial public release. Two publishable packages: `@augur/core` (the
-SDK) and `@augur/server` (an optional Fastify HTTP wrapper). MIT
+Initial public release. Two publishable packages: `@augur-rag/core` (the
+SDK) and `@augur-rag/server` (an optional Fastify HTTP wrapper). MIT
 licensed. Node ≥ 20. Zero runtime dependencies in core.
 
 ### SDK surface
@@ -149,9 +149,9 @@ licensed. Node ≥ 20. Zero runtime dependencies in core.
 - `TraceStore` — bounded ring buffer (default 2000) for the HTTP
   server's `/traces` endpoint and trace-explorer integrations.
 
-### `@augur/server`
+### `@augur-rag/server`
 
-- Fastify wrapper around `@augur/core` with `POST /search`,
+- Fastify wrapper around `@augur-rag/core` with `POST /search`,
   `POST /index`, `GET /traces`, `GET /traces/:id`, `DELETE /traces`,
   `GET /health`, `GET /openapi.json`, `GET /docs` (Swagger UI),
   `GET /admin/stats`, `POST /admin/clear`.

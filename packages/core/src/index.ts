@@ -1,10 +1,10 @@
 /**
- * @augur/core — public API surface.
+ * @augur-rag/core — public API surface.
  *
  * This file is the single entry point users import from. Sub-paths
- * (`@augur/core/adapters`, `/chunking`, `/routing`) exist for
+ * (`@augur-rag/core/adapters`, `/chunking`, `/routing`) exist for
  * tree-shaking / explicitness but everything is also re-exported here
- * for the simple `import { Augur } from "@augur/core"` case.
+ * for the simple `import { Augur } from "@augur-rag/core"` case.
  */
 
 export { Augur, type AugurOptions } from "./augur.js";

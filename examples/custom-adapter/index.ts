@@ -7,14 +7,14 @@
  *
  * Run:  pnpm --filter example-custom-adapter start
  */
-import { Augur, BaseAdapter, LocalEmbedder } from "@augur/core";
+import { Augur, BaseAdapter, LocalEmbedder } from "@augur-rag/core";
 import type {
   AdapterCapabilities,
   Chunk,
   KeywordSearchOpts,
   SearchResult,
   VectorSearchOpts,
-} from "@augur/core";
+} from "@augur-rag/core";
 import { readFile, writeFile, access } from "node:fs/promises";
 
 class JsonFileAdapter extends BaseAdapter {

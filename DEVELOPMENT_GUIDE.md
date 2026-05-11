@@ -59,7 +59,7 @@ For hosted embedders, implement the `Embedder` interface and import a custom `bu
 
 ```bash
 pnpm test                                # all packages
-pnpm --filter @augur/core test      # just core
+pnpm --filter @augur-rag/core test      # just core
 ```
 
 Tests use Node's built-in test runner. No Jest, no vitest. The test files live next to their subjects (`router.ts` + `router.test.ts`).
@@ -137,14 +137,14 @@ Implement `Reranker.rerank(query, results, topK)`. Examples:
 
 1. Bump version in `packages/core/package.json` and `packages/server/package.json`.
 2. `pnpm build`.
-3. `pnpm publish --filter @augur/core` and same for server.
+3. `pnpm publish --filter @augur-rag/core` and same for server.
 4. Tag the commit, push.
 
 When this is more than once a month, switch to changesets.
 
 ## Troubleshooting
 
-**`Cannot find module '@augur/core'`** — run `pnpm build` first. The core package compiles to `dist/`; consumers import from there.
+**`Cannot find module '@augur-rag/core'`** — run `pnpm build` first. The core package compiles to `dist/`; consumers import from there.
 
 **Tests pass locally but fail in CI** — the most common cause is timing-sensitive trace assertions. Use `assert.ok(trace.totalMs >= 0)`, not `> 0`.
 
@@ -167,7 +167,7 @@ docker run -p 3001:3001 \
 
 ### Behind a reverse proxy
 
-Most teams will route `/api/augur/*` (or whatever prefix) at `@augur/server` and handle HTTPS / auth / rate limits at the proxy. The server has an optional `AUGUR_API_KEY` for shared-secret auth. For anything more sophisticated (per-user keys, OAuth) use your reverse proxy or wrap the Fastify app.
+Most teams will route `/api/augur/*` (or whatever prefix) at `@augur-rag/server` and handle HTTPS / auth / rate limits at the proxy. The server has an optional `AUGUR_API_KEY` for shared-secret auth. For anything more sophisticated (per-user keys, OAuth) use your reverse proxy or wrap the Fastify app.
 
 ## Contributing
 

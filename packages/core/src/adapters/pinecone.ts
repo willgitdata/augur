@@ -10,7 +10,7 @@ import {
  * PineconeAdapter — adapter against Pinecone's REST API.
  *
  * Implementation note: we deliberately don't depend on `@pinecone-database/pinecone`
- * to keep `@augur/core` dependency-free. Users who want the official SDK
+ * to keep `@augur-rag/core` dependency-free. Users who want the official SDK
  * can write a 30-line wrapper of the same shape. This implementation uses
  * fetch against the data-plane URL.
  *

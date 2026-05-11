@@ -11,14 +11,14 @@
   "scripts": {
     "build": "pnpm -r --filter './packages/*' build",
     "dev": "pnpm -r --parallel --filter './packages/*' dev",
-    "dev:server": "pnpm --filter @augur/server dev",
+    "dev:server": "pnpm --filter @augur-rag/server dev",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "clean": "pnpm -r exec rm -rf dist node_modules/.cache",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "release:check": "git diff-index --quiet HEAD -- || (echo 'release: working tree dirty; commit or stash first' && exit 1)",
-    "release": "pnpm release:check && pnpm --filter @augur/core publish && pnpm --filter @augur/server publish"
+    "release": "pnpm release:check && pnpm --filter @augur-rag/core publish && pnpm --filter @augur-rag/server publish"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

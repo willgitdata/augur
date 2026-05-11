@@ -23,8 +23,8 @@ Please include:
 
 In scope:
 
-- Input validation in `@augur/core` and `@augur/server` (e.g. crafted search payloads that crash or exfiltrate)
-- Authentication / authorization gaps in `@augur/server` (the optional API-key path)
+- Input validation in `@augur-rag/core` and `@augur-rag/server` (e.g. crafted search payloads that crash or exfiltrate)
+- Authentication / authorization gaps in `@augur-rag/server` (the optional API-key path)
 - Trace store leaks (e.g. cross-tenant trace bleed if someone embeds Augur multi-tenant)
 - Dependency vulnerabilities surfaced by `pnpm audit`
 

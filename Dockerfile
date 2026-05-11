@@ -3,7 +3,7 @@
 # Stage 1: install deps + build the workspace.
 # Stage 2: copy the built artifacts into a slim runtime image.
 #
-# We deliberately ship only the `@augur/core` and `@augur/server`
+# We deliberately ship only the `@augur-rag/core` and `@augur-rag/server`
 # packages — the dashboard runs as a separate service.
 
 FROM node:20-alpine AS builder
@@ -17,7 +17,7 @@ RUN pnpm install --frozen-lockfile=false
 
 COPY packages/core ./packages/core
 COPY packages/server ./packages/server
-RUN pnpm --filter @augur/core build && pnpm --filter @augur/server build
+RUN pnpm --filter @augur-rag/core build && pnpm --filter @augur-rag/server build
 
 # ---- Runtime ----
 FROM node:20-alpine AS runtime

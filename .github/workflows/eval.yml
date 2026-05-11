@@ -62,8 +62,8 @@ jobs:
       - name: Install workspace
         run: pnpm install --frozen-lockfile
 
-      - name: Build @augur/core
-        run: pnpm -r --filter @augur/core build
+      - name: Build @augur-rag/core
+        run: pnpm -r --filter @augur-rag/core build
 
       - name: Restore eval harness from feffc73^
         run: |
@@ -71,14 +71,14 @@ jobs:
           git archive feffc73^ evaluations | tar -x -C eval-local
           ls eval-local/evaluations/
 
-      - name: Apply fixups so harness builds against current @augur/core
+      - name: Apply fixups so harness builds against current @augur-rag/core
         run: |
           # cli.ts: SemanticChunker (type) → AsyncChunker (renamed in 0.1.0)
           sed -i 's/type SemanticChunker,/type AsyncChunker,/' eval-local/evaluations/cli.ts
           sed -i 's/Chunker | SemanticChunker/Chunker | AsyncChunker/' eval-local/evaluations/cli.ts
 
           # package.json: workspace:* → link to packages/core
-          sed -i 's|"@augur/core": "workspace:\*"|"@augur/core": "link:../../packages/core"|' eval-local/evaluations/package.json
+          sed -i 's|"@augur-rag/core": "workspace:\*"|"@augur-rag/core": "link:../../packages/core"|' eval-local/evaluations/package.json
 
           # tsconfig.json: self-contained
           cat > eval-local/evaluations/tsconfig.json <<'JSON'
