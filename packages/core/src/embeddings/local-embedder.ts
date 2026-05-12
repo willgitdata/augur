@@ -14,6 +14,7 @@
  * loads once.
  */
 
+import { BoundedCache } from "../internal/bounded-cache.js";
 import type { Embedder } from "./embedder.js";
 
 interface FeatureExtractionPipeline {
@@ -31,7 +32,23 @@ interface TransformersModule {
   ) => Promise<FeatureExtractionPipeline>;
 }
 
-const pipelineCache = new Map<string, Promise<FeatureExtractionPipeline>>();
+/**
+ * ONNX pipelines hold model weights (22-280 MB each) in RSS. An unbounded
+ * Map leaked memory in long-running indexers that rotate models (eval
+ * matrices, multi-tenant servers). Cap at 4 — well above typical
+ * single-model use, low enough that the worst case is ~1 GB resident.
+ * Override via `AUGUR_PIPELINE_CACHE_SIZE` for unusual setups.
+ */
+const PIPELINE_CACHE_DEFAULT_CAPACITY = 4;
+const pipelineCache = new BoundedCache<string, Promise<FeatureExtractionPipeline>>(
+  parsePositiveInt(process.env.AUGUR_PIPELINE_CACHE_SIZE) ?? PIPELINE_CACHE_DEFAULT_CAPACITY
+);
+
+function parsePositiveInt(s: string | undefined): number | null {
+  if (!s) return null;
+  const n = parseInt(s, 10);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
 async function getEmbeddingPipeline(
   model: string,
@@ -39,9 +56,9 @@ async function getEmbeddingPipeline(
   device: string | undefined
 ): Promise<FeatureExtractionPipeline> {
   const key = `${model}|${dtype ?? ""}|${device ?? ""}`;
-  let p = pipelineCache.get(key);
-  if (p) return p;
-  p = (async (): Promise<FeatureExtractionPipeline> => {
+  const cached = pipelineCache.get(key);
+  if (cached) return cached;
+  const p = (async (): Promise<FeatureExtractionPipeline> => {
     const transformers = (await import("@huggingface/transformers")) as unknown as TransformersModule;
     const opts: { dtype?: string; device?: string } = {};
     if (dtype) opts.dtype = dtype;

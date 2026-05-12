@@ -15,4 +15,5 @@ export {
   type ContextCache,
   MemoryContextCache,
   ANTHROPIC_CONTEXTUAL_PROMPT,
+  sanitizeForContextualPrompt,
 } from "./contextual-chunker.js";
