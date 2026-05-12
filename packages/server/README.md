@@ -64,7 +64,7 @@ The server ships with conservative defaults so a fresh `npx augur-server` or `do
 
 - [Project README](https://github.com/willgitdata/augur#readme): pitch, BEIR comparison table, and quick start
 - [Architecture](https://github.com/willgitdata/augur/blob/main/docs/architecture.md): how the orchestrator, router, adapters, chunkers, and rerankers fit together
-- [API reference](https://github.com/willgitdata/augur/blob/main/docs/api-reference.md): SDK and HTTP API reference
+- [Examples](https://github.com/willgitdata/augur/blob/main/docs/examples.md): pgvector setup, hosted embedders, contextual retrieval, MMR diversity
 
 ## License
 

@@ -5,7 +5,7 @@
  *
  * Mean pooling + L2 normalization (the canonical sentence-transformer
  * config) is baked in. Per-task prefixes (`queryPrefix` / `docPrefix`)
- * support BGE/E5/nomic-style instruction tuning — see docs/examples.md §5
+ * support BGE/E5/nomic-style instruction tuning — see docs/examples.md
  * for the model→prefix matrix.
  *
  * The `@huggingface/transformers` dep is dynamically imported, so

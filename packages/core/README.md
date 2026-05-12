@@ -39,8 +39,7 @@ console.log(trace.decision.reasons);   // ["natural-language question → semant
 
 - [Project README](https://github.com/willgitdata/augur#readme): pitch, BEIR comparison table, and quick start
 - [Architecture](https://github.com/willgitdata/augur/blob/main/docs/architecture.md): how the orchestrator, router, adapters, chunkers, and rerankers fit together
-- [Examples](https://github.com/willgitdata/augur/blob/main/docs/examples.md): hosted embedders, contextual retrieval, BGE / E5 model swaps, MMR diversity, pgvector setup
-- [API reference](https://github.com/willgitdata/augur/blob/main/docs/api-reference.md): SDK and HTTP API reference
+- [Examples](https://github.com/willgitdata/augur/blob/main/docs/examples.md): hosted embedders, contextual retrieval, pgvector setup, MMR diversity
 
 ## License
 
