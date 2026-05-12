@@ -1,0 +1,148 @@
+name: Release
+
+# Publishes @augur-rag/core and @augur-rag/server to the public npm registry
+# when a `v*` tag is pushed (e.g. `git tag v0.1.2 && git push --tags`).
+#
+# Why this exists:
+#  - Eliminates the "publish from my laptop with a 90-day npm token in my
+#    shell history" pattern. Tokens live in GitHub secrets (or trusted
+#    publishing, see below) and never leave the runner.
+#  - Attaches an npm **provenance** statement to every publish via OIDC.
+#    The npm package page gets a verifiable "Built and signed on GitHub
+#    Actions" badge that links back to the exact commit and CI run. See:
+#    https://docs.npmjs.com/generating-provenance-statements
+#  - The same workflow can be upgraded to use **trusted publishing** on
+#    npm (no long-lived token at all) — see docs/releasing.md.
+#
+# Auth modes, in order of preference:
+#  1. Trusted publishing (recommended). Configure on npmjs.com per package:
+#     Settings → Publishing access → Trusted publishers → Add GitHub Actions
+#     with repo=willgitdata/augur, workflow=release.yml, environment=npm-publish.
+#     With trust configured, no NPM_TOKEN is needed.
+#  2. Classic NPM_TOKEN secret. Create a granular access token on npm with
+#     write access to both @augur-rag/core and @augur-rag/server, store it
+#     as the repo secret NPM_TOKEN. This workflow uses NODE_AUTH_TOKEN if
+#     present.
+#
+# Either way, `id-token: write` permission is required for the provenance
+# statement to be generated and uploaded.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run pnpm publish with --dry-run (no upload)'
+        type: boolean
+        default: false
+
+permissions:
+  # `contents: read` so we can check out the repo, and `id-token: write`
+  # so the npm provenance step can request a workflow OIDC token.
+  contents: read
+  id-token: write
+
+concurrency:
+  # Only one release can run at a time per ref. If two tags land within
+  # seconds of each other, the second waits — npm publishes aren't safe to
+  # parallelize because they share a single namespace.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: publish to npm
+    runs-on: ubuntu-latest
+    # GitHub Environment hook — set up an `npm-publish` environment in
+    # repo Settings → Environments and add required reviewers if you want
+    # a manual approval gate before each publish. Optional but recommended.
+    environment:
+      name: npm-publish
+      url: https://www.npmjs.com/package/@augur-rag/core
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          # registry-url is what writes the ~/.npmrc that picks up
+          # NODE_AUTH_TOKEN. Without it, pnpm publish has no creds.
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Catch the "tagged v0.1.2 but forgot to bump package.json" mistake
+      # before we hit npm. Tag-push releases only — workflow_dispatch
+      # skips this since there's no tag context.
+      - name: Verify tag matches package versions
+        if: github.ref_type == 'tag'
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF#refs/tags/v}"
+          core_ver=$(node -p "require('./packages/core/package.json').version")
+          server_ver=$(node -p "require('./packages/server/package.json').version")
+          echo "tag: $tag"
+          echo "@augur-rag/core: $core_ver"
+          echo "@augur-rag/server: $server_ver"
+          if [[ "$tag" != "$core_ver" ]] || [[ "$tag" != "$server_ver" ]]; then
+            echo "::error::Tag ($tag) doesn't match package versions ($core_ver, $server_ver). Bump both packages before tagging."
+            exit 1
+          fi
+
+      - name: Build
+        run: pnpm -r --filter './packages/*' build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      # --provenance attaches an OIDC-signed attestation linking the
+      # published tarball to this exact workflow run and commit. Anyone
+      # can verify it via `npm view @augur-rag/core --json | jq .dist`.
+      #
+      # --no-git-checks: pnpm refuses to publish from a non-main branch
+      # by default. On a `vX.Y.Z` tag checkout there's no current branch,
+      # which it treats as the same problem. The tag itself is our
+      # provenance for "what was published"; we don't need pnpm's
+      # extra branch-name check.
+      - name: Publish @augur-rag/core
+        run: |
+          pnpm --filter @augur-rag/core publish \
+            --provenance \
+            --access public \
+            --no-git-checks \
+            ${{ inputs.dry_run && '--dry-run' || '' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @augur-rag/server
+        run: |
+          pnpm --filter @augur-rag/server publish \
+            --provenance \
+            --access public \
+            --no-git-checks \
+            ${{ inputs.dry_run && '--dry-run' || '' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Summary
+        if: success() && !inputs.dry_run
+        run: |
+          {
+            echo "## Released"
+            echo ""
+            echo "- [@augur-rag/core](https://www.npmjs.com/package/@augur-rag/core)"
+            echo "- [@augur-rag/server](https://www.npmjs.com/package/@augur-rag/server)"
+            echo ""
+            echo "Each tarball includes a provenance statement linking back to commit \`${GITHUB_SHA}\`."
+          } >> "$GITHUB_STEP_SUMMARY"
