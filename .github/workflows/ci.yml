@@ -87,19 +87,13 @@ jobs:
           fail-on-severity: high
           comment-summary-in-pr: on-failure
 
-  codeql:
-    name: CodeQL static analysis
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
-        with:
-          languages: javascript-typescript
-          queries: security-and-quality
-      - uses: github/codeql-action/analyze@v3
-        with:
-          category: "/language:javascript-typescript"
+  # NOTE: CodeQL static analysis is intentionally NOT defined here. The
+  # repo uses GitHub's "default setup" for code scanning (configured in
+  # the repo Security settings), which runs the CodeQL javascript-typescript
+  # query suite automatically on push and PR. An additional advanced-config
+  # workflow would conflict at SARIF-upload time:
+  #   "CodeQL analyses from advanced configurations cannot be processed
+  #    when the default setup is enabled"
+  # If you want extra query suites or custom queries, disable default
+  # setup in repo Security settings first, then add an advanced workflow
+  # back here.
