@@ -90,7 +90,7 @@ function parseCors(value: string | undefined): boolean | string | string[] {
 function pickEmbedder(): Embedder {
   // Local ONNX sentence-transformer is the only built-in embedder. For hosted
   // providers (OpenAI, Cohere, Voyage, etc) implement the Embedder interface
-  // and run your own server build that wires it in — see docs/examples.md §5.
+  // and run your own server build that wires it in — see docs/examples.md.
   const opts: { model?: string } = {};
   if (process.env.AUGUR_LOCAL_MODEL) opts.model = process.env.AUGUR_LOCAL_MODEL;
   return new LocalEmbedder(opts);

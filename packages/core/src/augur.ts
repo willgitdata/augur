@@ -31,7 +31,7 @@ export interface AugurOptions {
   /**
    * Embedder used for both indexing and querying. **Required**. Use
    * `LocalEmbedder` for a fully on-device default, or implement the
-   * `Embedder` interface against your provider's SDK (see docs/examples.md §5).
+   * `Embedder` interface against your provider's SDK (see docs/examples.md).
    */
   embedder: Embedder;
   /** Storage adapter. Defaults to InMemoryAdapter. */
@@ -46,7 +46,7 @@ export interface AugurOptions {
    * path that produces the headline NDCG@10), pass
    * `new LocalReranker()` (zero-API-key 22 MB ONNX cross-encoder), or
    * any hosted provider implementing the one-method `Reranker`
-   * interface (Cohere, Voyage, Jina — see docs/examples.md §5).
+   * interface (Cohere, Voyage, Jina — see docs/examples.md).
    */
   reranker?: Reranker;
   /** Optional trace store — when provided, every search trace is captured. */
@@ -92,7 +92,7 @@ export interface AugurOptions {
 /**
  * Augur — retrieval orchestration entry point. Every component is
  * constructor-injected for swapability; `embedder` is the only required
- * field. See docs/examples.md §5 for hosted-provider Embedder snippets.
+ * field. See docs/examples.md for hosted-provider Embedder snippets.
  *
  *   const augr = new Augur({ embedder: new LocalEmbedder() });
  *   await augr.index([{ id: "1", content: "..." }]);
@@ -123,7 +123,7 @@ export class Augur {
       throw new Error(
         "Augur: `embedder` is required. Use `new LocalEmbedder()` for an on-device " +
           "default, or implement the Embedder interface against your provider " +
-          "(see docs/examples.md §5)."
+          "(see docs/examples.md)."
       );
     }
     this.embedder = opts.embedder;

@@ -12,7 +12,9 @@ name: Release
 #    Actions" badge that links back to the exact commit and CI run. See:
 #    https://docs.npmjs.com/generating-provenance-statements
 #  - The same workflow can be upgraded to use **trusted publishing** on
-#    npm (no long-lived token at all) — see docs/releasing.md.
+#    npm (no long-lived token at all). Configure on each npm package page:
+#    Settings → Publishing access → Trusted publishers → Add GitHub Actions
+#    with repo=willgitdata/augur, workflow=release.yml, environment=npm-publish.
 #
 # Auth modes, in order of preference:
 #  1. Trusted publishing (recommended). Configure on npmjs.com per package:

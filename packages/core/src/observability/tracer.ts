@@ -8,8 +8,7 @@ import type { SearchTrace, TraceSpan } from "../types.js";
  * - The trace is a first-class API output, not a side effect — every search
  *   returns its trace in the response. OTel is fire-and-forget by design.
  * - It's tiny, has no network/IO, and doesn't depend on a collector.
- * - Users who want OTel export can wrap our tracer easily — see the
- *   "OpenTelemetry export" section in docs/architecture.md.
+ * - Users who want OTel export can wrap this tracer in ~30 lines.
  */
 export class Tracer {
   private query: string;
