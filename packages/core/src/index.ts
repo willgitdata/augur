@@ -56,6 +56,7 @@ export {
   type ContextCache,
   MemoryContextCache,
   ANTHROPIC_CONTEXTUAL_PROMPT,
+  sanitizeForContextualPrompt,
   chunkDocument,
 } from "./chunking/index.js";
 

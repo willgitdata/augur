@@ -68,36 +68,77 @@ export class Tracer {
 }
 
 /**
- * In-memory trace store. The HTTP server exposes its contents via the
- * `/traces` endpoint for trace explorers and observability backends.
- * Bounded — drops oldest when capacity is exceeded.
+ * In-memory trace store — bounded ring buffer. The HTTP server exposes
+ * its contents via the `/traces` endpoint for trace explorers and
+ * observability backends.
+ *
+ * Why a ring buffer instead of `Array.shift()`:
+ * - `push()` is the hot path — every search call writes one trace.
+ * - `Array.shift()` on overflow is O(n), so a busy server hits O(n²)
+ *   amortized once the buffer is full (n = capacity, default 1000).
+ * - A fixed-size circular buffer makes both `push()` and capacity
+ *   eviction O(1), at the cost of a slightly more involved `list()`.
  */
 export class TraceStore {
   private capacity: number;
-  private traces: SearchTrace[] = [];
+  /** Fixed-size circular buffer. Sized exactly once, never re-allocated. */
+  private buffer: (SearchTrace | undefined)[];
+  /** Next write position. Wraps modulo capacity. */
+  private writeIndex = 0;
+  /** Number of valid entries in the buffer (≤ capacity). */
+  private count = 0;
 
   constructor(capacity = 1000) {
+    if (!Number.isInteger(capacity) || capacity <= 0) {
+      throw new Error("TraceStore: capacity must be a positive integer");
+    }
     this.capacity = capacity;
+    this.buffer = new Array(capacity);
   }
 
   push(trace: SearchTrace): void {
-    this.traces.push(trace);
-    if (this.traces.length > this.capacity) this.traces.shift();
+    this.buffer[this.writeIndex] = trace;
+    this.writeIndex = (this.writeIndex + 1) % this.capacity;
+    if (this.count < this.capacity) this.count += 1;
+    // When at capacity, the previous occupant at writeIndex is overwritten
+    // — that's the eviction. No shift, no slice, no realloc.
   }
 
+  /**
+   * Most-recent-first. The semantics match the previous implementation:
+   * `list(100)` returns up to 100 traces ordered newest → oldest.
+   */
   list(limit = 100): SearchTrace[] {
-    return this.traces.slice(-limit).reverse();
+    const n = Math.min(limit, this.count);
+    const out: SearchTrace[] = new Array(n);
+    // Walk backwards from the most recently written slot. writeIndex
+    // points at the *next* write slot, so the last valid entry is at
+    // `(writeIndex - 1 + capacity) % capacity`.
+    let idx = (this.writeIndex - 1 + this.capacity) % this.capacity;
+    for (let i = 0; i < n; i++) {
+      out[i] = this.buffer[idx]!;
+      idx = (idx - 1 + this.capacity) % this.capacity;
+    }
+    return out;
   }
 
   get(id: string): SearchTrace | undefined {
-    return this.traces.find((t) => t.id === id);
+    // Walk the buffer once. O(capacity) which is fine — `/traces/:id` is
+    // a low-frequency UI lookup, not a hot path.
+    for (let i = 0; i < this.count; i++) {
+      const t = this.buffer[i];
+      if (t && t.id === id) return t;
+    }
+    return undefined;
   }
 
   clear(): void {
-    this.traces = [];
+    this.buffer = new Array(this.capacity);
+    this.writeIndex = 0;
+    this.count = 0;
   }
 
   size(): number {
-    return this.traces.length;
+    return this.count;
   }
 }

@@ -23,15 +23,30 @@
  * footprint for consumers that don't use this class.
  */
 
+import { BoundedCache } from "../internal/bounded-cache.js";
 import type { Reranker } from "./reranker.js";
 import type { SearchResult } from "../types.js";
 
-const pipelineCache = new Map<string, Promise<unknown>>();
+/**
+ * Cross-encoder pipelines are 22-280 MB each (ms-marco-MiniLM-L-6-v2 to
+ * bge-reranker-base). Bounded LRU prevents long-running rerank-eval loops
+ * from leaking memory. Honors the same env var as the embedder cache.
+ */
+const PIPELINE_CACHE_DEFAULT_CAPACITY = 4;
+const pipelineCache = new BoundedCache<string, Promise<unknown>>(
+  parsePositiveInt(process.env.AUGUR_PIPELINE_CACHE_SIZE) ?? PIPELINE_CACHE_DEFAULT_CAPACITY
+);
+
+function parsePositiveInt(s: string | undefined): number | null {
+  if (!s) return null;
+  const n = parseInt(s, 10);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
 async function getRerankPipeline(model: string): Promise<unknown> {
-  let p = pipelineCache.get(model);
-  if (p) return p;
-  p = (async () => {
+  const cached = pipelineCache.get(model);
+  if (cached) return cached;
+  const p = (async () => {
     const transformers = (await import("@huggingface/transformers")) as unknown as {
       pipeline: (task: string, model: string) => Promise<unknown>;
     };
