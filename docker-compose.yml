@@ -14,12 +14,22 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # Host port bound to loopback only so a fresh `docker compose up` doesn't
+    # publish the API on the LAN. Change to "3001:3001" only after setting
+    # AUGUR_API_KEY (admin endpoints are 503 without it anyway).
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     environment:
       PORT: "3001"
       LOG_LEVEL: "info"
       AUGUR_ADAPTER: "in-memory"
+      # The server defaults to 127.0.0.1 inside the process. Inside a
+      # single-process container 0.0.0.0 is the right binding so the docker
+      # port forward works — the published-port restriction above is what
+      # actually limits exposure.
+      HOST: "0.0.0.0"
+      # Uncomment + set AUGUR_API_KEY to enable /admin/* and DELETE /traces.
+      # AUGUR_API_KEY: "change-me"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O-", "http://localhost:3001/health"]
       interval: 5s

@@ -6,7 +6,7 @@ import {
   type Document,
   type SearchRequest,
 } from "@augur-rag/core";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { openApiSpec } from "./openapi.js";
 
 /**
@@ -18,14 +18,48 @@ import { openApiSpec } from "./openapi.js";
  *   somewhere to read from.
  * - Users who want to mount on their own Fastify app can still do so via
  *   `app.register(augurPlugin)` — see plugin.ts for that path.
+ *
+ * Security defaults:
+ * - `cors` defaults to `false` (no cross-origin). Set explicitly to opt in.
+ * - Destructive endpoints (`/admin/*`, `DELETE /traces`) require `apiKey`
+ *   to be configured. When `apiKey` is unset they return 503 rather than
+ *   running unauthenticated. This makes "forgot to set the env var" a
+ *   loud failure instead of an open door.
+ * - When `apiKey` is set, every endpoint except `/health`, `/openapi.json`,
+ *   and `/docs` requires the `x-api-key` header to match.
  */
 export interface ServerOptions extends AugurOptions {
-  /** Optional API key. Requests must include `x-api-key: <key>` if set. */
+  /**
+   * Optional API key. When set, every endpoint except `/health`,
+   * `/openapi.json`, and `/docs` requires `x-api-key: <key>`.
+   * Required to enable destructive endpoints (`/admin/*`, `DELETE /traces`);
+   * those return 503 if `apiKey` is unset.
+   */
   apiKey?: string;
-  /** CORS origins. Defaults to "*". */
-  cors?: string | string[] | true;
+  /**
+   * CORS origins. Defaults to `false` (no cross-origin allowed). Pass a
+   * concrete origin or array of origins to opt in; pass `true` to reflect
+   * any origin (only safe behind authentication on a trusted network).
+   */
+  cors?: string | string[] | boolean;
   /** Request size limit. Defaults to 10MB. */
   bodyLimit?: number;
+}
+
+/** Routes that never require auth — health, schema, and the docs UI. */
+const PUBLIC_ROUTES = new Set(["/health", "/openapi.json", "/docs"]);
+
+/** Strip a `?…` suffix; `req.url` always has at least one segment so this is safe. */
+function pathOf(req: FastifyRequest): string {
+  return req.url.split("?")[0] ?? "";
+}
+
+/** True for routes that perform writes the user can't easily undo. */
+function isDestructive(req: FastifyRequest): boolean {
+  const url = pathOf(req);
+  if (url.startsWith("/admin/")) return true;
+  if (req.method === "DELETE" && url === "/traces") return true;
+  return false;
 }
 
 export function buildServer(options: ServerOptions): FastifyInstance {
@@ -38,22 +72,36 @@ export function buildServer(options: ServerOptions): FastifyInstance {
   });
 
   app.register(cors, {
-    origin: options.cors ?? true,
+    origin: options.cors ?? false,
     methods: ["GET", "POST", "DELETE", "OPTIONS"],
   });
 
-  // Optional API-key auth.
-  if (options.apiKey) {
-    app.addHook("onRequest", async (req, reply) => {
-      // Allow health and docs without auth.
-      const url = req.url.split("?")[0];
-      if (url === "/health" || url === "/openapi.json" || url === "/docs") return;
+  const apiKey = options.apiKey;
+
+  app.addHook("onRequest", async (req, reply) => {
+    const url = pathOf(req);
+    if (PUBLIC_ROUTES.has(url)) return;
+
+    const destructive = isDestructive(req);
+
+    // Destructive endpoints are disabled outright when no apiKey is
+    // configured. This makes "I forgot to set AUGUR_API_KEY" a loud 503
+    // failure instead of a silent open `/admin/clear`.
+    if (destructive && !apiKey) {
+      return reply.code(503).send({
+        error: "admin endpoints disabled",
+        hint: "set AUGUR_API_KEY (or pass apiKey to buildServer) to enable",
+      });
+    }
+
+    // When apiKey is set, every non-public endpoint requires the header.
+    if (apiKey) {
       const provided = req.headers["x-api-key"];
-      if (provided !== options.apiKey) {
-        reply.code(401).send({ error: "unauthorized" });
+      if (provided !== apiKey) {
+        return reply.code(401).send({ error: "unauthorized" });
       }
-    });
-  }
+    }
+  });
 
   // ---------- Health & meta ----------
 
