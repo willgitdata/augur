@@ -15,21 +15,23 @@
  */
 
 import { BoundedCache } from "../internal/bounded-cache.js";
+import {
+  loadTransformers,
+  type ProgressCallback,
+} from "../internal/transformers-loader.js";
 import type { Embedder } from "./embedder.js";
+
+export type {
+  DownloadProgressEvent,
+  ProgressCallback,
+} from "../internal/transformers-loader.js";
+export { MissingTransformersError } from "../internal/transformers-loader.js";
 
 interface FeatureExtractionPipeline {
   (
     input: string | string[],
     opts: { pooling: "mean" | "cls" | "none"; normalize: boolean }
   ): Promise<{ data: Float32Array; dims: number[] }>;
-}
-
-interface TransformersModule {
-  pipeline: (
-    task: string,
-    model: string,
-    opts?: { dtype?: string; device?: string }
-  ) => Promise<FeatureExtractionPipeline>;
 }
 
 /**
@@ -53,17 +55,32 @@ function parsePositiveInt(s: string | undefined): number | null {
 async function getEmbeddingPipeline(
   model: string,
   dtype: string | undefined,
-  device: string | undefined
+  device: string | undefined,
+  onProgress: ProgressCallback | undefined
 ): Promise<FeatureExtractionPipeline> {
+  // Cache key intentionally excludes onProgress — two callers with
+  // different callbacks should share the same warmed-up pipeline. The
+  // callback only fires during the initial download/load, not on every
+  // subsequent inference, so reusing a cached pipeline silently skips
+  // progress events for late arrivals (correct: there's no download).
   const key = `${model}|${dtype ?? ""}|${device ?? ""}`;
   const cached = pipelineCache.get(key);
   if (cached) return cached;
   const p = (async (): Promise<FeatureExtractionPipeline> => {
-    const transformers = (await import("@huggingface/transformers")) as unknown as TransformersModule;
-    const opts: { dtype?: string; device?: string } = {};
+    const transformers = await loadTransformers();
+    const opts: {
+      dtype?: string;
+      device?: string;
+      progress_callback?: ProgressCallback;
+    } = {};
     if (dtype) opts.dtype = dtype;
     if (device) opts.device = device;
-    return transformers.pipeline("feature-extraction", model, opts);
+    if (onProgress) opts.progress_callback = onProgress;
+    return (await transformers.pipeline(
+      "feature-extraction",
+      model,
+      opts
+    )) as FeatureExtractionPipeline;
   })();
   pipelineCache.set(key, p);
   return p;
@@ -78,6 +95,7 @@ export class LocalEmbedder implements Embedder {
   private batchSize: number;
   private dtype: string | undefined;
   private device: string | undefined;
+  private onProgress: ProgressCallback | undefined;
 
   constructor(opts: {
     /**
@@ -108,6 +126,26 @@ export class LocalEmbedder implements Embedder {
     dtype?: "fp32" | "fp16" | "q8" | "q4";
     /** "wasm" (default), "webgpu" if available. Most setups stay on wasm. */
     device?: "wasm" | "webgpu" | "cpu";
+    /**
+     * Called during the one-time model download (and any subsequent
+     * cold-start) with `@huggingface/transformers` progress events. Lets
+     * you surface a progress line so the first `embed()` call doesn't
+     * look like a 5-10 second hang. Not called on warm pipelines (the
+     * cached pipeline emits no events). Default: undefined (silent).
+     *
+     * Quick one-liner that logs % complete to stderr:
+     *
+     *   new LocalEmbedder({
+     *     onProgress: (e) => {
+     *       if (e.status === "progress" && typeof e.progress === "number") {
+     *         process.stderr.write(`\r[LocalEmbedder] ${e.file ?? ""} ${e.progress.toFixed(0)}%   `);
+     *       } else if (e.status === "done") {
+     *         process.stderr.write("\n");
+     *       }
+     *     },
+     *   })
+     */
+    onProgress?: ProgressCallback;
   } = {}) {
     this.model = opts.model ?? "Xenova/all-MiniLM-L6-v2";
     this.dimension = opts.dimension ?? 384;
@@ -116,6 +154,7 @@ export class LocalEmbedder implements Embedder {
     this.batchSize = opts.batchSize ?? 32;
     this.dtype = opts.dtype;
     this.device = opts.device;
+    this.onProgress = opts.onProgress;
     const tag = [this.dtype, this.device].filter(Boolean).join(",");
     this.name = `local:${this.model}${tag ? `(${tag})` : ""}`;
   }
@@ -138,7 +177,12 @@ export class LocalEmbedder implements Embedder {
   private async embedTagged(texts: string[], prefix: string): Promise<number[][]> {
     if (texts.length === 0) return [];
     const tagged = prefix ? texts.map((t) => prefix + t) : texts;
-    const pipe = await getEmbeddingPipeline(this.model, this.dtype, this.device);
+    const pipe = await getEmbeddingPipeline(
+      this.model,
+      this.dtype,
+      this.device,
+      this.onProgress
+    );
 
     const out: number[][] = [];
     for (let i = 0; i < tagged.length; i += this.batchSize) {
