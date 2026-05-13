@@ -22,3 +22,18 @@ test("LocalReranker: applySigmoid option accepted", () => {
   const r = new LocalReranker({ applySigmoid: false });
   assert.ok(r.name.startsWith("local-reranker:"));
 });
+
+test("LocalReranker: dtype tag is surfaced in name", () => {
+  const r = new LocalReranker({ dtype: "fp16" });
+  assert.equal(r.name, "local-reranker:Xenova/ms-marco-MiniLM-L-6-v2(fp16)");
+});
+
+test("LocalReranker: device tag is surfaced in name", () => {
+  const r = new LocalReranker({ device: "webgpu" });
+  assert.equal(r.name, "local-reranker:Xenova/ms-marco-MiniLM-L-6-v2(webgpu)");
+});
+
+test("LocalReranker: dtype + device combined in name", () => {
+  const r = new LocalReranker({ dtype: "fp16", device: "webgpu" });
+  assert.equal(r.name, "local-reranker:Xenova/ms-marco-MiniLM-L-6-v2(fp16,webgpu)");
+});
