@@ -14,6 +14,10 @@ export {
 export { TurbopufferAdapter } from "./turbopuffer.js";
 export { PgVectorAdapter, type PgClient } from "./pgvector.js";
 export {
+  QdrantAdapter,
+  type QdrantAdapterOptions,
+} from "./qdrant.js";
+export {
   type SparseVector,
   type SparseEncoder,
   BM25SparseEncoder,

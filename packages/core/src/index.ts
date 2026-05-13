@@ -39,6 +39,8 @@ export {
   TurbopufferAdapter,
   PgVectorAdapter,
   type PgClient,
+  QdrantAdapter,
+  type QdrantAdapterOptions,
   type SparseVector,
   type SparseEncoder,
   BM25SparseEncoder,
