@@ -3,12 +3,30 @@
   <img src="assets/augur-wordmark-light.svg" alt="Augur">
 </picture>
 
-Adaptive retrieval orchestration for RAG and semantic search in TypeScript. Augur sits on top of your vector DB (pgvector, Pinecone, Turbopuffer, or in-memory) and picks per query which strategy to run: vector, BM25 keyword, weighted hybrid, or vector-then-cross-encoder rerank. The routing decision and timings come back in every search response.
+**Pick the best retrieval strategy per query — automatically.** Adaptive retrieval orchestration for RAG and semantic search in TypeScript. Augur sits on top of your vector DB (pgvector, Pinecone, Turbopuffer, or in-memory) and picks per query which strategy to run: vector, BM25 keyword, weighted hybrid, or vector-then-cross-encoder rerank. The routing decision and timings come back in every search response.
+
+```bash
+npm install @augur-rag/core @huggingface/transformers
+```
 
 ```ts
-import { Augur, LocalEmbedder } from "@augur-rag/core";
+import {
+  Augur,
+  InMemoryAdapter,
+  LocalEmbedder,
+  LocalReranker,
+  MetadataChunker,
+  SentenceChunker,
+} from "@augur-rag/core";
 
-const augr = new Augur({ embedder: new LocalEmbedder() });
+// Recommended stack — matches the BEIR numbers in the Performance table below.
+// 44 MB on-device total, no API keys, no network at query time.
+const augr = new Augur({
+  embedder: new LocalEmbedder(),
+  reranker: new LocalReranker(),
+  chunker: new MetadataChunker({ base: new SentenceChunker() }),
+  adapter: new InMemoryAdapter({ useStemming: true }),
+});
 
 await augr.index([
   { id: "1", content: "PostgreSQL supports vector indexing via pgvector." },
@@ -24,9 +42,25 @@ const { results, trace } = await augr.search({
 // trace.decision.reasons === ["natural-language question → semantic search", ...]
 ```
 
+The bare `new Augur({ embedder: new LocalEmbedder() })` shape also works — it gives single-strategy retrieval without the cross-encoder rerank stage. The headline performance numbers in the table below require the recommended stack above; pass `new LocalReranker()` to turn the rerank stage on.
+
 ## Why
 
 Most RAG pipelines pick one retrieval strategy and run it for everything. Pure vector misses exact matches (error codes, SKUs, named entities). Pure BM25 misses paraphrases. Hybrid is better but a fixed mix is wrong for whichever side the current query needs less of. Augur routes per query from cheap heuristics on query signals, with the cross-encoder reranker as the final precision stage. When the auto choice is wrong, the trace shows you why.
+
+## How Augur compares
+
+|                                  | LangChain.js retriever | LlamaIndex.ts retriever | Raw vector-DB SDK | **Augur** |
+| -------------------------------- | :--------------------: | :---------------------: | :---------------: | :-------: |
+| Per-query strategy routing       |           —            |            —            |         —         |     ✓     |
+| First-class search trace on every call |       —            |            —            |         —         |     ✓     |
+| Hybrid (BM25 + vector) RRF fusion |        partial         |         partial         |         —         |     ✓     |
+| Cross-encoder rerank step        |         manual         |         manual          |      manual       |     ✓     |
+| On-device default (zero API key) |           —            |            —            |         —         |     ✓     |
+| Drop-in adapter contract         |           ✓            |            ✓            |       n/a         |     ✓     |
+| One-line `npm install` to working retrieval |  —          |            —            |         —         |     ✓     |
+
+Augur is intentionally smaller in scope than LangChain or LlamaIndex — no agents, no chains, no LLM-call wrapper. It does one thing (route + retrieve + rerank, with a trace) and stays out of the way of the rest of your stack.
 
 ## Performance
 
