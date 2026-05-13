@@ -17,6 +17,25 @@ import {
 } from "@augur-rag/core";
 import { buildServer } from "./server.js";
 
+/**
+ * Local shim for the bits of the `pg` package this CLI uses. `pg` is not a
+ * declared dep so we can't import its types; this is the minimum surface
+ * we need (`Client` constructor + `connect` / `query`). Lets the
+ * dynamic-import path be `Promise<PgModule>` instead of `Promise<any>`.
+ */
+interface PgModule {
+  default: {
+    Client: new (opts: { connectionString: string }) => {
+      connect(): Promise<void>;
+      query<T = unknown>(
+        sql: string,
+        params?: unknown[]
+      ): Promise<{ rows: T[] }>;
+      end(): Promise<void>;
+    };
+  };
+}
+
 async function main() {
   const port = parseInt(process.env.PORT ?? "3001", 10);
   // Default to loopback so a fresh `docker compose up` or `npx augur-server`
@@ -112,17 +131,27 @@ async function pickAdapter(): Promise<VectorAdapter> {
     });
   }
   if (kind === "pgvector") {
-    // Dynamic import to avoid forcing 'pg' as a runtime dep.
-    // We type the import as `any` deliberately — users who choose pgvector
-    // install pg themselves; this CLI just shells out to it.
-    const pg = await (import("pg" as string) as Promise<any>).catch(() => null);
-    if (!pg) throw new Error("Install 'pg' to use the pgvector adapter");
+    // `pg` is loaded dynamically so it's not a runtime dep of the server
+    // package — users who pick the pgvector adapter install pg themselves.
+    // The `as string` literal-widening dodges TS's static
+    // module-resolution check (pg isn't declared anywhere); the
+    // `as Promise<PgModule>` gives us real types instead of `any`.
+    const pg = await (import("pg" as string) as Promise<PgModule>).catch(() => null);
+    if (!pg) {
+      throw new Error(
+        "Install 'pg' to use the pgvector adapter: npm install pg"
+      );
+    }
     const client = new pg.default.Client({ connectionString: requireEnv("DATABASE_URL") });
     await client.connect();
     return new PgVectorAdapter({
+      // Method form (vs arrow) so the `<T>` generic on PgClient.query
+      // flows through to pg.Client.query — an arrow would lock T at
+      // declaration time and force `unknown` rows downstream.
       client: {
-        query: (sql: string, params?: unknown[]) =>
-          client.query(sql, params).then((r: { rows: unknown[] }) => ({ rows: r.rows })),
+        query<T = unknown>(sql: string, params?: unknown[]) {
+          return client.query<T>(sql, params);
+        },
       },
       table: process.env.PGVECTOR_TABLE ?? "chunks",
       dimension: parseInt(process.env.PGVECTOR_DIMENSION ?? "1536", 10),
