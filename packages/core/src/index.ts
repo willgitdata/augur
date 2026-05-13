@@ -38,6 +38,10 @@ export {
   TurbopufferAdapter,
   PgVectorAdapter,
   type PgClient,
+  SqliteVecAdapter,
+  type SqliteDb,
+  type SqliteStatement,
+  type SqliteVecAdapterOptions,
 } from "./adapters/index.js";
 
 // Chunking

@@ -10,3 +10,9 @@ export { InMemoryAdapter, type InMemoryAdapterOptions } from "./in-memory.js";
 export { PineconeAdapter } from "./pinecone.js";
 export { TurbopufferAdapter } from "./turbopuffer.js";
 export { PgVectorAdapter, type PgClient } from "./pgvector.js";
+export {
+  SqliteVecAdapter,
+  type SqliteDb,
+  type SqliteStatement,
+  type SqliteVecAdapterOptions,
+} from "./sqlite-vec.js";
