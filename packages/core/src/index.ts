@@ -35,9 +35,14 @@ export {
   InMemoryAdapter,
   type InMemoryAdapterOptions,
   PineconeAdapter,
+  type PineconeAdapterOptions,
   TurbopufferAdapter,
   PgVectorAdapter,
   type PgClient,
+  type SparseVector,
+  type SparseEncoder,
+  BM25SparseEncoder,
+  type BM25SparseEncoderOptions,
 } from "./adapters/index.js";
 
 // Chunking

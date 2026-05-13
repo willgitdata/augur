@@ -1,6 +1,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { PineconeAdapter } from "./pinecone.js";
+import { BM25SparseEncoder } from "./sparse.js";
 import type { Chunk } from "../types.js";
 
 /**
@@ -158,8 +159,136 @@ test("PineconeAdapter: searchKeyword throws (capability not declared)", async ()
   const a = ad();
   await assert.rejects(
     () => a.searchKeyword({ query: "anything", topK: 5 }),
-    /does not support keyword search/
+    /does not support pure keyword search/
   );
+});
+
+// ---------- sparse-dense hybrid mode ----------
+
+test("PineconeAdapter (sparse-dense): capabilities flip when sparseEncoder is wired", () => {
+  const a = new PineconeAdapter({
+    indexHost: "https://x.pinecone.io",
+    apiKey: "k",
+    sparseEncoder: new BM25SparseEncoder(),
+  });
+  assert.equal(a.capabilities.vector, true);
+  assert.equal(a.capabilities.keyword, false, "pinecone has no pure-sparse path");
+  assert.equal(a.capabilities.hybrid, true, "sparse-dense hybrid is supported");
+});
+
+test("PineconeAdapter (sparse-dense): upsert includes sparseValues per vector", async () => {
+  const enc = new BM25SparseEncoder();
+  enc.fit(["postgres pooling", "redis cache", "kubernetes probes"]);
+  const a = new PineconeAdapter({
+    indexHost: "https://x.pinecone.io",
+    apiKey: "k",
+    sparseEncoder: enc,
+  });
+  await a.upsert([chunk("c1", "postgres connection pooling", [0.1, 0.2])]);
+  const body = JSON.parse(captured[0]!.init.body as string);
+  assert.equal(body.vectors.length, 1);
+  assert.ok(body.vectors[0].sparseValues, "sparseValues must be attached");
+  assert.ok(Array.isArray(body.vectors[0].sparseValues.indices));
+  assert.ok(Array.isArray(body.vectors[0].sparseValues.values));
+  assert.ok(
+    body.vectors[0].sparseValues.indices.length > 0,
+    "indices length > 0 because tokens are in-vocab"
+  );
+});
+
+test("PineconeAdapter (sparse-dense): upsert lazily fits the encoder when not pre-fit", async () => {
+  const enc = new BM25SparseEncoder();
+  assert.equal(enc.isFitted(), false);
+  const a = new PineconeAdapter({
+    indexHost: "https://x.pinecone.io",
+    apiKey: "k",
+    sparseEncoder: enc,
+  });
+  await a.upsert([chunk("c1", "postgres connection pooling", [0.1, 0.2])]);
+  assert.equal(enc.isFitted(), true);
+});
+
+test("PineconeAdapter (sparse-dense): upsert omits sparseValues for OOV-only content", async () => {
+  const enc = new BM25SparseEncoder();
+  enc.fit(["alpha beta"]);
+  const a = new PineconeAdapter({
+    indexHost: "https://x.pinecone.io",
+    apiKey: "k",
+    sparseEncoder: enc,
+  });
+  // Content is all stopwords/punctuation under stem+drop-stopwords — empty sparse.
+  await a.upsert([chunk("c1", "the the the the", [0.1, 0.2])]);
+  const body = JSON.parse(captured[0]!.init.body as string);
+  // Pinecone rejects empty sparse vectors — the field must be absent.
+  assert.equal(
+    body.vectors[0].sparseValues,
+    undefined,
+    "empty sparse vector must be omitted from the wire format"
+  );
+});
+
+test("PineconeAdapter (sparse-dense): searchHybrid scales dense by alpha, sparse by 1-alpha", async () => {
+  const enc = new BM25SparseEncoder();
+  enc.fit(["postgres pooling", "redis cache"]);
+  const a = new PineconeAdapter({
+    indexHost: "https://x.pinecone.io",
+    apiKey: "k",
+    sparseEncoder: enc,
+  });
+  nextResponse = { ok: true, body: { matches: [] } };
+  await a.searchHybrid({
+    embedding: [1, 1, 1],
+    query: "postgres pooling",
+    topK: 10,
+    vectorWeight: 0.7,
+  });
+  const body = JSON.parse(captured[0]!.init.body as string);
+  // Dense vector: each component * alpha
+  assert.deepEqual(body.vector, [0.7, 0.7, 0.7]);
+  // Sparse vector: every value * (1 - alpha) = 0.3
+  assert.ok(body.sparseVector, "sparseVector must be on the wire");
+  for (const v of body.sparseVector.values) {
+    assert.ok(
+      Math.abs(v - 0.3 * (v / 0.3)) < 1e-9,
+      "sparse values reflect the (1-alpha) scaling"
+    );
+  }
+});
+
+test("PineconeAdapter (sparse-dense): searchHybrid forwards filter when present", async () => {
+  const enc = new BM25SparseEncoder();
+  enc.fit(["alpha"]);
+  const a = new PineconeAdapter({
+    indexHost: "https://x.pinecone.io",
+    apiKey: "k",
+    sparseEncoder: enc,
+  });
+  nextResponse = { ok: true, body: { matches: [] } };
+  await a.searchHybrid({
+    embedding: [0.1, 0.2],
+    query: "alpha",
+    topK: 5,
+    vectorWeight: 0.5,
+    filter: { topic: "k8s" },
+  });
+  const body = JSON.parse(captured[0]!.init.body as string);
+  assert.deepEqual(body.filter, { topic: "k8s" });
+});
+
+test("PineconeAdapter (sparse-dense): searchHybrid without sparseEncoder falls back to vector-only", async () => {
+  const a = ad();
+  nextResponse = { ok: true, body: { matches: [] } };
+  // Even if a caller reaches searchHybrid, behaviour must be safe.
+  await a.searchHybrid({
+    embedding: [0.1, 0.2],
+    query: "anything",
+    topK: 3,
+    vectorWeight: 0.5,
+  });
+  const body = JSON.parse(captured[0]!.init.body as string);
+  // No sparseVector field — vector-only path.
+  assert.equal(body.sparseVector, undefined);
+  assert.deepEqual(body.vector, [0.1, 0.2]);
 });
 
 test("PineconeAdapter: delete posts the id list", async () => {
