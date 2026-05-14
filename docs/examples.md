@@ -131,6 +131,33 @@ You need the optional peer dep: `pnpm add @huggingface/transformers`.
 
 The schema dimension MUST match your embedder. `LocalEmbedder` defaults to 384.
 
+### Migration helper (recommended)
+
+`PgVectorAdapter.migrate()` creates the extension, the table (with the generated `content_tsv` column), and the three indexes — all with `IF NOT EXISTS`, safe to call on every boot.
+
+```ts
+import pg from "pg";
+import { Augur, PgVectorAdapter, LocalEmbedder } from "@augur-rag/core";
+
+const raw = new pg.Client({ connectionString: process.env.DATABASE_URL });
+await raw.connect();
+const client = {
+  query<T = unknown>(sql: string, params?: unknown[]) {
+    return raw.query<T>(sql, params);
+  },
+};
+
+await PgVectorAdapter.migrate(client, { dimension: 384 });
+// Optional: `vectorIndex: "hnsw"` for pgvector ≥ 0.5.0, `ftsLanguage: "german"` etc.
+
+const augr = new Augur({
+  adapter: new PgVectorAdapter({ client, table: "chunks", dimension: 384 }),
+  embedder: new LocalEmbedder(),
+});
+```
+
+### Manual schema (if you want to own the migration yourself)
+
 ```sql
 CREATE EXTENSION vector;
 CREATE TABLE chunks (
@@ -144,23 +171,7 @@ CREATE TABLE chunks (
 );
 CREATE INDEX ON chunks USING ivfflat (embedding vector_cosine_ops);
 CREATE INDEX ON chunks USING gin (content_tsv);
-```
-
-```ts
-import pg from "pg";
-import { Augur, PgVectorAdapter, LocalEmbedder } from "@augur-rag/core";
-
-const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
-await client.connect();
-
-const augr = new Augur({
-  adapter: new PgVectorAdapter({
-    client: { query: (sql, params) => client.query(sql, params).then((r) => ({ rows: r.rows })) },
-    table: "chunks",
-    dimension: 384,
-  }),
-  embedder: new LocalEmbedder(),
-});
+CREATE INDEX ON chunks (document_id);
 ```
 
 ## Contextual retrieval (Anthropic's pattern)

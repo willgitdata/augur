@@ -38,6 +38,7 @@ export {
   TurbopufferAdapter,
   PgVectorAdapter,
   type PgClient,
+  type PgVectorMigrationOptions,
 } from "./adapters/index.js";
 
 // Chunking

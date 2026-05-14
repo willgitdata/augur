@@ -58,6 +58,94 @@ test("PgVectorAdapter: capabilities = full vector + keyword + hybrid", () => {
   assert.equal(a.capabilities.filtering, true);
 });
 
+// ---------- migrate() ----------
+
+test("PgVectorAdapter.migrate: emits extension + table + 3 indexes (default opts)", async () => {
+  await PgVectorAdapter.migrate(mockClient, { dimension: 384 });
+  const stmts = captured.map((c) => c.sql.replace(/\s+/g, " ").trim());
+  assert.equal(stmts.length, 5);
+  assert.match(stmts[0]!, /CREATE EXTENSION IF NOT EXISTS vector/);
+  assert.match(stmts[1]!, /CREATE TABLE IF NOT EXISTS chunks/);
+  assert.match(stmts[1]!, /embedding VECTOR\(384\)/);
+  assert.match(stmts[1]!, /to_tsvector\('english', content\)/);
+  assert.match(stmts[2]!, /CREATE INDEX IF NOT EXISTS chunks_embedding_idx/);
+  assert.match(stmts[2]!, /USING ivfflat/);
+  assert.match(stmts[3]!, /CREATE INDEX IF NOT EXISTS chunks_content_tsv_idx/);
+  assert.match(stmts[3]!, /USING gin/);
+  assert.match(stmts[4]!, /CREATE INDEX IF NOT EXISTS chunks_document_id_idx/);
+});
+
+test("PgVectorAdapter.migrate: honors custom table, dimension, vectorIndex, ftsLanguage", async () => {
+  await PgVectorAdapter.migrate(mockClient, {
+    table: "my_chunks",
+    dimension: 1536,
+    vectorIndex: "hnsw",
+    ftsLanguage: "german",
+  });
+  const stmts = captured.map((c) => c.sql.replace(/\s+/g, " ").trim());
+  assert.match(stmts[1]!, /CREATE TABLE IF NOT EXISTS my_chunks/);
+  assert.match(stmts[1]!, /embedding VECTOR\(1536\)/);
+  assert.match(stmts[1]!, /to_tsvector\('german', content\)/);
+  assert.match(stmts[2]!, /USING hnsw/);
+  assert.match(stmts[2]!, /my_chunks_embedding_idx/);
+});
+
+test("PgVectorAdapter.migrate: rejects malicious table identifiers", async () => {
+  await assert.rejects(
+    () =>
+      PgVectorAdapter.migrate(mockClient, {
+        table: "chunks; DROP TABLE users; --",
+        dimension: 3,
+      }),
+    /invalid table identifier/
+  );
+});
+
+test("PgVectorAdapter.migrate: rejects malicious ftsLanguage", async () => {
+  await assert.rejects(
+    () =>
+      PgVectorAdapter.migrate(mockClient, {
+        dimension: 3,
+        ftsLanguage: "english'); DROP TABLE chunks; --",
+      }),
+    /invalid ftsLanguage/
+  );
+});
+
+test("PgVectorAdapter.migrate: rejects non-integer / non-positive dimensions", async () => {
+  await assert.rejects(
+    () => PgVectorAdapter.migrate(mockClient, { dimension: 0 }),
+    /dimension must be a positive integer/
+  );
+  await assert.rejects(
+    () => PgVectorAdapter.migrate(mockClient, { dimension: -1 }),
+    /dimension must be a positive integer/
+  );
+  await assert.rejects(
+    () => PgVectorAdapter.migrate(mockClient, { dimension: 3.14 }),
+    /dimension must be a positive integer/
+  );
+});
+
+test("PgVectorAdapter.migrate: rejects unknown vectorIndex values", async () => {
+  await assert.rejects(
+    () =>
+      PgVectorAdapter.migrate(mockClient, {
+        dimension: 3,
+        // @ts-expect-error — exercising the runtime validation
+        vectorIndex: "bogus",
+      }),
+    /vectorIndex must be "ivfflat" or "hnsw"/
+  );
+});
+
+test("PgVectorAdapter.migrate: every statement uses IF NOT EXISTS (idempotent)", async () => {
+  await PgVectorAdapter.migrate(mockClient, { dimension: 3 });
+  for (const c of captured) {
+    assert.match(c.sql, /IF NOT EXISTS/);
+  }
+});
+
 test("PgVectorAdapter: rejects malicious table identifiers at construction", () => {
   // The constructor's identifier check is the line of defense between
   // `${this.table}` interpolation and SQL injection. Pin it.
