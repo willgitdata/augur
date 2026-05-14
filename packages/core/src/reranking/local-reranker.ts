@@ -24,8 +24,18 @@
  */
 
 import { BoundedCache } from "../internal/bounded-cache.js";
+import {
+  loadTransformers,
+  type ProgressCallback,
+} from "../internal/transformers-loader.js";
 import type { Reranker } from "./reranker.js";
 import type { SearchResult } from "../types.js";
+
+export type {
+  DownloadProgressEvent,
+  ProgressCallback,
+} from "../internal/transformers-loader.js";
+export { MissingTransformersError } from "../internal/transformers-loader.js";
 
 /**
  * Cross-encoder pipelines are 22-280 MB each (ms-marco-MiniLM-L-6-v2 to
@@ -43,16 +53,19 @@ function parsePositiveInt(s: string | undefined): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-async function getRerankPipeline(model: string): Promise<unknown> {
+async function getRerankPipeline(
+  model: string,
+  onProgress: ProgressCallback | undefined
+): Promise<unknown> {
   const cached = pipelineCache.get(model);
   if (cached) return cached;
   const p = (async () => {
-    const transformers = (await import("@huggingface/transformers")) as unknown as {
-      pipeline: (task: string, model: string) => Promise<unknown>;
-    };
+    const transformers = await loadTransformers();
     // text-classification with a (text, text_pair) input runs the cross-encoder
     // and returns its logit/score for the pair.
-    return transformers.pipeline("text-classification", model);
+    const opts: { progress_callback?: ProgressCallback } = {};
+    if (onProgress) opts.progress_callback = onProgress;
+    return transformers.pipeline("text-classification", model, opts);
   })();
   pipelineCache.set(model, p);
   return p;
@@ -63,6 +76,7 @@ export class LocalReranker implements Reranker {
   private model: string;
   private batchSize: number;
   private applySigmoid: boolean;
+  private onProgress: ProgressCallback | undefined;
 
   constructor(opts: {
     model?: string;
@@ -74,10 +88,19 @@ export class LocalReranker implements Reranker {
      * `false` if you specifically want raw logits.
      */
     applySigmoid?: boolean;
+    /**
+     * Called during the one-time model download (and any subsequent
+     * cold-start) with `@huggingface/transformers` progress events. Lets
+     * you surface a progress line so the first `rerank()` call doesn't
+     * look like a 5-10 second hang. Default: undefined (silent).
+     * See `LocalEmbedder` for a one-liner stderr example.
+     */
+    onProgress?: ProgressCallback;
   } = {}) {
     this.model = opts.model ?? "Xenova/ms-marco-MiniLM-L-6-v2";
     this.batchSize = opts.batchSize ?? 16;
     this.applySigmoid = opts.applySigmoid ?? true;
+    this.onProgress = opts.onProgress;
     this.name = `local-reranker:${this.model}`;
   }
 
@@ -88,7 +111,7 @@ export class LocalReranker implements Reranker {
   ): Promise<SearchResult[]> {
     if (results.length === 0) return [];
 
-    const pipe = (await getRerankPipeline(this.model)) as (
+    const pipe = (await getRerankPipeline(this.model, this.onProgress)) as (
       input: Array<{ text: string; text_pair: string }>,
       opts: { topk: number; function_to_apply: "none" | "sigmoid" | "softmax" }
     ) => Promise<Array<{ label: string; score: number }>>;
