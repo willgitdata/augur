@@ -38,6 +38,7 @@ export {
   TurbopufferAdapter,
   PgVectorAdapter,
   type PgClient,
+  type PgVectorMigrationOptions,
 } from "./adapters/index.js";
 
 // Chunking
@@ -69,6 +70,11 @@ export {
   STOPWORDS,
 } from "./embeddings/embedder.js";
 export { LocalEmbedder } from "./embeddings/local-embedder.js";
+export {
+  MissingTransformersError,
+  type DownloadProgressEvent,
+  type ProgressCallback,
+} from "./internal/transformers-loader.js";
 
 // Routing
 export {
