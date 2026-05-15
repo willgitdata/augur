@@ -39,6 +39,8 @@ export {
   PgVectorAdapter,
   type PgClient,
   type PgVectorMigrationOptions,
+  ChromaAdapter,
+  type ChromaAdapterOptions,
 } from "./adapters/index.js";
 
 // Chunking

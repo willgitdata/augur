@@ -14,3 +14,7 @@ export {
   type PgClient,
   type PgVectorMigrationOptions,
 } from "./pgvector.js";
+export {
+  ChromaAdapter,
+  type ChromaAdapterOptions,
+} from "./chroma.js";
