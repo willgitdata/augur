@@ -43,15 +43,17 @@ const NEGATION_TOKENS = new Set([
 
 /**
  * Strip leading + trailing punctuation/quotes for case-detection on the
- * original token. Two single-anchor passes (vs one alternation) so the
- * regex engine never has to backtrack across the start/end choice —
- * eliminates the `js/polynomial-redos` shape CodeQL flags on the
- * combined alternation form.
+ * original token. Two single-anchor passes with bounded `{1,64}`
+ * quantifiers — CodeQL flags any unbounded `+` over a character class
+ * as `js/polynomial-redos` regardless of anchoring, so the bounded
+ * form closes the alert. 64 is well above any realistic quote /
+ * punctuation run; longer prefixes get a no-op trim and the body
+ * still matches downstream regexes.
  */
 function stripPunct(token: string): string {
   return token
-    .replace(/^["'(\[`]+/, "")
-    .replace(/["')\].,?!:`]+$/, "");
+    .replace(/^["'(\[`]{1,64}/, "")
+    .replace(/["')\].,?!:`]{1,64}$/, "");
 }
 
 /**
@@ -115,7 +117,10 @@ export function computeSignals(query: string): QuerySignals {
   const hasCodeLike = words.some((t) => {
     const bare = stripPunct(t);
     if (/[a-z][A-Z]/.test(bare)) return true;                // camelCase: useState, kubectl
-    if (/^[a-z]+(_[a-z0-9]+)+$/i.test(bare)) return true;    // snake_case: pool_mode, pg_repack
+    // snake_case: pool_mode, pg_repack. Two checks rather than a single
+    // ambiguous regex (`^[a-z]+(_[a-z0-9]+)+$`) — that pattern's two
+    // overlapping greedy quantifiers trip CodeQL's polynomial-redos.
+    if (bare.includes("_") && /^[a-z][a-z0-9_]{1,64}$/i.test(bare)) return true;
     if (/[a-z]\.[a-z]/i.test(bare) && bare.length >= 5) return true; // dotted: rbac.authorization.k8s.io
     if (bare.includes("::")) return true;                    // C++/Rust scope
     if (/[a-zA-Z_]\w*\(/.test(bare)) return true;            // function call: foo(
