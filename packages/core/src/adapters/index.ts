@@ -7,7 +7,10 @@ export {
   BaseAdapter,
 } from "./adapter.js";
 export { InMemoryAdapter, type InMemoryAdapterOptions } from "./in-memory.js";
-export { PineconeAdapter } from "./pinecone.js";
+export {
+  PineconeAdapter,
+  type PineconeAdapterOptions,
+} from "./pinecone.js";
 export { TurbopufferAdapter } from "./turbopuffer.js";
 export {
   PgVectorAdapter,
@@ -24,3 +27,9 @@ export {
   type SqliteStatement,
   type SqliteVecAdapterOptions,
 } from "./sqlite-vec.js";
+export {
+  type SparseVector,
+  type SparseEncoder,
+  BM25SparseEncoder,
+  type BM25SparseEncoderOptions,
+} from "./sparse.js";
