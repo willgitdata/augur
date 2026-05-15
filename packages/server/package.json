@@ -1,6 +1,6 @@
 {
   "name": "@augur-rag/server",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Augur HTTP API server. Drop-in Fastify wrapper around @augur-rag/core with OpenAPI docs and trace explorer compatibility.",
   "license": "MIT",
   "type": "module",
