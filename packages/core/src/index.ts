@@ -35,9 +35,23 @@ export {
   InMemoryAdapter,
   type InMemoryAdapterOptions,
   PineconeAdapter,
+  type PineconeAdapterOptions,
   TurbopufferAdapter,
   PgVectorAdapter,
   type PgClient,
+  type PgVectorMigrationOptions,
+  ChromaAdapter,
+  type ChromaAdapterOptions,
+  SqliteVecAdapter,
+  type SqliteDb,
+  type SqliteStatement,
+  type SqliteVecAdapterOptions,
+  QdrantAdapter,
+  type QdrantAdapterOptions,
+  type SparseVector,
+  type SparseEncoder,
+  BM25SparseEncoder,
+  type BM25SparseEncoderOptions,
 } from "./adapters/index.js";
 
 // Chunking
@@ -69,6 +83,11 @@ export {
   STOPWORDS,
 } from "./embeddings/embedder.js";
 export { LocalEmbedder } from "./embeddings/local-embedder.js";
+export {
+  MissingTransformersError,
+  type DownloadProgressEvent,
+  type ProgressCallback,
+} from "./internal/transformers-loader.js";
 
 // Routing
 export {

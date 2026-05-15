@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
 import { BoundedCache } from "../internal/bounded-cache.js";
+import { sha256Hex, utf8ByteLength } from "../internal/sha256.js";
 import type { Chunk, Document } from "../types.js";
 import type { AsyncChunker, Chunker } from "./chunker.js";
 import { chunkDocument } from "./chunker.js";
@@ -229,7 +229,7 @@ export class ContextualChunker implements AsyncChunker {
   }
 
   private async contextualizeOne(chunk: Chunk, doc: Document): Promise<Chunk> {
-    const key = cacheKey(doc.content, chunk.content);
+    const key = await cacheKey(doc.content, chunk.content);
     let context = await this.cache.get(key);
     if (context === undefined) {
       context = await this.provider.contextualize({
@@ -259,13 +259,11 @@ export class ContextualChunker implements AsyncChunker {
  * Byte length, not character length, so multi-byte UTF-8 sequences
  * don't accidentally collide with shorter ASCII content.
  */
-function cacheKey(documentContent: string, chunkContent: string): string {
-  const h = createHash("sha256");
-  const docBytes = Buffer.byteLength(documentContent, "utf8");
-  const chunkBytes = Buffer.byteLength(chunkContent, "utf8");
-  h.update(`${docBytes}:`);
-  h.update(documentContent);
-  h.update(`${chunkBytes}:`);
-  h.update(chunkContent);
-  return h.digest("hex");
+async function cacheKey(documentContent: string, chunkContent: string): Promise<string> {
+  // Byte length, not character length, so multi-byte UTF-8 sequences
+  // don't accidentally collide with shorter ASCII content. Web Crypto's
+  // TextEncoder gives us this in every runtime (browser + edge + Node).
+  const docBytes = utf8ByteLength(documentContent);
+  const chunkBytes = utf8ByteLength(chunkContent);
+  return sha256Hex(`${docBytes}:${documentContent}${chunkBytes}:${chunkContent}`);
 }
