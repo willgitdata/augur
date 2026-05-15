@@ -38,6 +38,9 @@ export {
   TurbopufferAdapter,
   PgVectorAdapter,
   type PgClient,
+  type PgVectorMigrationOptions,
+  ChromaAdapter,
+  type ChromaAdapterOptions,
   SqliteVecAdapter,
   type SqliteDb,
   type SqliteStatement,
@@ -73,6 +76,11 @@ export {
   STOPWORDS,
 } from "./embeddings/embedder.js";
 export { LocalEmbedder } from "./embeddings/local-embedder.js";
+export {
+  MissingTransformersError,
+  type DownloadProgressEvent,
+  type ProgressCallback,
+} from "./internal/transformers-loader.js";
 
 // Routing
 export {

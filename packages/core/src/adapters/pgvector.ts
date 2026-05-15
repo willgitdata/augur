@@ -7,6 +7,15 @@ import {
 } from "./adapter.js";
 
 /**
+ * Strict SQL-identifier regex shared by the table name, FTS dictionary,
+ * and filter-key validators. Anything outside `[a-zA-Z_][a-zA-Z0-9_]*`
+ * is rejected — Postgres can't parameter-bind inside `metadata->>'key'`
+ * or in identifier positions like table names, so we whitelist instead
+ * of trying to escape.
+ */
+const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+/**
  * Minimal Postgres client interface — keeps `@augur-rag/core` zero-dep.
  *
  * Users pass any client that implements this shape. Both `pg` (`new Client()`)
@@ -25,6 +34,36 @@ export interface PgClient {
 }
 
 /**
+ * Options for `PgVectorAdapter.migrate()`. Only `dimension` is required.
+ */
+export interface PgVectorMigrationOptions {
+  /** Target table. Default `"chunks"`. Validated against the identifier regex. */
+  table?: string;
+  /**
+   * Vector column dimension. Must match the embedder you'll use. Mismatch
+   * surfaces on the first upsert as a per-chunk error from the adapter,
+   * but baking the dimension into the schema means a tsvector / index
+   * mismatch would be silent — so we ask up-front.
+   */
+  dimension: number;
+  /**
+   * pgvector index type. `ivfflat` (default) is broadly available;
+   * `hnsw` (pgvector ≥ 0.5.0) gives better recall/latency at the cost
+   * of build time and memory. Pick `hnsw` for production-scale corpora
+   * where you can afford the build cost.
+   */
+  vectorIndex?: "ivfflat" | "hnsw";
+  /**
+   * Postgres FTS dictionary for the generated `content_tsv` column.
+   * Default `"english"`. Common alternatives: `simple` (no stemming),
+   * `german`, `french`, `russian`, etc. — anything `to_tsvector`
+   * recognises. Identifier-validated; passing arbitrary strings is
+   * rejected.
+   */
+  ftsLanguage?: string;
+}
+
+/**
  * PgVectorAdapter — adapter for Postgres + the pgvector extension.
  *
  * Why this is the recommended adapter for most teams:
@@ -32,7 +71,7 @@ export interface PgClient {
  * - pgvector + tsvector gives you vector + keyword + hybrid in one place.
  * - Migrations are simple SQL; backups/replication "just work".
  *
- * Schema requirements (run once):
+ * Schema (created idempotently by `PgVectorAdapter.migrate()`):
  *
  *   CREATE EXTENSION IF NOT EXISTS vector;
  *   CREATE TABLE chunks (
@@ -41,13 +80,18 @@ export interface PgClient {
  *     content TEXT NOT NULL,
  *     index INT NOT NULL,
  *     metadata JSONB,
- *     embedding VECTOR(1536),
+ *     embedding VECTOR(<dimension>),
  *     content_tsv tsvector
  *       GENERATED ALWAYS AS (to_tsvector('english', content)) STORED
  *   );
  *   CREATE INDEX ON chunks USING ivfflat (embedding vector_cosine_ops);
  *   CREATE INDEX ON chunks USING gin (content_tsv);
  *   CREATE INDEX ON chunks (document_id);
+ *
+ * Run it once before constructing the adapter:
+ *
+ *   await PgVectorAdapter.migrate(client, { dimension: 384 });
+ *   const adapter = new PgVectorAdapter({ client, dimension: 384 });
  *
  * For metadata filtering, add additional indexes on JSONB paths as needed.
  */
@@ -70,9 +114,71 @@ export class PgVectorAdapter extends BaseAdapter {
     this.client = opts.client;
     this.table = opts.table ?? "chunks";
     this.dimension = opts.dimension;
-    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(this.table)) {
+    if (!IDENT_RE.test(this.table)) {
       throw new Error("PgVectorAdapter: invalid table identifier");
     }
+  }
+
+  /**
+   * Idempotent one-shot schema setup. Creates the pgvector extension,
+   * the chunks table (with the generated tsvector column), and the
+   * vector / FTS / document_id indexes — all with `IF NOT EXISTS`, so
+   * running twice is a no-op. Safe to call from app boot.
+   *
+   * Doesn't enforce dimension consistency on an existing table: if the
+   * table already exists with a different dimension, this call is a
+   * no-op and the upsert path will surface the mismatch chunk-by-chunk.
+   * Drop the table manually if you need to change the dimension.
+   */
+  static async migrate(
+    client: PgClient,
+    opts: PgVectorMigrationOptions
+  ): Promise<void> {
+    const table = opts.table ?? "chunks";
+    if (!IDENT_RE.test(table)) {
+      throw new Error(
+        `PgVectorAdapter.migrate: invalid table identifier ${JSON.stringify(table)}`
+      );
+    }
+    if (!Number.isInteger(opts.dimension) || opts.dimension <= 0) {
+      throw new Error(
+        `PgVectorAdapter.migrate: dimension must be a positive integer (got ${opts.dimension})`
+      );
+    }
+    const vectorIndex = opts.vectorIndex ?? "ivfflat";
+    if (vectorIndex !== "ivfflat" && vectorIndex !== "hnsw") {
+      throw new Error(
+        `PgVectorAdapter.migrate: vectorIndex must be "ivfflat" or "hnsw" (got ${vectorIndex})`
+      );
+    }
+    const lang = opts.ftsLanguage ?? "english";
+    if (!IDENT_RE.test(lang)) {
+      throw new Error(
+        `PgVectorAdapter.migrate: invalid ftsLanguage ${JSON.stringify(lang)}`
+      );
+    }
+
+    await client.query(`CREATE EXTENSION IF NOT EXISTS vector`);
+    await client.query(
+      `CREATE TABLE IF NOT EXISTS ${table} (
+        id TEXT PRIMARY KEY,
+        document_id TEXT NOT NULL,
+        content TEXT NOT NULL,
+        index INT NOT NULL,
+        metadata JSONB,
+        embedding VECTOR(${opts.dimension}),
+        content_tsv tsvector GENERATED ALWAYS AS (to_tsvector('${lang}', content)) STORED
+      )`
+    );
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS ${table}_embedding_idx ON ${table} USING ${vectorIndex} (embedding vector_cosine_ops)`
+    );
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS ${table}_content_tsv_idx ON ${table} USING gin (content_tsv)`
+    );
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS ${table}_document_id_idx ON ${table} (document_id)`
+    );
   }
 
   async upsert(chunks: Chunk[]): Promise<void> {
@@ -210,7 +316,7 @@ function buildFilterSql(
     // strict identifier syntax to make the interpolation unambiguously safe
     // and reject anything else loudly. Same rule as the table identifier
     // check in the constructor.
-    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k)) {
+    if (!IDENT_RE.test(k)) {
       throw new Error(
         `PgVectorAdapter: invalid filter key ${JSON.stringify(k)} ` +
           "(must match /^[a-zA-Z_][a-zA-Z0-9_]*$/)"
