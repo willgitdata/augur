@@ -94,6 +94,38 @@ importers:
         specifier: ^5.4.0
         version: 5.9.3
 
+  packages/langchain:
+    dependencies:
+      '@augur-rag/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.39
+      tsx:
+        specifier: ^4.7.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+
+  packages/llamaindex:
+    dependencies:
+      '@augur-rag/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.39
+      tsx:
+        specifier: ^4.7.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+
   packages/server:
     dependencies:
       '@augur-rag/core':
@@ -105,6 +137,22 @@ importers:
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.39
+      tsx:
+        specifier: ^4.7.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+
+  packages/vercel-ai:
+    dependencies:
+      '@augur-rag/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       '@types/node':
         specifier: ^20.11.0

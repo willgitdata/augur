@@ -1,0 +1,60 @@
+{
+  "name": "@augur-rag/llamaindex",
+  "version": "0.2.0",
+  "description": "LlamaIndex.ts binding for @augur-rag/core. Convert Augur search results into LlamaIndex NodeWithScore.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "augur",
+    "rag",
+    "retrieval",
+    "llamaindex",
+    "retriever",
+    "hybrid-search"
+  ],
+  "homepage": "https://github.com/willgitdata/augur#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/willgitdata/augur.git",
+    "directory": "packages/llamaindex"
+  },
+  "bugs": {
+    "url": "https://github.com/willgitdata/augur/issues"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "find src -name '*.test.ts' -print0 | xargs -0 node --test --import tsx",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm clean && pnpm build && pnpm test"
+  },
+  "dependencies": {
+    "@augur-rag/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}
