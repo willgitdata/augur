@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { Augur, SearchRequest, SearchResponse } from "@augur-rag/core";
-import { augurToolDescriptor } from "./index.js";
+import type { Augur, SearchRequest, SearchResponse } from "../index.js";
+import { augurToolDescriptor } from "./vercel-ai.js";
 
 function stubAugur(response: SearchResponse): {
   augur: Augur;

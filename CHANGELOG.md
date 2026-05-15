@@ -4,49 +4,16 @@
 
 ## [0.2.0] - 2026-05-14
 
-Adoption + extensibility pass. No breaking changes to existing public API; new packages, new options, new adapters all additive.
-
-### New packages
-
-- `@augur-rag/langchain` — `searchAsLangchainDocs(augur, query)` returns LangChain-shaped `{ pageContent, metadata }`. Zero hard dep on `@langchain/core` (the shape is the contract).
-- `@augur-rag/llamaindex` — `searchAsLlamaIndexNodes(augur, query)` returns `NodeWithScore`-shaped results.
-- `@augur-rag/vercel-ai` — `augurToolDescriptor(augur, opts)` returns a Vercel AI SDK tool descriptor a language model can call.
-- `@augur-rag/evaluations` — eval harness restored to in-tree (was previously a `git archive` step in the workflow). 504-query / 182-doc bundled corpus + metric unit tests now run as part of every PR's CI.
-
-### New adapters
-
-- `QdrantAdapter` — vector + optional sparse-dense hybrid via Qdrant's Query API (`prefetch` + `{ fusion: "rrf" }`). Named-vector schema; sparse encoder slot.
-- `ChromaAdapter` — vector-only against Chroma's v2 REST API. Default tenant/database, bearer auth, paged `clear()`.
-- `SqliteVecAdapter` — vector-only against SQLite + sqlite-vec for local-first / edge / desktop use. Includes `SqliteVecAdapter.migrate()`.
-
-### Adapter improvements
-
-- `PineconeAdapter` gains optional `sparseEncoder` — when supplied, capabilities flip to include hybrid and the adapter overrides `searchHybrid` to use Pinecone's native sparse-dense Query API (no client-side RRF).
-- `PgVectorAdapter.migrate(client, opts)` — idempotent schema setup (extension + table + 3 indexes). Supports `vectorIndex: "ivfflat" | "hnsw"` and `ftsLanguage`.
-- `BM25SparseEncoder` — pluggable BM25-weighted `SparseEncoder` for any backend that accepts `{ indices, values }` sparse vectors (Pinecone, Qdrant, Vespa, OpenSearch).
-
-### Build + runtime
-
-- Dual ESM + CJS build via `tsup`. `require("@augur-rag/core")` now works from CJS consumers; the existing ESM path is unchanged.
-- Browser / edge bundle at `dist/browser/index.js`. `node:crypto` calls in `tracer.ts` and `contextual-chunker.ts` were refactored to Web Crypto so the bundle runs in browsers, Cloudflare Workers, Vercel Edge, Deno, and Bun.
-
-### Embedder / reranker
-
-- `LocalEmbedder` + `LocalReranker` gain an `onProgress` callback option that streams `@huggingface/transformers` download events. Replaces the silent ~5-10 second first-call wait with progress feedback when wired.
-- `MissingTransformersError` — typed error thrown when the optional peer dep isn't installed. Names the install command in the message.
-- `LocalReranker` reaches parity with `LocalEmbedder` on `dtype` + `device` constructor options. JSDoc on both classes now actively recommends `"fp16"` for production.
-
-### Docs / contributor experience
-
-- README hero now leads with the verb and pairs `npm install` with the hero snippet so first-run friction drops.
-- "How Augur compares" table contrasting LangChain.js retrievers, LlamaIndex.ts retrievers, and raw vector-DB SDKs.
-- CONTRIBUTING.md gains a 17-item good-first-issue list (adapters, bindings, chunkers, rerankers, observability bridges) plus a maintainer-only block with the `gh` CLI commands to enable Discussions and set repo topics.
-
-### Bug-fix nits
-
-- `InMemoryAdapter` docstring clarifies the IDF rebuild semantics (invalidate-on-write, rebuild on next read, average doc length recomputed eagerly).
-- Server CLI's dynamic `import("pg")` no longer carries an `as Promise<any>` cast.
-- `stripPunct` in `signals.ts` refactored to two anchored replaces (closes a `js/polynomial-redos` CodeQL pattern).
+- New adapters: `QdrantAdapter` (vector + sparse-dense hybrid via Qdrant's Query API), `ChromaAdapter`, `SqliteVecAdapter` (with `SqliteVecAdapter.migrate()` for local-first / edge / desktop).
+- `PineconeAdapter` gains an optional `sparseEncoder` slot — flips `capabilities.hybrid` to true and overrides `searchHybrid` to call Pinecone's native sparse-dense Query API.
+- `BM25SparseEncoder` — pluggable BM25-weighted `SparseEncoder` for any `{ indices, values }` backend.
+- `PgVectorAdapter.migrate(client, opts)` — idempotent schema setup; supports `vectorIndex: "ivfflat" | "hnsw"` and `ftsLanguage`.
+- Framework integrations under `@augur-rag/core/integrations/{langchain,llamaindex,vercel-ai}` — three small adapter functions that emit each framework's expected shape without taking a hard dep on the framework itself.
+- Dual ESM + CJS build via `tsup`, plus a browser / edge bundle at `dist/browser/index.js` (refactored `node:crypto` to Web Crypto).
+- `LocalEmbedder` + `LocalReranker`: new `onProgress` callback for HuggingFace download events; typed `MissingTransformersError` when the optional peer is missing; `LocalReranker` gains `dtype` + `device` parity with `LocalEmbedder` (recommend `"fp16"` in JSDoc).
+- Eval harness restored in-tree as `@augur-rag/evaluations` (private workspace package); metric unit tests now run in every PR's CI.
+- README: install line next to hero snippet; CONTRIBUTING gains a good-first-issue list and the `gh` commands for repo-side settings.
+- Bug nits: `InMemoryAdapter` IDF docstring corrected, `import("pg")` cast dropped from server CLI, `signals.ts` regexes bounded to close CodeQL `js/polynomial-redos` patterns.
 
 ## [0.1.1] - 2026-05-11
 

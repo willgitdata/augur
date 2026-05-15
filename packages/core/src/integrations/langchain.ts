@@ -1,5 +1,5 @@
 /**
- * `@augur-rag/langchain` — LangChain.js binding for Augur.
+ * `@augur-rag/core/integrations/langchain` — LangChain.js binding for Augur.
  *
  * The binding is intentionally minimal: a single function that runs an
  * Augur search and reshapes the results into LangChain's `Document`
@@ -12,7 +12,7 @@
  *
  * Usage:
  *
- *   import { searchAsLangchainDocs } from "@augur-rag/langchain";
+ *   import { searchAsLangchainDocs } from "@augur-rag/core/integrations/langchain";
  *   import { BaseRetriever } from "@langchain/core/retrievers";
  *
  *   class AugurRetriever extends BaseRetriever {
@@ -27,7 +27,7 @@
  *   const docs = await retriever.invoke("how do I X?");
  */
 
-import type { Augur } from "@augur-rag/core";
+import type { Augur } from "../index.js";
 
 /**
  * Mirrors `Document` from `@langchain/core/documents` without pulling

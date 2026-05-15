@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { Augur, SearchRequest, SearchResponse } from "@augur-rag/core";
-import { searchAsLangchainDocs } from "./index.js";
+import type { Augur, SearchRequest, SearchResponse } from "../index.js";
+import { searchAsLangchainDocs } from "./langchain.js";
 
 /**
  * Stub Augur — captures the SearchRequest and returns a canned

@@ -82,27 +82,20 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Catch the "tagged v0.1.2 but forgot to bump package.json" mistake
-      # before we hit npm. Tag-push releases only — workflow_dispatch
-      # skips this since there's no tag context.
+      # before we hit npm. Tag-push releases only.
       - name: Verify tag matches package versions
         if: github.ref_type == 'tag'
         run: |
           set -euo pipefail
           tag="${GITHUB_REF#refs/tags/v}"
-          declare -A versions
-          for pkg in core server langchain llamaindex vercel-ai; do
-            versions[$pkg]=$(node -p "require('./packages/$pkg/package.json').version")
-            echo "@augur-rag/$pkg: ${versions[$pkg]}"
-          done
-          echo "tag: $tag"
-          mismatch=0
-          for pkg in "${!versions[@]}"; do
-            if [[ "$tag" != "${versions[$pkg]}" ]]; then
-              echo "::error::Tag ($tag) doesn't match @augur-rag/$pkg version (${versions[$pkg]}). Bump it before tagging."
-              mismatch=1
+          for pkg in core server; do
+            ver=$(node -p "require('./packages/$pkg/package.json').version")
+            echo "@augur-rag/$pkg: $ver"
+            if [[ "$tag" != "$ver" ]]; then
+              echo "::error::Tag ($tag) doesn't match @augur-rag/$pkg version ($ver). Bump it before tagging."
+              exit 1
             fi
           done
-          if [[ "$mismatch" -ne 0 ]]; then exit 1; fi
 
       - name: Build
         run: pnpm -r --filter './packages/*' build
@@ -142,40 +135,6 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # Framework bindings — shipped from 0.2.0 onwards. Same provenance
-      # + --access public + --no-git-checks posture as the core packages.
-      # They're separate publish steps (not a single loop) so a failure
-      # in one is visible against the right package name in the run log.
-      - name: Publish @augur-rag/langchain
-        run: |
-          pnpm --filter @augur-rag/langchain publish \
-            --provenance \
-            --access public \
-            --no-git-checks \
-            ${{ inputs.dry_run && '--dry-run' || '' }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish @augur-rag/llamaindex
-        run: |
-          pnpm --filter @augur-rag/llamaindex publish \
-            --provenance \
-            --access public \
-            --no-git-checks \
-            ${{ inputs.dry_run && '--dry-run' || '' }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish @augur-rag/vercel-ai
-        run: |
-          pnpm --filter @augur-rag/vercel-ai publish \
-            --provenance \
-            --access public \
-            --no-git-checks \
-            ${{ inputs.dry_run && '--dry-run' || '' }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
       - name: Summary
         if: success() && !inputs.dry_run
         run: |
@@ -184,9 +143,6 @@ jobs:
             echo ""
             echo "- [@augur-rag/core](https://www.npmjs.com/package/@augur-rag/core)"
             echo "- [@augur-rag/server](https://www.npmjs.com/package/@augur-rag/server)"
-            echo "- [@augur-rag/langchain](https://www.npmjs.com/package/@augur-rag/langchain)"
-            echo "- [@augur-rag/llamaindex](https://www.npmjs.com/package/@augur-rag/llamaindex)"
-            echo "- [@augur-rag/vercel-ai](https://www.npmjs.com/package/@augur-rag/vercel-ai)"
             echo ""
             echo "Each tarball includes a provenance statement linking back to commit \`${GITHUB_SHA}\`."
           } >> "$GITHUB_STEP_SUMMARY"
