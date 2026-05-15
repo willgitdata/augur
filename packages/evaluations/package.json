@@ -1,0 +1,20 @@
+{
+  "name": "@augur-rag/evaluations",
+  "version": "0.0.0",
+  "description": "Eval harness, corpus, and labeled queries for Augur retrieval testing. Not published to npm — private workspace package.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "eval": "tsx cli.ts",
+    "test": "find . -maxdepth 2 -name '*.test.ts' -print0 | xargs -0 node --test --import tsx",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@augur-rag/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}
