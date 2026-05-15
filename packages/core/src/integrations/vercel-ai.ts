@@ -1,5 +1,5 @@
 /**
- * `@augur-rag/vercel-ai` — Vercel AI SDK binding for Augur.
+ * `@augur-rag/core/integrations/vercel-ai` — Vercel AI SDK binding for Augur.
  *
  * Vercel's AI SDK lets language models call tools you describe with
  * `tool({ description, parameters, execute })`. This binding returns
@@ -17,7 +17,7 @@
  *
  *   import { tool } from "ai";
  *   import { generateText } from "ai";
- *   import { augurToolDescriptor } from "@augur-rag/vercel-ai";
+ *   import { augurToolDescriptor } from "@augur-rag/core/integrations/vercel-ai";
  *
  *   const augurTool = tool(augurToolDescriptor(augur, { topK: 5 }));
  *
@@ -28,7 +28,7 @@
  *   });
  */
 
-import type { Augur } from "@augur-rag/core";
+import type { Augur } from "../index.js";
 
 export interface AugurToolDescriptorOptions {
   /**

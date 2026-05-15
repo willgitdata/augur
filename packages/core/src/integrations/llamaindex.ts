@@ -1,14 +1,14 @@
 /**
- * `@augur-rag/llamaindex` — LlamaIndex.ts binding for Augur.
+ * `@augur-rag/core/integrations/llamaindex` — LlamaIndex.ts binding for Augur.
  *
- * Same minimal pattern as `@augur-rag/langchain`: we don't subclass
+ * Same minimal pattern as the langchain subpath: we don't subclass
  * LlamaIndex's `BaseRetriever` directly because that would force a
  * hard dep on `llamaindex` and pin to a particular major. Instead we
  * publish the `NodeWithScore` shape and a 5-line subclass snippet.
  *
  * Usage:
  *
- *   import { searchAsLlamaIndexNodes } from "@augur-rag/llamaindex";
+ *   import { searchAsLlamaIndexNodes } from "@augur-rag/core/integrations/llamaindex";
  *   import { BaseRetriever, NodeWithScore } from "llamaindex";
  *
  *   class AugurRetriever extends BaseRetriever {
@@ -19,7 +19,7 @@
  *   }
  */
 
-import type { Augur } from "@augur-rag/core";
+import type { Augur } from "../index.js";
 
 /**
  * Mirrors LlamaIndex.ts's `NodeWithScore` shape without the dep. The

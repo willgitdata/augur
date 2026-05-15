@@ -56,6 +56,36 @@
         "types": "./dist/routing/index.d.cts",
         "default": "./dist/routing/index.cjs"
       }
+    },
+    "./integrations/langchain": {
+      "import": {
+        "types": "./dist/integrations/langchain.d.ts",
+        "default": "./dist/integrations/langchain.js"
+      },
+      "require": {
+        "types": "./dist/integrations/langchain.d.cts",
+        "default": "./dist/integrations/langchain.cjs"
+      }
+    },
+    "./integrations/llamaindex": {
+      "import": {
+        "types": "./dist/integrations/llamaindex.d.ts",
+        "default": "./dist/integrations/llamaindex.js"
+      },
+      "require": {
+        "types": "./dist/integrations/llamaindex.d.cts",
+        "default": "./dist/integrations/llamaindex.cjs"
+      }
+    },
+    "./integrations/vercel-ai": {
+      "import": {
+        "types": "./dist/integrations/vercel-ai.d.ts",
+        "default": "./dist/integrations/vercel-ai.js"
+      },
+      "require": {
+        "types": "./dist/integrations/vercel-ai.d.cts",
+        "default": "./dist/integrations/vercel-ai.cjs"
+      }
     }
   },
   "files": [

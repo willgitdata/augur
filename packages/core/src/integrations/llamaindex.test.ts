@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { Augur, SearchRequest, SearchResponse } from "@augur-rag/core";
-import { searchAsLlamaIndexNodes } from "./index.js";
+import type { Augur, SearchRequest, SearchResponse } from "../index.js";
+import { searchAsLlamaIndexNodes } from "./llamaindex.js";
 
 function stubAugur(response: SearchResponse): {
   augur: Augur;

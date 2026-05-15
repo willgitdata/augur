@@ -37,6 +37,9 @@ export default defineConfig([
       "adapters/index": "src/adapters/index.ts",
       "chunking/index": "src/chunking/index.ts",
       "routing/index": "src/routing/index.ts",
+      "integrations/langchain": "src/integrations/langchain.ts",
+      "integrations/llamaindex": "src/integrations/llamaindex.ts",
+      "integrations/vercel-ai": "src/integrations/vercel-ai.ts",
     },
     format: ["esm", "cjs"],
     dts: {
