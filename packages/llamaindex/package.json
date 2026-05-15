@@ -1,6 +1,6 @@
 {
   "name": "@augur-rag/llamaindex",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "LlamaIndex.ts binding for @augur-rag/core. Convert Augur search results into LlamaIndex NodeWithScore.",
   "license": "MIT",
   "type": "module",

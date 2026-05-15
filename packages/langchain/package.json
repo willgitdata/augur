@@ -1,6 +1,6 @@
 {
   "name": "@augur-rag/langchain",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "LangChain.js binding for @augur-rag/core. Convert Augur search results into LangChain-compatible Documents.",
   "license": "MIT",
   "type": "module",

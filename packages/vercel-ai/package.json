@@ -1,6 +1,6 @@
 {
   "name": "@augur-rag/vercel-ai",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Vercel AI SDK binding for @augur-rag/core. Wrap Augur as a tool a language model can call.",
   "license": "MIT",
   "type": "module",
