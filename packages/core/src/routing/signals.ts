@@ -123,7 +123,9 @@ export function computeSignals(query: string): QuerySignals {
     if (bare.includes("_") && /^[a-z][a-z0-9_]{1,64}$/i.test(bare)) return true;
     if (/[a-z]\.[a-z]/i.test(bare) && bare.length >= 5) return true; // dotted: rbac.authorization.k8s.io
     if (bare.includes("::")) return true;                    // C++/Rust scope
-    if (/[a-zA-Z_]\w*\(/.test(bare)) return true;            // function call: foo(
+    // function call: foo(. Anchor at start + bound the wildcard so
+    // CodeQL's polynomial-redos analysis sees a finite worst case.
+    if (bare.includes("(") && /^[a-zA-Z_]\w{0,128}\(/.test(bare)) return true;
     if (bare.includes("=") && /[a-zA-Z]/.test(bare) && bare.length >= 3) return true; // assignment: pool_mode=transaction
     return false;
   });
