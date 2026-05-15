@@ -3,6 +3,8 @@
   <img src="assets/augur-wordmark-light.svg" alt="Augur">
 </picture>
 
+###### Named after the ancient Roman augurs who interpreted signs to foresee the best path forward. To augur is to predict, and this package predicts the optimal retrieval method for your use case.
+
 Adaptive retrieval orchestration for RAG and semantic search in TypeScript. Augur sits on top of your vector DB (pgvector, Pinecone, Turbopuffer, or in-memory) and picks per query which strategy to run: vector, BM25 keyword, weighted hybrid, or vector-then-cross-encoder rerank. The routing decision and timings come back in every search response.
 
 ```ts
