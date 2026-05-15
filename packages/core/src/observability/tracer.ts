@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUuid } from "../internal/sha256.js";
 import type { SearchTrace, TraceSpan } from "../types.js";
 
 /**
@@ -56,7 +56,7 @@ export class Tracer {
     opts: Omit<SearchTrace, "id" | "query" | "startedAt" | "totalMs" | "spans">
   ): SearchTrace {
     return {
-      id: randomUUID(),
+      id: randomUuid(),
       query: this.query,
       startedAt: this.startedAt,
       totalMs: performance.now() - this.startMs,

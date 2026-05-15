@@ -4,24 +4,58 @@
   "description": "Adaptive retrieval orchestration for RAG and semantic search in TypeScript: per-query routing across vector / BM25 / hybrid + cross-encoder reranking, with full traces. Works with pgvector, Pinecone, Turbopuffer, or any custom adapter.",
   "license": "MIT",
   "type": "module",
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "browser": "./dist/browser/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "browser": {
+        "types": "./dist/browser/index.d.ts",
+        "default": "./dist/browser/index.js"
+      },
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./browser": {
+      "types": "./dist/browser/index.d.ts",
+      "import": "./dist/browser/index.js"
     },
     "./adapters": {
-      "types": "./dist/adapters/index.d.ts",
-      "import": "./dist/adapters/index.js"
+      "import": {
+        "types": "./dist/adapters/index.d.ts",
+        "default": "./dist/adapters/index.js"
+      },
+      "require": {
+        "types": "./dist/adapters/index.d.cts",
+        "default": "./dist/adapters/index.cjs"
+      }
     },
     "./chunking": {
-      "types": "./dist/chunking/index.d.ts",
-      "import": "./dist/chunking/index.js"
+      "import": {
+        "types": "./dist/chunking/index.d.ts",
+        "default": "./dist/chunking/index.js"
+      },
+      "require": {
+        "types": "./dist/chunking/index.d.cts",
+        "default": "./dist/chunking/index.cjs"
+      }
     },
     "./routing": {
-      "types": "./dist/routing/index.d.ts",
-      "import": "./dist/routing/index.js"
+      "import": {
+        "types": "./dist/routing/index.d.ts",
+        "default": "./dist/routing/index.js"
+      },
+      "require": {
+        "types": "./dist/routing/index.d.cts",
+        "default": "./dist/routing/index.cjs"
+      }
     }
   },
   "files": [
@@ -74,8 +108,8 @@
     "url": "https://github.com/willgitdata/augur/issues"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "dev": "tsc -p tsconfig.json --watch",
+    "build": "tsup",
+    "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "test": "find src -name '*.test.ts' -print0 | xargs -0 node --test --import tsx",
     "clean": "rm -rf dist tsconfig.tsbuildinfo",

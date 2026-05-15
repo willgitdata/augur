@@ -41,9 +41,17 @@ const NEGATION_TOKENS = new Set([
   "not", "no", "without", "except", "vs", "never", "neither", "nor",
 ]);
 
-/** Strip leading punctuation/quotes for case-detection on the original token. */
+/**
+ * Strip leading + trailing punctuation/quotes for case-detection on the
+ * original token. Two single-anchor passes (vs one alternation) so the
+ * regex engine never has to backtrack across the start/end choice —
+ * eliminates the `js/polynomial-redos` shape CodeQL flags on the
+ * combined alternation form.
+ */
 function stripPunct(token: string): string {
-  return token.replace(/^["'(\[`]+|["')\].,?!:`]+$/g, "");
+  return token
+    .replace(/^["'(\[`]+/, "")
+    .replace(/["')\].,?!:`]+$/, "");
 }
 
 /**
