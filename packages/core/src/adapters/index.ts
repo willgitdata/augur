@@ -12,7 +12,21 @@ export {
   type PineconeAdapterOptions,
 } from "./pinecone.js";
 export { TurbopufferAdapter } from "./turbopuffer.js";
-export { PgVectorAdapter, type PgClient } from "./pgvector.js";
+export {
+  PgVectorAdapter,
+  type PgClient,
+  type PgVectorMigrationOptions,
+} from "./pgvector.js";
+export {
+  ChromaAdapter,
+  type ChromaAdapterOptions,
+} from "./chroma.js";
+export {
+  SqliteVecAdapter,
+  type SqliteDb,
+  type SqliteStatement,
+  type SqliteVecAdapterOptions,
+} from "./sqlite-vec.js";
 export {
   type SparseVector,
   type SparseEncoder,

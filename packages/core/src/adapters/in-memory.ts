@@ -20,9 +20,14 @@ import {
  * - Vector search is brute-force cosine. Fine up to ~50k chunks; for more,
  *   plug in a real adapter.
  * - Keyword search is BM25 with standard parameters (k1, b configurable;
- *   defaults k1=1.5, b=0.75). We rebuild the IDF table lazily on insert.
- *   For high-write workloads this is a known bottleneck — swap in a real
- *   adapter at scale.
+ *   defaults k1=1.5, b=0.75). The IDF table is invalidated on every
+ *   `upsert` / `delete` call and rebuilt lazily on the next
+ *   `searchKeyword` (cost: O(unique terms in corpus)). The average doc
+ *   length is recomputed eagerly inside the write path itself
+ *   (cost: O(chunks in corpus)). For interleaved write-heavy / read-
+ *   heavy workloads this rebuild cost is the bottleneck — swap in a
+ *   real adapter (pgvector, Turbopuffer) when corpus size or write
+ *   rate makes this measurable.
  * - With `useStemming: true`, both indexing and query tokens go through
  *   Porter stemming + English stopword removal. This is the standard
  *   Lucene/Elasticsearch keyword pipeline and yields material recall
