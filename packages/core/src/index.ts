@@ -46,6 +46,8 @@ export {
   type SqliteDb,
   type SqliteStatement,
   type SqliteVecAdapterOptions,
+  QdrantAdapter,
+  type QdrantAdapterOptions,
   type SparseVector,
   type SparseEncoder,
   BM25SparseEncoder,

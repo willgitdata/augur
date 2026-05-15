@@ -28,6 +28,10 @@ export {
   type SqliteVecAdapterOptions,
 } from "./sqlite-vec.js";
 export {
+  QdrantAdapter,
+  type QdrantAdapterOptions,
+} from "./qdrant.js";
+export {
   type SparseVector,
   type SparseEncoder,
   BM25SparseEncoder,
