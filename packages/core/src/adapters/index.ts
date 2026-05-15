@@ -18,3 +18,9 @@ export {
   ChromaAdapter,
   type ChromaAdapterOptions,
 } from "./chroma.js";
+export {
+  SqliteVecAdapter,
+  type SqliteDb,
+  type SqliteStatement,
+  type SqliteVecAdapterOptions,
+} from "./sqlite-vec.js";

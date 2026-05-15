@@ -41,6 +41,10 @@ export {
   type PgVectorMigrationOptions,
   ChromaAdapter,
   type ChromaAdapterOptions,
+  SqliteVecAdapter,
+  type SqliteDb,
+  type SqliteStatement,
+  type SqliteVecAdapterOptions,
 } from "./adapters/index.js";
 
 // Chunking
