@@ -55,19 +55,34 @@ function parsePositiveInt(s: string | undefined): number | null {
 
 async function getRerankPipeline(
   model: string,
+  dtype: string | undefined,
+  device: string | undefined,
   onProgress: ProgressCallback | undefined
 ): Promise<unknown> {
-  const cached = pipelineCache.get(model);
+  // Cache key must include dtype + device so two configurations of the
+  // same model (e.g. fp32 indexer, fp16 query path) don't share a
+  // pipeline — they're separate ONNX sessions with different weights.
+  // onProgress is intentionally excluded — two callers with different
+  // callbacks share the warmed pipeline; the callback only fires
+  // during initial download.
+  const key = `${model}|${dtype ?? ""}|${device ?? ""}`;
+  const cached = pipelineCache.get(key);
   if (cached) return cached;
   const p = (async () => {
     const transformers = await loadTransformers();
+    const opts: {
+      dtype?: string;
+      device?: string;
+      progress_callback?: ProgressCallback;
+    } = {};
+    if (dtype) opts.dtype = dtype;
+    if (device) opts.device = device;
+    if (onProgress) opts.progress_callback = onProgress;
     // text-classification with a (text, text_pair) input runs the cross-encoder
     // and returns its logit/score for the pair.
-    const opts: { progress_callback?: ProgressCallback } = {};
-    if (onProgress) opts.progress_callback = onProgress;
     return transformers.pipeline("text-classification", model, opts);
   })();
-  pipelineCache.set(model, p);
+  pipelineCache.set(key, p);
   return p;
 }
 
@@ -76,6 +91,8 @@ export class LocalReranker implements Reranker {
   private model: string;
   private batchSize: number;
   private applySigmoid: boolean;
+  private dtype: string | undefined;
+  private device: string | undefined;
   private onProgress: ProgressCallback | undefined;
 
   constructor(opts: {
@@ -89,6 +106,19 @@ export class LocalReranker implements Reranker {
      */
     applySigmoid?: boolean;
     /**
+     * ONNX weight quantization. Default `undefined` lets
+     * `@huggingface/transformers` pick (typically fp32). Recommended:
+     * pass `"fp16"` — for the default `Xenova/ms-marco-MiniLM-L-6-v2`
+     * (and most Xenova-published cross-encoders) fp16 cuts model size
+     * and inference latency roughly 2× with near-zero quality loss.
+     * If your model doesn't publish an fp16 variant on HuggingFace,
+     * transformers.js will error at load time; fall back to `"fp32"`,
+     * `"q8"`, or `"q4"` in that case.
+     */
+    dtype?: "fp32" | "fp16" | "q8" | "q4";
+    /** Inference device — "wasm" (default), "cpu", or "webgpu" if available. */
+    device?: "wasm" | "webgpu" | "cpu";
+    /**
      * Called during the one-time model download (and any subsequent
      * cold-start) with `@huggingface/transformers` progress events. Lets
      * you surface a progress line so the first `rerank()` call doesn't
@@ -100,8 +130,11 @@ export class LocalReranker implements Reranker {
     this.model = opts.model ?? "Xenova/ms-marco-MiniLM-L-6-v2";
     this.batchSize = opts.batchSize ?? 16;
     this.applySigmoid = opts.applySigmoid ?? true;
+    this.dtype = opts.dtype;
+    this.device = opts.device;
     this.onProgress = opts.onProgress;
-    this.name = `local-reranker:${this.model}`;
+    const tag = [this.dtype, this.device].filter(Boolean).join(",");
+    this.name = `local-reranker:${this.model}${tag ? `(${tag})` : ""}`;
   }
 
   async rerank(
@@ -111,7 +144,12 @@ export class LocalReranker implements Reranker {
   ): Promise<SearchResult[]> {
     if (results.length === 0) return [];
 
-    const pipe = (await getRerankPipeline(this.model, this.onProgress)) as (
+    const pipe = (await getRerankPipeline(
+      this.model,
+      this.dtype,
+      this.device,
+      this.onProgress
+    )) as (
       input: Array<{ text: string; text_pair: string }>,
       opts: { topk: number; function_to_apply: "none" | "sigmoid" | "softmax" }
     ) => Promise<Array<{ label: string; score: number }>>;

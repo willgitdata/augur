@@ -115,13 +115,19 @@ export class LocalEmbedder implements Embedder {
     /** Texts per pipeline call. Larger = better GPU/CPU utilization. */
     batchSize?: number;
     /**
-     * ONNX weight quantization. "fp32" is the canonical/published config
-     * (highest quality, biggest model, slowest). "fp16" cuts size and
-     * latency ~2× with near-zero quality loss. "q8" / "q4" trade accuracy
-     * for ~3-4× speedup — useful for indexing large corpora when the
-     * absolute quality ceiling matters less than throughput. Whether a
-     * given model has the variant available is a publish-time choice by
-     * the model author; transformers.js downloads the matching ONNX file.
+     * ONNX weight quantization. Default `undefined` lets
+     * `@huggingface/transformers` pick (typically fp32).
+     *
+     * **Recommended: `"fp16"`** for production. On the default
+     * `Xenova/all-MiniLM-L6-v2` (and most Xenova-published bi-encoders)
+     * fp16 cuts model size and inference latency roughly 2× with near-
+     * zero quality loss. `"q8"` / `"q4"` go further — 3-4× speedup at a
+     * measurable accuracy cost; useful for indexing large corpora where
+     * throughput matters more than the absolute quality ceiling.
+     *
+     * Failure mode: if your model doesn't publish the requested variant
+     * on HuggingFace, transformers.js errors at load time. Fall back to
+     * the next-coarser quantization (or `"fp32"` for safety).
      */
     dtype?: "fp32" | "fp16" | "q8" | "q4";
     /** "wasm" (default), "webgpu" if available. Most setups stay on wasm. */
